@@ -134,6 +134,7 @@
     <button data-view="1" aria-pressed="false">STRAND</button>
     <button data-view="2" aria-pressed="false">REEF</button>
     <button data-view="falls" aria-pressed="false">FALLS</button>
+    <button data-view="stream" aria-pressed="false">STREAM</button>
     <button data-view="grove" aria-pressed="false">GROVE</button>
     <button data-view="lava" aria-pressed="false">LAVA</button>
     <button data-view="vent" aria-pressed="false">VENT</button>
@@ -193,8 +194,8 @@ layout(location=0)in vec2 p;out vec2 uv;void main(){uv=p*.5+.5;gl_Position=vec4(
     const skyF = `#version 300 es
 precision highp float;
 in vec2 uv; out vec4 o;
-uniform float t, aspect, tanHalfFov, stormBlend, lightning;
-uniform vec3 eye, forward, right, up;
+uniform float t, aspect, tanHalfFov, stormBlend, lightning, boltJitter;
+uniform vec3 eye, forward, right, up, boltDir;
 uniform sampler2D bathy;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
@@ -204,7 +205,7 @@ float field(vec2 p){return fb(p+1.5*vec2(fb(p*.55+8.),fb(p*.55-12.)));}
 // while camera translation introduces finite-altitude parallax.
 vec2 cloudCoord(vec3 d){float h=max(.065,d.y+.065);vec2 p=(eye.xz-vec2(101.,-40.)+d.xz*(170./h))*.014117647;vec2 wind=vec2(.87,.49);return p-wind*t*.018+vec2(fb(p*.48+vec2(t*.002,-t*.001)),fb(p*.48+vec2(9.-t*.0015,4.)))*.055;}
 
-vec3 sky(vec3 d){vec3 sun=normalize(vec3(-.64,.48,.55));float hi=max(d.y,0.);vec3 c=mix(vec3(.70,.83,.87),vec3(.10,.34,.61),pow(hi,.55));vec2 p=cloudCoord(d);float den=smoothstep(.55,.72,field(p)+.07*fb(p*2.7));float light=clamp(.52+3.8*(field(p)-field(p+.18*sun.xz)),.15,1.);vec3 cloud=mix(vec3(.55,.64,.70),vec3(.99,.98,.91),light);c=mix(c,cloud,den*.74);float veil=smoothstep(.63,.82,fb(p*.27-vec2(.87,.49)*t*.002+7.));c=mix(c,vec3(.83,.88,.90),veil*.12);float shelf=smoothstep(-.10,.24,d.y)*(1.-smoothstep(.18,.62,d.y))*(.58+.42*fb(p*.55-vec2(t*.018,0.)));vec3 stormCloud=mix(vec3(.045,.070,.10),vec3(.15,.21,.27),fb(p*.72));c=mix(c,stormCloud,max(shelf,den*.54)*stormBlend);float shaft=smoothstep(.16,.72,fb(p*.65+vec2(t*.035,-t*.01)))*smoothstep(.02,.42,d.y)*(1.-smoothstep(.12,.48,d.y));c=mix(c,vec3(.16,.24,.29),shaft*stormBlend*.62);float disk=pow(max(dot(d,sun),0.),700.);c+=vec3(1.,.79,.48)*(disk*5.+pow(max(dot(d,sun),0.),18.)*.18)*(1.-stormBlend*.86);c+=vec3(.68,.78,1.)*lightning*(.35+.65*max(d.y,0.));vec3 horizon=mix(vec3(.60,.76,.81),vec3(.22,.29,.35),stormBlend);return mix(horizon,c,smoothstep(.012,.105,max(d.y,0.)));}
+float skyBolt(vec3 d){float facing=dot(d,boltDir);if(facing<.78||d.y<.028)return 0.;vec3 side=normalize(cross(vec3(0.,1.,0.),boltDir)),vertical=normalize(cross(boltDir,side));float u=dot(d,side)/facing,v=dot(d,vertical)/facing,span=smoothstep(-.11,-.075,v)*(1.-smoothstep(.285,.40,v)),zig=.010*sin((v+.08)*(71.+31.*boltJitter)+boltJitter*17.)+.005*sin((v+.08)*(173.+43.*boltJitter)+boltJitter*31.),taper=.35+.65*smoothstep(-.10,.07,v),trunk=(1.-smoothstep(.0011,.0062*taper,abs(u-zig)))*span;float forkSpan=smoothstep(.085,.105,v)*(1.-smoothstep(.205,.225,v)),fork=zig+.30*(v-.105)*(1.+.35*boltJitter),branch=(1.-smoothstep(.0010,.0042*taper,abs(u-fork)))*forkSpan;return max(trunk,branch*.58);}float skyGlow(vec3 d){float facing=dot(d,boltDir);if(facing<.78)return 0.;vec3 side=normalize(cross(vec3(0.,1.,0.),boltDir)),vertical=normalize(cross(boltDir,side));vec2 q=vec2(dot(d,side),dot(d,vertical)-.20*facing)/facing;return 1.-smoothstep(.035,.21,length(q));}vec3 sky(vec3 d){vec3 sun=normalize(vec3(-.64,.48,.55));float hi=max(d.y,0.);vec3 c=mix(vec3(.70,.83,.87),vec3(.10,.34,.61),pow(hi,.55));vec2 p=cloudCoord(d);float den=smoothstep(.55,.72,field(p)+.07*fb(p*2.7));float light=clamp(.52+3.8*(field(p)-field(p+.18*sun.xz)),.15,1.);vec3 cloud=mix(vec3(.55,.64,.70),vec3(.99,.98,.91),light);c=mix(c,cloud,den*.74);float veil=smoothstep(.63,.82,fb(p*.27-vec2(.87,.49)*t*.002+7.));c=mix(c,vec3(.83,.88,.90),veil*.12);float shelf=smoothstep(-.10,.24,d.y)*(1.-smoothstep(.18,.62,d.y))*(.58+.42*fb(p*.55-vec2(t*.018,0.)));vec3 stormCloud=mix(vec3(.045,.070,.10),vec3(.15,.21,.27),fb(p*.72));c=mix(c,stormCloud,max(shelf,den*.54)*stormBlend);float shaft=smoothstep(.16,.72,fb(p*.65+vec2(t*.035,-t*.01)))*smoothstep(.02,.42,d.y)*(1.-smoothstep(.12,.48,d.y));c=mix(c,vec3(.16,.24,.29),shaft*stormBlend*.62);float disk=pow(max(dot(d,sun),0.),700.);c+=vec3(1.,.79,.48)*(disk*5.+pow(max(dot(d,sun),0.),18.)*.18)*(1.-stormBlend*.86);float bolt=0.,glow=0.;if(lightning>.001){bolt=skyBolt(d)*lightning;glow=skyGlow(d)*lightning;}c+=vec3(.20,.32,.48)*glow*.48+vec3(.78,.89,1.)*bolt*2.4;vec3 horizon=mix(vec3(.60,.76,.81),vec3(.22,.29,.35),stormBlend);return mix(horizon,c,smoothstep(.012,.105,max(d.y,0.)));}
 ${distantSeaGLSL}
 void main(){vec2 screen=uv*2.-1.;vec3 ray=normalize(forward+right*screen.x*aspect*tanHalfFov+up*screen.y*tanHalfFov);if(ray.y>=0.){o=vec4(sky(ray),1.);return;}o=vec4(farSea(ray),1.);}`;
     // One shoreline field drives water, wet sand, mark removal and the CPU
@@ -235,7 +236,7 @@ float edgeFade(vec2 p){return 1.-smoothstep(.78,.99,max(abs(p.x)/600.,abs(p.y)/4
     // post-processing remains in the render path.
     const waterF = `#version 300 es
 precision highp float;
-in vec3 world,N;in float crest,reef;uniform vec3 eye;uniform vec2 stormStrike;uniform float t,lightning;uniform sampler2D ground,bathy,reefMap;out vec4 o;${windGLSL}${shoreGLSL}${reefGLSL}
+in vec3 world,N;in float crest,reef;uniform vec3 eye;uniform float t;uniform sampler2D ground,bathy,reefMap;out vec4 o;${windGLSL}${shoreGLSL}${reefGLSL}
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}float fb(vec2 p){return n(p)+.5*n(p*2.02)+.25*n(p*4.1);}vec2 reefHash2(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}vec3 reefSurface(vec2 p,float m){if(m<.39)return vec3(0.);vec2 q=p*9.4,i=floor(q),f=fract(q),delta=vec2(9.);float nearest=9.;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(float(x),float(y)),o=.18+.64*reefHash2(i+g),v=g+o-f;float d=length(v);if(d<nearest){nearest=d;delta=v;}}float u=clamp((nearest-.20)/.36,0.,1.),bud=1.-u*u*(3.-2.*u),db=-6.*u*(1.-u)/.36,maze=pow(max(0.,sin(p.x*13.7+.8*sin(p.y*6.1))*sin(p.y*11.9-.6*sin(p.x*7.7))),2.8),family=smoothstep(.64,.77,m),shape=mix(bud,max(bud*.48,maze),family),foot=smoothstep(.032,.115,max(length(dFdx(p)),length(dFdy(p))));vec2 grad=db*9.4*delta/max(nearest,.001)*(1.-family*.58);return vec3(shape*(1.-foot),grad*(1.-foot));}float field(vec2 p){return fb(p+1.5*vec2(fb(p*.55+8.),fb(p*.55-12.)));}vec2 cloudCoord(vec3 d){float hh=max(.065,d.y+.065);vec2 p=(eye.xz-vec2(101.,-40.)+d.xz*(170./hh))*.014117647;return p-vec2(.87,.49)*t*.018+vec2(fb(p*.48+vec2(t*.002,-t*.001)),fb(p*.48+vec2(9.-t*.0015,4.)))*.055;}vec3 reflectSky(vec3 d){float hi=max(d.y,0.);vec3 c=mix(vec3(.60,.76,.81),vec3(.10,.34,.61),pow(hi,.55));vec2 p=cloudCoord(d);float den=smoothstep(.55,.72,field(p)+.07*fb(p*2.7));float light=clamp(.52+3.8*(field(p)-field(p+vec2(-.115,.099))),.15,1.);return mix(c,mix(vec3(.55,.64,.70),vec3(.99,.98,.91),light),den*.74);}${distantSeaGLSL}
 void main(){
   vec2 map=world.xz/vec2(300.,200.)+.5;
@@ -326,7 +327,7 @@ void main(){
   c+=vec3(1.,.84,.52)*pow(max(dot(reflect(-sun,NN),V),0.),180.);
   c=mix(c,vec3(.96,.985,.91),foam);
   c=mix(c,farSea(-V),smoothstep(210.,470.,length(world.xz)));
-  float flash=lightning*(.16+.84*exp(-length(world.xz-stormStrike)/105.));c=mix(c,c*vec3(.48,.60,.69),stormBlend*.68)+vec3(.70,.80,1.)*flash*(.24+.76*fres);o=vec4(c,mix(.95,smoothstep(.045,.18,closeDepth),shoreBand(si.x)));
+  c=mix(c,c*vec3(.48,.60,.69),stormBlend*.68);o=vec4(c,mix(.95,smoothstep(.045,.18,closeDepth),shoreBand(si.x)));
 }`;
     const meshV = `#version 300 es
 precision highp float;
@@ -401,8 +402,8 @@ if(landPass){
 if(leafFlag>.5){float aa=max(fwidth(leafCoord.x)*1.7,.025),rib=1.-smoothstep(.025,.025+aa,abs(leafCoord.x));float curve=abs(abs(leafCoord.x)-(.18+.66*leafCoord.y));float vein=(1.-smoothstep(.026,.026+aa,curve))*(.35+.65*sin(leafCoord.y*37.+leafCoord.x*4.)*.5+.5);float underside=(gl_FrontFacing?0.:1.)*(.45+.55*smoothstep(.20,.88,leafCoord.y));base=mix(base,base*vec3(1.08,1.055,.88)+vec3(.006,.009,.002),rib*.20);base=mix(base,base*vec3(.98,1.01,.91),vein*.045);base=mix(base,base*vec3(1.03,1.055,.91),underside*.08);}
  if(palmMat>.5){vec3 radial=normalize(N-vec3(0,1,0)*N.y),tangent=normalize(cross(vec3(0,1,0),radial));float ang=atan(radial.z,radial.x),ax=world.y,grain=fb(vec2(ang*19.3,ax*14.7)),phase=ax*5.65+.19*sin(ax*2.17+ang*3.1)+.08*grain,band=abs(fract(phase)-.5),scar=1.-smoothstep(.030,.072,band),lip=smoothstep(.070,.125,band)*(1.-smoothstep(.125,.19,band)),age=.32+.68*smoothstep(4.,11.,ax);vec3 palm=mix(vec3(.20,.17,.115),vec3(.46,.40,.27),.34+.26*grain+.13*age);palm=mix(palm,vec3(.14,.105,.062),scar*(.52+.22*age));palm+=vec3(.075,.060,.036)*lip;N=normalize(N+radial*(lip*.18-scar*.10)+tangent*(grain-.5)*.08);base=palm;}
  if(woodFlag>.5){vec3 A=normalize(barkA),radial=normalize(barkN-A*dot(barkN,A)),ref=normalize(abs(A.y)<.88?cross(A,vec3(0,1,0)):cross(A,vec3(1,0,0))),side=cross(A,ref);float axial=dot(barkP,A),around=atan(dot(radial,side),dot(radial,ref));vec2 buv=vec2(around*.318309886,axial*1.90);vec3 bt=texture(barkField,buv).rgb;float relief=(1.-twigFlag)*(.16+.16*treeTone),tone=.72+.38*treeTone,faceGrain=fb(vec2(around*31.7,axial*27.3)+treeTone*7.)-.5;vec3 bark=mix(vec3(.235,.215,.18),vec3(.39,.35,.28),bt.r*tone+.20*faceGrain);bark=mix(bark,vec3(.135,.118,.090),smoothstep(.10,.28,1.-bt.r)*(.40-.20*twigFlag));bark+=vec3(.046,.038,.025)*smoothstep(.54,.79,bt.r)*(.40+.60*treeTone);vec3 Aw=normalize(barkWorldA),radialW=normalize(N-Aw*dot(N,Aw)),circW=normalize(cross(Aw,radialW));vec2 grad=bt.gb*2.-1.;N=normalize(N-(Aw*grad.y+circW*grad.x)*relief);float graze=pow(max(dot(normalize(eye-world),radialW),0.),5.);bark+=vec3(.030,.025,.017)*graze*smoothstep(.54,.80,bt.r);base=mix(base,bark,.88-.20*twigFlag);}
- if(treeTone>.001&&leafFlag<.5&&woodFlag<.5&&!landPass){float bark=.91+.09*sin(world.y*27.+world.x*4.1-world.z*2.7)+.045*n(world.xz*19.);base*=vec3(bark,bark*.94,bark*.83);}float stormHaze=stormBlend*smoothstep(58.,255.,length(world.xz-eye.xz));base=mix(base,vec3(.21,.29,.34)+vec3(.12,.16,.23)*lightning,stormHaze*.34);
-float direct=max(dot(N,normalize(sun)),0.),hemi=.34+.66*max(N.y,0.);vec2 cloudP=(world.xz-vec2(101.,-40.)+normalize(sun).xz*(170./normalize(sun).y))*.014117647-vec2(.87,.49)*time*.018;float cloudShade=smoothstep(.55,.72,weatherField(cloudP));direct*=mix(1.,.54,cloudShade);vec2 map=world.xz/vec2(300.,200.)+.5;float gust=.5+.5*sin(dot(world.xz,vec2(.035,.021))-time*.22+fb(world.xz*.09)*4.);vec2 drift=vec2(.87,.49)*(.0015+.0012*gust)*sin(time*.7+gust*3.);float canopy=texture(dappleMap,map+drift).r;float dapple=mix(.68,1.,canopy);float contact=texture(contactMap,map).r;float leafMaterial=(landPass?0.:1.)*smoothstep(.055,.15,albedo.g-albedo.r),instancedLeaf=leafFlag;vec3 treePalette=mix(vec3(1.),vec3(.95,1.045,.84),treeTone);base=mix(base,base*treePalette,instancedLeaf);float back=max(dot(-N,normalize(sun)),0.)*leafMaterial;vec3 lit=base*(.15+.38*hemi+.58*direct)*mix(1.,mix(.57,1.,contact),landPass?1.:0.)*sunShadow(.00025+.00065*(1.-max(N.y,0.)))*mix(1.,dapple,landPass?1.:0.);float leafSky=instancedLeaf*(.10+.13*hemi);float leafGloss=instancedLeaf*pow(max(dot(reflect(-normalize(sun),N),normalize(eye-world)),0.),18.);lit+=base*leafSky+vec3(.18,.25,.075)*leafGloss;lit+=base*vec3(.20,.62,.18)*back*.52;lit+=vec3(1.45,.27+.13*lavaGlow,.013)*lavaGlow;lit=mix(lit,lit*vec3(.53,.62,.70),stormBlend*.82)+vec3(.72,.82,1.)*lightning*.16;o=vec4(pow(max(lit,0.),vec3(.64)),1);}`;
+ if(treeTone>.001&&leafFlag<.5&&woodFlag<.5&&!landPass){float bark=.91+.09*sin(world.y*27.+world.x*4.1-world.z*2.7)+.045*n(world.xz*19.);base*=vec3(bark,bark*.94,bark*.83);}float stormHaze=stormBlend*smoothstep(58.,255.,length(world.xz-eye.xz));base=mix(base,vec3(.21,.29,.34),stormHaze*.34);
+float direct=max(dot(N,normalize(sun)),0.),hemi=.34+.66*max(N.y,0.);vec2 cloudP=(world.xz-vec2(101.,-40.)+normalize(sun).xz*(170./normalize(sun).y))*.014117647-vec2(.87,.49)*time*.018;float cloudShade=smoothstep(.55,.72,weatherField(cloudP));direct*=mix(1.,.54,cloudShade);vec2 map=world.xz/vec2(300.,200.)+.5;float gust=.5+.5*sin(dot(world.xz,vec2(.035,.021))-time*.22+fb(world.xz*.09)*4.);vec2 drift=vec2(.87,.49)*(.0015+.0012*gust)*sin(time*.7+gust*3.);float canopy=texture(dappleMap,map+drift).r;float dapple=mix(.68,1.,canopy);float contact=texture(contactMap,map).r;float leafMaterial=(landPass?0.:1.)*smoothstep(.055,.15,albedo.g-albedo.r),instancedLeaf=leafFlag;vec3 treePalette=mix(vec3(1.),vec3(.95,1.045,.84),treeTone);base=mix(base,base*treePalette,instancedLeaf);float back=max(dot(-N,normalize(sun)),0.)*leafMaterial;vec3 lit=base*(.15+.38*hemi+.58*direct)*mix(1.,mix(.57,1.,contact),landPass?1.:0.)*sunShadow(.00025+.00065*(1.-max(N.y,0.)))*mix(1.,dapple,landPass?1.:0.);float leafSky=instancedLeaf*(.10+.13*hemi);float leafGloss=instancedLeaf*pow(max(dot(reflect(-normalize(sun),N),normalize(eye-world)),0.),18.);lit+=base*leafSky+vec3(.18,.25,.075)*leafGloss;lit+=base*vec3(.20,.62,.18)*back*.52;lit+=vec3(1.45,.27+.13*lavaGlow,.013)*lavaGlow;lit=mix(lit,lit*vec3(.53,.62,.70),stormBlend*.82);o=vec4(pow(max(lit,0.),vec3(.64)),1);}`;
     // Footprints are a dedicated ground pass.  This exact water function is
     // shared with waterV and the CPU walk state, so no print survives a crest.
     const markV = `#version 300 es
@@ -440,7 +441,7 @@ void main(){
   vec3 base=p;float phase=wind.y;farFade=instancedFar?crownFade:1.;
   if(instancedFar){float sn=sin(crownData.y),cs=cos(crownData.y);vec3 q=vec3(p.x*crownRoot.w,p.y*crownData.x,p.z*crownRoot.w);base=crownRoot.xyz+vec3(q.x*cs-q.z*sn,q.y,q.x*sn+q.z*cs);phase+=crownData.w;}
   float gust=gustPulse(base.xz,time);wp=base;wp.xz+=windDrive(base.xz,time,phase)*(.20+.30*gust)*wind.x*wind.x;wp.y+=sin(time*2.1+phase)*(.035+.06*gust)*wind.x;
-  windLight=(.92+.08*gust*wind.x)*mix(1.,.62,stormBlend)+.12*stormBlend+lightning*.13;vuv=instancedFar?vec2((crownData.z+uv.x)/16.,uv.y):uv;treeTone=instancedFar?fract(sin(crownData.w*91.719+17.13)*43758.5453):0.;float haze=stormBlend*smoothstep(48.,230.,length(wp.xz-eye.xz));col=mix(c,vec3(.24,.32,.37)+vec3(.16,.20,.29)*lightning,haze*.36);gl_Position=m*vec4(wp,1.);
+  windLight=(.92+.08*gust*wind.x)*mix(1.,.62,stormBlend)+.12*stormBlend;vuv=instancedFar?vec2((crownData.z+uv.x)/16.,uv.y):uv;treeTone=instancedFar?fract(sin(crownData.w*91.719+17.13)*43758.5453):0.;float haze=stormBlend*smoothstep(48.,230.,length(wp.xz-eye.xz));col=mix(c,vec3(.24,.32,.37),haze*.36);gl_Position=m*vec4(wp,1.);
 }`;
     const leafF = `#version 300 es
 precision highp float;in vec2 vuv;in vec3 col;in vec3 wp;in float windLight,treeTone,farFade;uniform sampler2D atlas;out vec4 o;void main(){vec4 a=texture(atlas,vuv);if(a.a<.32||fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>farFade)discard;float breakup=.92+.08*sin(wp.x*2.7+wp.z*1.9)*sin(wp.y*1.4);vec3 pseudo=normalize(vec3(sin(wp.z*1.7),.65+fract(wp.y*.17),cos(wp.x*1.3)));float sun=max(dot(pseudo,normalize(vec3(-.64,.48,.55))),0.);vec3 light=(vec3(.34,.48,.42)+vec3(1.0,.82,.46)*sun)*windLight;vec3 eco=mix(vec3(.72,.90,.80),vec3(1.08,.95,.62),clamp(.25+.4*wp.y/48.-.08*wp.x/120.,0.,1.));eco*=mix(vec3(.88,.95,.75),vec3(.98,1.04,.86),treeTone);vec2 uv=vec2(fract(vuv.x*16.)*2.-1.,1.-vuv.y*2.);
@@ -468,7 +469,7 @@ void main(){
     const grassF = `#version 300 es
 precision highp float;in vec3 world,N,col;in float fade;uniform vec3 sun,eye;uniform highp sampler2DShadow shadowMap,nearShadowMap;uniform mat4 lightM,nearLightM;uniform float stormBlend,lightning;out vec4 o;
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}float sh(highp sampler2DShadow sm,mat4 lm){vec4 q=lm*vec4(world,1.);q.xyz=q.xyz/q.w*.5+.5;if(q.x<.002||q.x>.998||q.y<.002||q.y>.998||q.z>1.)return 1.;return texture(sm,vec3(q.xy,q.z-.00055));}
-void main(){if(h(floor(world.xz*19.))>fade)discard;vec3 nn=normalize(N),L=normalize(sun);float direct=max(dot(nn,L),0.),hemi=.38+.62*max(nn.y,0.);float near=sh(nearShadowMap,nearLightM),far=sh(shadowMap,lightM),shadow=mix(far,near,1.-smoothstep(20.,27.,length(world.xz-eye.xz)));vec3 lit=col*(.19+.34*hemi+.48*direct*shadow);lit=mix(lit,lit*vec3(.50,.61,.69),stormBlend*.82)+vec3(.30,.39,.54)*lightning*.14;float haze=stormBlend*smoothstep(26.,45.,length(world.xz-eye.xz));lit=mix(lit,vec3(.20,.29,.34)+vec3(.10,.14,.22)*lightning,haze*.26);o=vec4(pow(max(lit,0.),vec3(.64)),1.);}`;
+void main(){if(h(floor(world.xz*19.))>fade)discard;vec3 nn=normalize(N),L=normalize(sun);float direct=max(dot(nn,L),0.),hemi=.38+.62*max(nn.y,0.);float near=sh(nearShadowMap,nearLightM),far=sh(shadowMap,lightM),shadow=mix(far,near,1.-smoothstep(20.,27.,length(world.xz-eye.xz)));vec3 lit=col*(.19+.34*hemi+.48*direct*shadow);lit=mix(lit,lit*vec3(.50,.61,.69),stormBlend*.82);float haze=stormBlend*smoothstep(26.,45.,length(world.xz-eye.xz));lit=mix(lit,vec3(.20,.29,.34),haze*.26);o=vec4(pow(max(lit,0.),vec3(.64)),1.);}`;
     const shadowV = `#version 300 es
 layout(location=0)in vec3 p;layout(location=3)in vec2 wind;layout(location=4)in vec4 treeRoot;layout(location=5)in vec4 treeData;uniform mat4 lightM;uniform float time;uniform bool instancedTree;${windGLSL}void main(){vec3 q=p;if(instancedTree){float sn=treeData.x,cs=treeData.y;vec3 a=p*treeRoot.w;q=treeRoot.xyz+vec3(a.x*cs-a.z*sn,a.y,a.x*sn+a.z*cs);}if(wind.x>0.){float g=gustPulse(q.xz,time),phase=instancedTree?treeData.z:wind.y;q.xz+=windDrive(q.xz,time,phase)*(instancedTree?(.055+.14*g):(.42+.40*g))*wind.x*wind.x;q.y+=sin(time*2.1+phase)*(instancedTree?.025:.095)*wind.x;}gl_Position=lightM*vec4(q,1.);}`;
     const shadowLeafV = `#version 300 es
@@ -476,11 +477,11 @@ layout(location=0)in vec3 p;layout(location=1)in vec2 uv;layout(location=3)in ve
     const shadowLeafF = `#version 300 es
 precision highp float;in vec2 vuv;uniform sampler2D atlas;void main(){if(texture(atlas,vuv).a<.35)discard;}`;
     const flowV = `#version 300 es
-precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec3 uv;uniform mat4 m;out vec3 v;out vec3 world;void main(){v=uv;world=p;gl_Position=m*vec4(p,1.);}`;
+precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec4 uv;uniform mat4 m;out vec4 v;out vec3 world;void main(){v=uv;world=p;gl_Position=m*vec4(p,1.);}`;
     const flowF = `#version 300 es
-precision highp float;in vec3 v;in vec3 world;uniform vec3 eye;uniform float t;uniform sampler2D fallDensity;out vec4 o;
+precision highp float;in vec4 v;in vec3 world;uniform vec3 eye;uniform float t;uniform sampler2D fallDensity;out vec4 o;${shoreGLSL}
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
-void main(){float edge=smoothstep(0.,.10,v.y)*(1.-smoothstep(.90,1.,v.y));float vein=n(vec2(v.x*8.-t*1.7,v.y*18.+t*.35));if(v.z<.5){float split=abs(fract(v.y*3.2+vein*1.8)-.5);float stream=(1.-smoothstep(.12,.38,split))*smoothstep(.22,.72,vein);float aer=smoothstep(.58,.88,n(vec2(v.x*17.-t*2.6,v.y*9.+t*.4)));vec3 c=mix(vec3(.05,.18,.18),vec3(.92,.98,.95),aer);o=vec4(c,edge*stream*(.20+.55*aer));}else if(v.z<1.5){float warp=n(vec2(v.x*.17+t*.012,v.y*3.));float plate=n(vec2(v.x*.38+warp*2.-t*.035,v.y*7.));float finger=abs(fract(v.y*3.7+warp*.8)-.5);float crack=(1.-smoothstep(.035,.17,finger))*smoothstep(.48,.82,n(vec2(v.x*.72-t*.11,v.y*12.+warp)));vec3 crust=mix(vec3(.045,.035,.028),vec3(.19,.16,.13),plate);vec3 fire=mix(vec3(.62,.025,.003),vec3(1.,.48,.035),n(vec2(v.x*3.2-t*.8,v.y*19.)));o=vec4(mix(crust,fire,crack),edge);}else if(v.z<2.5){vec2 uv=vec2(v.y,v.x);vec2 texel=vec2(1./128.,1./256.);float thick=texture(fallDensity,uv).r*.34;for(int j=1;j<6;j++){float jj=float(j);thick+=texture(fallDensity,uv-vec2(0.,jj*texel.y*1.65)).r*(.19-.021*jj);}thick+=(texture(fallDensity,uv+vec2(texel.x,0.)).r+texture(fallDensity,uv-vec2(texel.x,0.)).r)*.12;float bottom=smoothstep(.48,.98,uv.y);float aer=texture(fallDensity,uv).g*(.22+.78*bottom);float streak=.58+.42*n(vec2(v.x*23.-t*4.1,v.y*13.+t*.42));float density=smoothstep(.055,.36,thick);float support=smoothstep(.04,.18,uv.y)*(1.-smoothstep(.91,.995,uv.y))*smoothstep(.02,.15,.5-abs(v.y-.5))*(.42+.58*n(vec2(v.x*5.2-t*.42,v.y*19.+t*.15)));float waterAlpha=max(density*(.18+.34*streak+.19*aer),support*.23);vec3 sheet=mix(vec3(.035,.16,.19),vec3(.55,.78,.80),.34+.26*streak);vec3 c=mix(sheet,mix(vec3(.055,.19,.20),vec3(.82,.92,.90),clamp(density*.86+aer*.34,0.,1.)),smoothstep(.025,.23,thick));o=vec4(c,edge*waterAlpha);}else if(v.z<3.5){float depth=v.y;if(depth<.008)discard;vec2 impact=world.xz-vec2(-65.768,-47.768);float d=length(impact);
+void main(){if(v.z<.5&&v.w<.008)discard;float edge=smoothstep(0.,.10,v.y)*(1.-smoothstep(.90,1.,v.y));float vein=n(vec2(v.x*8.-t*1.7,v.y*18.+t*.35));if(v.z<.5){float center=1.-abs(v.y*2.-1.),riffle=.5+.5*sin(v.x*1.31),ripples=.5+.5*sin(v.x*7.3-t*4.2+vein*4.);float stones=n(vec2(v.x*.42,v.y*13.));float foam=smoothstep(.76,.93,stones)*smoothstep(.32,.88,riffle)*smoothstep(.10,.58,center);vec3 normal=normalize(vec3(.12*sin(v.x*5.7-t*3.1+vein*4.),1.,.10*sin(v.x*8.1-t*4.2+v.y*9.)));vec3 view=normalize(eye-world);float fres=.025+.42*pow(1.-max(0.,dot(normal,view)),3.);vec3 bed=mix(vec3(.28,.255,.18),vec3(.075,.22,.20),center*.58);vec3 reflected=vec3(.54,.67,.67);vec3 c=mix(bed,reflected,fres);c=mix(c,vec3(.80,.91,.87),foam*.58+.08*ripples*center);float mouth=smoothstep(-.08,.22,world.y);if(world.y<.38){float wave=surfWave(world.xz,t);mouth*=smoothstep(wave-.01,wave+.09,world.y);}float opacity=.48-.20*max(0.,view.y);float bankFade=smoothstep(.01,.20,v.w);o=vec4(c,edge*(opacity+.14*center+.14*foam)*mouth*bankFade);}else if(v.z<1.5){float warp=n(vec2(v.x*.17+t*.012,v.y*3.));float plate=n(vec2(v.x*.38+warp*2.-t*.035,v.y*7.));float finger=abs(fract(v.y*3.7+warp*.8)-.5);float crack=(1.-smoothstep(.035,.17,finger))*smoothstep(.48,.82,n(vec2(v.x*.72-t*.11,v.y*12.+warp)));vec3 crust=mix(vec3(.045,.035,.028),vec3(.19,.16,.13),plate);vec3 fire=mix(vec3(.62,.025,.003),vec3(1.,.48,.035),n(vec2(v.x*3.2-t*.8,v.y*19.)));o=vec4(mix(crust,fire,crack),edge);}else if(v.z<2.5){vec2 uv=vec2(v.y,v.x);vec2 texel=vec2(1./128.,1./256.);float thick=texture(fallDensity,uv).r*.34;for(int j=1;j<6;j++){float jj=float(j);thick+=texture(fallDensity,uv-vec2(0.,jj*texel.y*1.65)).r*(.19-.021*jj);}thick+=(texture(fallDensity,uv+vec2(texel.x,0.)).r+texture(fallDensity,uv-vec2(texel.x,0.)).r)*.12;float bottom=smoothstep(.48,.98,uv.y);float aer=texture(fallDensity,uv).g*(.22+.78*bottom);float streak=.58+.42*n(vec2(v.x*23.-t*4.1,v.y*13.+t*.42));float density=smoothstep(.055,.36,thick);float support=smoothstep(.04,.18,uv.y)*(1.-smoothstep(.91,.995,uv.y))*smoothstep(.02,.15,.5-abs(v.y-.5))*(.42+.58*n(vec2(v.x*5.2-t*.42,v.y*19.+t*.15)));float waterAlpha=max(density*(.18+.34*streak+.19*aer),support*.23);vec3 sheet=mix(vec3(.035,.16,.19),vec3(.55,.78,.80),.34+.26*streak);vec3 c=mix(sheet,mix(vec3(.055,.19,.20),vec3(.82,.92,.90),clamp(density*.86+aer*.34,0.,1.)),smoothstep(.025,.23,thick));o=vec4(c,edge*waterAlpha);}else if(v.z<3.5){float depth=v.y;if(depth<.008)discard;vec2 impact=world.xz-vec2(-65.004,-47.004);float d=length(impact);
 float fade=(1.-smoothstep(.77,1.,v.x))*smoothstep(.007,.18,depth),delta=.09*n(impact*3.+vec2(t*.15,-t*.05)),theta=19.*(d+delta)-t*4.8;
 float wave=cos(theta)*exp(-d*.97)*.09;vec2 dir=impact/max(d,.02);
 vec3 normal=normalize(vec3(dir.x*wave+.074*(n(impact*2.1+vec2(-t*.31,t*.14))-.5),1.,dir.y*wave+.09*(n(impact*2.41+vec2(t*.14,1.-t*.22))-.5)));
@@ -516,15 +517,11 @@ precision highp float;layout(location=0)in vec4 a;uniform mat4 m;uniform vec3 ey
 float ringHash(vec2 p){return fract(sin(dot(p,vec2(71.13,29.47)))*43758.5453);}void main(){vec2 span=vec2(58.,52.);float cycle=floor(time*2.18+a.z),age=fract(time*2.18+a.z);vec2 anchor=vec2(a.x*span.x,a.y*span.y)+vec2(ringHash(vec2(a.z,cycle)),ringHash(vec2(a.z+11.7,cycle)))*span;vec2 torus=mod(anchor-eye.xz+span*.5,span)-span*.5;vec2 center=eye.xz+torus;float grow=smoothstep(.015,.32,age)*(1.-smoothstep(.54,.92,age)),radius=(.035+.32*age)*grow;vec2 p=center+vec2(cos(a.w),sin(a.w))*radius;float floor=texture(ground,p/vec2(300.,200.)+.5).r*4.-2.,surface=surfWave(p,time);wet=step(floor+.035,surface)*grow*(1.-smoothstep(.74,.98,max(abs(torus.x)/(span.x*.5),abs(torus.y)/(span.y*.5))));gl_Position=m*vec4(p.x,surface+.012,p.y,1.);}`;
     const rainRingF = `#version 300 es
 precision highp float;in float wet;uniform float stormBlend;out vec4 o;void main(){if(wet<.004)discard;o=vec4(.72,.84,.88,.24*stormBlend*wet);}`;
-    const boltV = `#version 300 es
-precision highp float;layout(location=0)in vec3 p;uniform mat4 m;void main(){gl_Position=m*vec4(p,1.);}`;
-    const boltF = `#version 300 es
-precision highp float;uniform float lightning;out vec4 o;void main(){o=vec4(vec3(.72,.84,1.)*(1.15+lightning),lightning);}`;
     const fallAccumV = `#version 300 es
 layout(location=0)in vec3 p;out float a;void main(){gl_Position=vec4(p.xy*2.-1.,0.,1.);gl_PointSize=p.z;a=p.z;}`;
     const fallAccumF = `#version 300 es
 precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-1.;q.x*=1.95;q.y*=.58;float d=dot(q,q);float thread=.72+.28*sin(gl_PointCoord.y*18.+a*.31);float g=exp(-d*5.4)*thread;o=vec4(g,g*(.18+.58*gl_PointCoord.y),0.,g);}`;
-    let S, W, M, K, Q, G, F, PZ, FA, SD, SDL, RN, RR, BT;
+    let S, W, M, K, Q, G, F, PZ, FA, SD, SDL, RN, RR;
     try {
       S = program(skyV, skyF);
       W = program(waterV, waterF);
@@ -536,7 +533,6 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       PZ = program(spriteV, spriteF);
       RN = program(rainV, rainF);
       RR = program(rainRingV, rainRingF);
-      BT = program(boltV, boltF);
       FA = program(fallAccumV, fallAccumF);
       SD = program(shadowV, `#version 300 es\nprecision highp float;void main(){}`);
       SDL = program(shadowLeafV, shadowLeafF);
@@ -638,7 +634,38 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
         (r(a, b + 1) * (1 - u) + r(a + 1, b + 1) * u) * v
       );
     }
-    function H(x, z) {
+    // Deterministic headwater centreline. The same cells cut the terrain and
+    // drape the visible water, so the creek never turns into a grass ribbon.
+    // The spring, falls lip and sea mouth use one seeded centreline sampler.
+    // Sparse anchors steer the drainage while the small meander is generated.
+    function drainagePath(anchors,spacing,bend,seed){
+      const points=[anchors[0]];
+      for(let i=1;i<anchors.length;i++){
+        const a=anchors[i-1],b=anchors[i],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),steps=Math.max(1,Math.ceil(length/spacing));
+        for(let j=1;j<=steps;j++){
+          const f=j/steps,curve=bend*Math.sin(Math.PI*f)*Math.sin(seed+i*2.71+f*5.37+noise(a[0]*.21+i,a[1]*.19-seed)*6.283);
+          points.push([a[0]+dx*f-dz/length*curve,a[1]+dz*f+dx/length*curve]);
+        }
+      }
+      return points;
+    }
+    const WATERFALL_LIP = [-64-.7071*1.1,-46-.7071*1.1], WATERFALL_POOL = [-64-.7071*2.5,3.945,-46-.7071*2.5];
+    const streamNodes = drainagePath([[-40.5,-15.2],[-46.9,-24.9],[-54.3,-34.4],[-61.4,-43.4],WATERFALL_LIP],4.7,.34,17.3);
+    const streamLengths = (()=>{let a=[0];for(let i=1;i<streamNodes.length;i++)a.push(a[i-1]+Math.hypot(streamNodes[i][0]-streamNodes[i-1][0],streamNodes[i][1]-streamNodes[i-1][1]));return a;})();
+    const riverNodes = drainagePath([[WATERFALL_POOL[0],WATERFALL_POOL[2]],[-66.7,-56.0],[-67.0,-61.0],[-66.4,-66.0],[-65.8,-71.0],[-65.5,-75.5],[-65.4,-80.5]],4.4,.28,61.7);
+    const riverLengths = (()=>{let a=[0];for(let i=1;i<riverNodes.length;i++)a.push(a[i-1]+Math.hypot(riverNodes[i][0]-riverNodes[i-1][0],riverNodes[i][1]-riverNodes[i-1][1]));return a;})();
+    function sampleDrainage(nodes,lengths,x,z,bounds){
+      if(x<bounds[0]||x>bounds[1]||z<bounds[2]||z>bounds[3])return null;
+      let best=1e9,s=0,tx=0,tz=1;
+      for(let i=1;i<nodes.length;i++){
+        const a=nodes[i-1],b=nodes[i],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),q=Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/(length*length))),px=a[0]+dx*q,pz=a[1]+dz*q,d=Math.hypot(x-px,z-pz);
+        if(d<best){best=d;s=lengths[i-1]+length*q;tx=dx/length;tz=dz/length;}
+      }
+      return {d:best,s,q:s/lengths[lengths.length-1],tx,tz};
+    }
+    function streamSample(x,z){return sampleDrainage(streamNodes,streamLengths,x,z,[-69,-35,-52,-10]);}
+    function riverSample(x,z){return sampleDrainage(riverNodes,riverLengths,x,z,[-87,-61,-82,-43]);}
+    function baseHeight(x, z) {
       let wx = x + (noise(x * 0.018, z * 0.018) - 0.5) * 13,
         wz = z + (noise(x * 0.018 + 7, z * 0.018 - 4) - 0.5) * 11,
         coast = Math.max(-8, 10 * (1 - Math.hypot(x / 130, z / 84))),
@@ -676,10 +703,43 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
         (ridge * 8 + gully * 3 + (noise(wx * 0.38, wz * 0.38) - 0.5) * 1.5) *
           Math.max(0, 1 - Math.hypot(x / 142, z / 94))
       );
-      let rx=x+64,rz=z+46,s=-(rx+rz)*.7071,k=(rx-rz)*.7071,reach=Math.exp(-Math.pow(k/4.3,2))*Math.exp(-Math.pow((s-1.5)/8.5,2)),
-        bed=s<0?8.4-.12*s:s<1.5?8.4-3.72*s:s<6?2.8+.08*(s-1.5):2.8+.18*(s-6),
-        bank=Math.max(0,Math.abs(k)-1.7)*.58*Math.exp(-Math.pow((s-2)/7,2));
-      return base*(1-reach)+ (bed+bank)*reach;
+      return base;
+    }
+    function gradedLevels(nodes,lengths,endLevel,minFall){let levels=nodes.map(p=>Math.max(endLevel,baseHeight(p[0],p[1])-.22));levels[levels.length-1]=endLevel;for(let i=levels.length-2;i>=0;i--)levels[i]=Math.max(levels[i],levels[i+1]+(lengths[i+1]-lengths[i])*minFall);return levels;}
+    const streamLevels=gradedLevels(streamNodes,streamLengths,8.32,.10),riverLevels=riverNodes.map((p,i)=>3.945-4.70*riverLengths[i]/riverLengths[riverLengths.length-1]);
+    function levelAt(levels,lengths,s){let i=1;while(i<lengths.length&&lengths[i]<s)i++;let a=Math.max(0,i-1),span=Math.max(.001,lengths[i]-lengths[a]),f=Math.max(0,Math.min(1,(s-lengths[a])/span));return levels[a]*(1-f)+levels[i]*f;}
+    function channelLevel(x,z){const creek=streamSample(x,z);if(creek&&creek.d<1.45)return levelAt(streamLevels,streamLengths,creek.s);const river=riverSample(x,z);if(river&&river.d<2.7)return levelAt(riverLevels,riverLengths,river.s);return gridHeight(x,z)+.09;}
+    function H(x, z) {
+      let base=baseHeight(x,z);
+      const creek=streamSample(x,z);
+      let terrain=base;
+      if(creek){
+        const riffle=.025*Math.sin(creek.s*1.13)+.012*Math.sin(creek.s*3.7),
+          level=levelAt(streamLevels,streamLengths,creek.s),bed=level-.84-riffle,
+          channel=.72+.13*Math.sin(creek.s*.47)+.10*Math.sin(creek.s*1.31),
+          shoulder=channel+1.35;
+        let cut=Math.max(0,Math.min(1,(3.15-creek.d)/(3.15-channel)));
+        let bank=Math.max(0,Math.min(1,(creek.d-channel)/(shoulder-channel)));bank=bank*bank*(3-2*bank);
+        const bankBed=Math.max(base,level+.14+.16*bank),channelBed=bed*(1-bank)+bankBed*bank;
+        cut=cut*cut*(3-2*cut);terrain=base*(1-cut)+channelBed*cut;
+      }
+      const river=riverSample(x,z);
+      if(river){
+        const width=1.02+.63*river.q+.10*Math.sin(river.s*.39),level=levelAt(riverLevels,riverLengths,river.s),bed=level-.19,
+          shoulder=width+1.18+.32*river.q,edge=width+1.75+.32*river.q;
+        let cut=Math.max(0,Math.min(1,(edge-river.d)/(edge-width)));
+        cut=cut*cut*(3-2*cut);
+        let bank=Math.max(0,Math.min(1,(river.d-width)/(shoulder-width)));bank=bank*bank*(3-2*bank);
+        const bankBed=Math.max(base,level+.10+.14*bank),channelBed=bed*(1-bank)+bankBed*bank;
+        terrain=terrain*(1-cut)+channelBed*cut;
+      }
+      // The last metre turns over a compact rock lip into a real receiver.
+      // This shares the fall sheet's diagonal and gives the pool an actual bed.
+      const fx=x-WATERFALL_LIP[0],fz=z-WATERFALL_LIP[1],fallS=-(fx+fz)*.7071,fallK=(fx-fz)*.7071,
+        fallGate=Math.max(0,Math.min(1,(fallS+.78)/.65))*Math.max(0,Math.min(1,(2.85-fallS)/.72)),
+        fallCut=fallGate*Math.exp(-Math.pow(fallK/3.0,2)),
+        fallBed=fallS<1.25?8.10:2.96+.10*Math.max(0,fallS-2.5);
+      return terrain*(1-fallCut)+fallBed*fallCut;
     }
     const bathy = gl.createTexture(),
       bathyPixels = new Uint8Array(256 * 256);
@@ -938,6 +998,10 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
                     0.26 + 0.17 * g + 0.045 * noise(a * 0.11 + 8, b * 0.11),
                     0.055 + 0.065 * g,
                   ];
+        const naturalC=c.slice(),creek=streamSample(a,b),river=riverSample(a,b),water=creek?levelAt(streamLevels,streamLengths,creek.s):river?levelAt(riverLevels,riverLengths,river.s):0,
+          width=creek?(.72+.13*Math.sin(creek.s*.47)+.10*Math.sin(creek.s*1.31)):river?(1.02+.63*river.q+.10*Math.sin(river.s*.39)):0,
+          distance=creek?creek.d:river?river.d:99,wetBank=(creek||river)&&distance<width+1.55&&y<water+.72;
+        if(wetBank){const wet=Math.max(0,Math.min(1,(distance-width+.22)/1.45)),gravel=.62+.24*noise(a*3.7,b*3.7),wetGravel=[.16*gravel+.035*wet,.145*gravel+.030*wet,.105*gravel+.025*wet],sandMix=river?Math.min(.75,.08+.67*river.q):0;c=wetGravel.map((v,i)=>v*(1-sandMix)+naturalC[i]*sandMix);}
         P.push(a, y, b);
         N.push(...q);
         C.push(...c);
@@ -1334,6 +1398,13 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       if(s.d<-.65||s.d>1.15||n[1]<.73||Math.hypot(x+74,z+65)<11)continue;
       const r=.18+.20*noise(i,17);boulder(x,z,y,r,r*(.45+.25*noise(i,19)),r*(.72+.30*noise(i,23)),-.05);stoneRoots.push([x,z,r+.13]);intertidalOutcrops++;
     }
+    // Small neutral basalt cobbles break the water/terrain seam.  They use
+    // the same deterministic drainage samples as the channel itself.
+    let riverBankCobbles=0;
+    for(const route of [streamNodes,riverNodes])for(let i=1;i<route.length;i++){
+      const a=route[i-1],b=route[i],dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz),steps=Math.max(1,Math.floor(len/2.3));
+      for(let j=0;j<steps;j++){const seed=i*71.3+j*13.7;if(noise(seed,29)>.64)continue;const side=noise(seed,43)>.5?1:-1,q=(j+.18+.64*noise(seed,7))/steps,tx=a[0]+dx*q,tz=a[1]+dz*q,spread=.98+.72*noise(seed,19),x=tx-dz/len*side*spread,z=tz+dx/len*side*spread,y=gridHeight(x,z),r=.10+.31*Math.pow(noise(seed,53),2);if(y<-.35||normal(x,z)[1]<.58)continue;boulder(x,z,y,r,r*(.30+.34*noise(seed,61)),r*(.55+.48*noise(seed,67)),-.075);stoneRoots.push([x,z,r+.09]);riverBankCobbles++;if(noise(seed,73)>.76){const sx=x+dx/len*(.20+.42*noise(seed,79)),sz=z+dz/len*(.20+.42*noise(seed,83)),sr=r*(.38+.30*noise(seed,89));boulder(sx,sz,gridHeight(sx,sz),sr,sr*.46,sr*.8,-.09);stoneRoots.push([sx,sz,sr+.07]);riverBankCobbles++;}}
+    }
     // The G/B channels are a separate, directional water lee receiver.  It
     // is built only after every exposed stone root exists, then uploaded into
     // the already-created gust/shelter texture; R remains gust shelter.
@@ -1407,7 +1478,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     }
     // The route is computed above from the triangulated terrain.  These draped
     // meshes keep the magma physically continuous from its fissure to the sea.
-    const fallsPath = [[-42,-14],[-48,-30],[-56,-38],[-64,-46],[-66,-48],[-69,-51],[-72,-54]].map(([x,z])=>[x,gridHeight(x,z)+.10,z]);
+    const fallsPath = streamNodes.map(([x,z])=>[x,gridHeight(x,z)+.095,z]),riverPath=riverNodes.map(([x,z])=>[x,gridHeight(x,z)+.09,z]);
     function lavaWidth(q) {
       const qy = Math.max(0, Math.min(1, (q.y - 2.5) / 10.5)), shore = 1 - qy*qy*(3-2*qy);
       return .48 + .12 * Math.sin(q.s * .43) + shore * (1.15 + .28 * Math.sin(q.s * .77));
@@ -1458,16 +1529,34 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     // Waterfall-only flow mesh. Lava is now entirely in the draped opaque
     // route meshes above, so no fixed glow strips survive this replacement.
     let flowP=[],flowUV=[],flowI=[];
-    function flowVertex(p,u,v,id){flowP.push(...p);flowUV.push(u,v,id);return flowP.length/3-1;}
-    function flowStrip(path,width,id){let last=[],distance=0;for(let s=0;s<path.length-1;s++){let a=path[s],b=path[s+1],dx=b[0]-a[0],dz=b[2]-a[2],len=Math.hypot(dx,dz),count=Math.max(2,Math.ceil(len/.42));for(let k=0;k<=count;k++){if(s&&k===0)continue;let f=k/count,x=a[0]*(1-f)+b[0]*f,z=a[2]*(1-f)+b[2]*f,y=gridHeight(x,z)+.13,w=width*(.76+.18*Math.sin((distance+len*f)*.43));let sx=-dz/len*w,sz=dx/len*w,row=[flowVertex([x+sx,y,z+sz],distance+len*f,0,id),flowVertex([x-sx,y,z-sz],distance+len*f,1,id)];if(last.length){flowI.push(last[0],row[0],last[1],last[1],row[0],row[1]);}last=row;}distance+=len;}}
-    flowStrip(fallsPath.slice(0,4),.82,0);
+    function flowVertex(p,u,v,id,depth=1){flowP.push(...p);flowUV.push(u,v,id,depth);return flowP.length/3-1;}
+    function flowStrip(path,levels,lengths,width,id,mouth=0){
+      let last=[],distance=0,total=lengths[lengths.length-1];
+      for(let segment=0;segment<path.length-1;segment++){
+        const a=path[segment],b=path[segment+1],dx=b[0]-a[0],dz=b[2]-a[2],len=Math.hypot(dx,dz),count=Math.max(2,Math.ceil(len/.38));
+        for(let k=0;k<=count;k++){
+          if(segment&&k===0)continue;
+          const f=k/count,x=a[0]*(1-f)+b[0]*f,z=a[2]*(1-f)+b[2]*f,u=distance+len*f,
+            ripples=Math.sin(Math.PI*u/total)*(.025*Math.sin(u*1.31)+.010*Math.sin(u*3.7)),
+            w=width*(.82+.13*Math.sin(u*.47)+.08*Math.sin(u*1.31))*(1+mouth*Math.min(1,u/34)),
+            sx=-dz/len*w,sz=dx/len*w,surface=levelAt(levels,lengths,u)+ripples,row=[];
+          for(let column=0;column<=6;column++){
+            const across=column/6*2-1,px=x+sx*across,pz=z+sz*across,depth=surface-gridHeight(px,pz);
+            row.push(flowVertex([px,surface,pz],u,column/6,id,depth));
+          }
+          if(last.length)for(let column=0;column<6;column++){const left=last[column],right=last[column+1],nextLeft=row[column],nextRight=row[column+1];flowI.push(left,nextLeft,right,right,nextLeft,nextRight);}
+          last=row;
+        }
+        distance+=len;
+      }
+    }
+    flowStrip(fallsPath,streamLevels,streamLengths,.88,0);
+    flowStrip(riverPath,riverLevels,riverLengths,1.08,0,.72);
     // Grass candidates are generated once below, after the canopy density map
     // exists.  Only neighboring cells are uploaded while walking.
     let grassTufts=0;
     // One continuous, irregular lip-to-pool sheet maps the density atlas once.
-    let lip=[-64-.7071*1.1,8.3,-46-.7071*1.1],pool=[-64-.7071*2.5,3.9,-46-.7071*2.5];
-    // The raised feed shelf bridges the upstream runnel into the waterfall lip.
-    flowStrip([fallsPath[3],lip],.72,0);
+    let lip=[WATERFALL_LIP[0],streamLevels[streamLevels.length-1],WATERFALL_LIP[1]],pool=WATERFALL_POOL.slice();
     let start=flowP.length/3,rows=24,cols=10;
     for(let r=0;r<=rows;r++)for(let c=0;c<=cols;c++){let v=r/rows,u=c/cols,forward=1.42*v+.07*Math.sin(v*9.+u*7.)*v,across=(u-.5)*1.8*(.92-.22*v)+.08*Math.sin(u*13.+v*8.);let x=lip[0]-.7071*forward+.7071*across,z=lip[2]-.7071*forward-.7071*across,y=lip[1]+(pool[1]-lip[1])*v*v;flowVertex([x,y,z],v,u,2);}
     for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let a=start+r*(cols+1)+c,b=a+1,d=a+cols+1,e=d+1;flowI.push(a,d,b,b,d,e);}
@@ -1476,17 +1565,16 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     for(let r=0;r<=poolRings;r++)for(let i=0;i<poolSides;i++){
       const a=i*Math.PI*2/poolSides,radius=r/poolRings*(1+.12*Math.sin(a*3.)+.065*Math.sin(a*7.+.8)),
         ds=Math.cos(a)*3.6*radius+.34,dk=Math.sin(a)*2.57*radius,
-        x=pool[0]-.7071*ds+.7071*dk,z=pool[2]-.7071*ds-.7071*dk,level=pool[1]+.025;
+        x=pool[0]-.7071*ds+.7071*dk,z=pool[2]-.7071*ds-.7071*dk,level=pool[1];
       flowVertex([x,level,z],r/poolRings,level-gridHeight(x,z),3);
     }
     for(let r=0;r<poolRings;r++)for(let i=0;i<poolSides;i++){let a=poolStart+r*poolSides+i,b=poolStart+r*poolSides+(i+1)%poolSides,c=a+poolSides,d=b+poolSides;flowI.push(a,c,b,b,c,d);}
     const flowVAO=gl.createVertexArray();gl.bindVertexArray(flowVAO);
-    for(const [data,loc,size] of [[flowP,0,3],[flowUV,1,3]]){let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,0,0);}
+    for(const [data,loc,size] of [[flowP,0,3],[flowUV,1,4]]){let b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);gl.enableVertexAttribArray(loc);gl.vertexAttribPointer(loc,size,gl.FLOAT,false,0,0);}
     const flowIndex=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,flowIndex);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint32Array(flowI),gl.STATIC_DRAW);
     const spriteVAO=gl.createVertexArray();gl.bindVertexArray(spriteVAO);let spritePos=gl.createBuffer(),spriteCol=gl.createBuffer();for(const [b,l,n] of [[spritePos,0,4],[spriteCol,1,4]]){gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,n,gl.FLOAT,false,0,0);}
     const rainField=[];for(let i=0;i<720;i++){const s=Math.sin((i+1)*91.713)*43758.5453,u=s-Math.floor(s),v=s*1.713-Math.floor(s*1.713),h=s*2.717-Math.floor(s*2.717);rainField.push(u,v,h,0,u,v,h,1);}const rainVAO=gl.createVertexArray(),rainBuffer=gl.createBuffer();gl.bindVertexArray(rainVAO);gl.bindBuffer(gl.ARRAY_BUFFER,rainBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(rainField),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,0,0);
     const rainRingField=[];for(let i=0;i<132;i++){const s=Math.sin((i+1)*57.193)*43758.5453,u=s-Math.floor(s),v=s*1.417-Math.floor(s*1.417),h=s*2.311-Math.floor(s*2.311);for(let j=0;j<12;j++){const a=j*Math.PI*2/12,b=(j+1)*Math.PI*2/12;rainRingField.push(u,v,h,a,u,v,h,b);}}const rainRingVAO=gl.createVertexArray(),rainRingBuffer=gl.createBuffer();gl.bindVertexArray(rainRingVAO);gl.bindBuffer(gl.ARRAY_BUFFER,rainRingBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(rainRingField),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,0,0);
-    const boltVAO=gl.createVertexArray(),boltBuffer=gl.createBuffer();let boltVertexCount=0;gl.bindVertexArray(boltVAO);gl.bindBuffer(gl.ARRAY_BUFFER,boltBuffer);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
     // Local waterfall thickness atlas: horizontal sheet slot × vertical drop.
     const fallDensity=gl.createTexture(),fallFbo=gl.createFramebuffer(),fallVAO=gl.createVertexArray(),fallBuffer=gl.createBuffer();
     gl.bindTexture(gl.TEXTURE_2D,fallDensity);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,128,256,0,gl.RGBA,gl.UNSIGNED_BYTE,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
@@ -1566,6 +1654,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     function grassKey(ix,iz){return ix+":"+iz;}
     function addGrass(x,z,seed,owner){
       const y=gridHeight(x,z),n=normal(x,z),cover=canopyCover(x,z),light=canopyLightAt(x,z),grove=Math.hypot(x-53.6,z+35.6)<12;
+      const creek=streamSample(x,z),river=riverSample(x,z);if((creek&&creek.d<2.25)||(river&&river.d<2.7))return;
       if(y<2.55||y>31||n[1]<.82||landmarkTrail(x,z))return;
       const clear=Math.max(grove?.96:0,(1-cover)*(.50+.54*light)*(.78+.30*noise(x*.09,z*.09)));
       if(noise(seed*1.31,seed*2.17)>.05+.91*clear)return;
@@ -1852,17 +1941,16 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
         up: U(S, "up"),
         aspect: U(S, "aspect"),
         tanHalfFov: U(S, "tanHalfFov"),
-        bathy: U(S, "bathy"), stormBlend: U(S,"stormBlend"), lightning: U(S,"lightning"),
+        bathy: U(S, "bathy"), stormBlend: U(S,"stormBlend"), lightning: U(S,"lightning"), boltDir: U(S,"boltDir"), boltJitter: U(S,"boltJitter"),
       },
-      wU = { m: U(W,"m"), t: U(W,"t"), eye: U(W,"eye"), ground: U(W,"ground"), bathy: U(W,"bathy"), contactMap: U(W,"contactMap"), reefMap: U(W,"reefMap"), shore: U(W,"shore"), shelterMap: U(W,"shelterMap"), stormBlend: U(W,"stormBlend"), lightning: U(W,"lightning"), stormStrike: U(W,"stormStrike") },
+      wU = { m: U(W,"m"), t: U(W,"t"), eye: U(W,"eye"), ground: U(W,"ground"), bathy: U(W,"bathy"), contactMap: U(W,"contactMap"), reefMap: U(W,"reefMap"), shore: U(W,"shore"), shelterMap: U(W,"shelterMap"), stormBlend: U(W,"stormBlend") },
       kU = { m: U(K,"m"), t: U(K,"t"), ground: U(K,"ground"), shore: U(K,"shore") },
       qU = { m: U(Q, "m"), atlas: U(Q, "atlas"), time: U(Q,"time"), eye: U(Q,"eye"), lightning: U(Q,"lightning"), instancedFar: U(Q,"instancedFar"), shelterMap: U(Q,"shelterMap"), stormBlend: U(Q,"stormBlend") },
       gU = { m: U(G,"m"), time: U(G,"time"), eye: U(G,"eye"), sun: U(G,"sun"), shadowMap: U(G,"shadowMap"), nearShadowMap: U(G,"nearShadowMap"), lightM: U(G,"lightM"), nearLightM: U(G,"nearLightM"), shelterMap: U(G,"shelterMap"), stormBlend: U(G,"stormBlend"), lightning: U(G,"lightning") },
-      fU = { m: U(F, "m"), eye: U(F,"eye"), t: U(F, "t"), fallDensity: U(F, "fallDensity") },
+      fU = { m: U(F, "m"), eye: U(F,"eye"), t: U(F, "t"), fallDensity: U(F, "fallDensity"), shore: U(F,"shore") },
       zU = { m: U(PZ, "m"), viewport: U(PZ,"viewport"), tanHalfFov: U(PZ,"tanHalfFov") },
       rU = { m: U(RN,"m"), eye: U(RN,"eye"), time: U(RN,"time"), stormBlend: U(RN,"stormBlend"), ground: U(RN,"ground"), shore: U(RN,"shore") },
-      rrU = { m: U(RR,"m"), eye: U(RR,"eye"), time: U(RR,"time"), stormBlend: U(RR,"stormBlend"), ground: U(RR,"ground"), shore: U(RR,"shore") },
-      bU = { m: U(BT,"m"), lightning: U(BT,"lightning") };
+      rrU = { m: U(RR,"m"), eye: U(RR,"eye"), time: U(RR,"time"), stormBlend: U(RR,"stormBlend"), ground: U(RR,"ground"), shore: U(RR,"shore") };
     let V = [
         { T: [-4, 25, 0], a: -0.88, e: 0.18, d: 285 },
         { T: [-67, 4, -28], a: -2.78, e: 0.02, d: 102 },
@@ -1887,7 +1975,8 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       touchMove = [0, 0];
     const hint = document.querySelector("#hint"),
       test = new URLSearchParams(location.search).get("test");
-    const weather = { on:false, blend:0, lightning:0, nextStrike:0, lastStrike:null, strikes:0, thunder:0, rainCount:0, impacts:0, seed:17031 };
+    const streamPose={ x:-51.19988, z:-32.76692, yaw:-1.02792, pitch:-.57834 };
+    const weather = { on:false, blend:0, lightning:0, boltDir:[-.58,.32,.75], boltJitter:.37, nextStrike:0, lastStrike:null, strikes:0, thunder:0, rainCount:0, impacts:0, seed:17031 };
     const audio = { ctx: null, master: null, muted: false, events: 0, spatial: [], wind: [], surf: [], rain: [] };
     function noiseNode(seconds, gain, pan = 0, cutoff = 900, seed = 1) {
       let ctx = audio.ctx, n = Math.max(2, Math.ceil(ctx.sampleRate * seconds),), b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -1927,8 +2016,8 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       let first = !audio.ctx; enableSound(); audio.muted = first ? false : !audio.muted; audio.master.gain.setTargetAtTime(audio.muted ? 0 : .9, audio.ctx.currentTime, .04);
       document.querySelector('[data-view="mute"]').setAttribute("aria-pressed", String(!audio.muted));
     }
-    function playThunder(x,z,ear,right){
-      if(!audio.ctx||audio.muted)return;const dx=x-ear[0],dz=z-ear[2],dist=Math.hypot(dx,dz),delay=Math.min(1.9,.12+dist/343),burst=noiseNode(1.9,.001,Math.max(-1,Math.min(1,(dx*right[0]+dz*right[2])/(dist||1))),260,Math.floor(weather.seed)),now=audio.ctx.currentTime+delay;burst.filter.type="lowpass";burst.filter.frequency.value=150;burst.amp.gain.setValueAtTime(.001,now);burst.amp.gain.exponentialRampToValueAtTime(.18/(1+dist*.016),now+.09);burst.amp.gain.exponentialRampToValueAtTime(.001,now+1.75);burst.source.start(now);burst.source.stop(now+1.9);weather.thunder++;audio.events++;}
+    function playThunder(dx,dz,right){
+      if(!audio.ctx||audio.muted)return;const delay=1.05+((weather.seed>>>11)%190)/100,pan=Math.max(-1,Math.min(1,dx*right[0]+dz*right[2])),burst=noiseNode(1.9,.001,pan,260,Math.floor(weather.seed)),now=audio.ctx.currentTime+delay;burst.filter.type="lowpass";burst.filter.frequency.value=150;burst.amp.gain.setValueAtTime(.001,now);burst.amp.gain.exponentialRampToValueAtTime(.105,now+.09);burst.amp.gain.exponentialRampToValueAtTime(.001,now+1.75);burst.source.start(now);burst.source.stop(now+1.9);weather.thunder++;audio.events++;}
     function toggleStorm(){weather.on=!weather.on;if(weather.on){weather.nextStrike=waterClock+5.4;weather.lastStrike=null;}document.querySelector('[data-view="storm"]').setAttribute("aria-pressed",String(weather.on));}
     function updateAudio() {
       if (!audio.ctx || audio.muted) return;
@@ -1948,7 +2037,8 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       }
     }
     if (test === "swim") Object.assign(player, { x: -150, z: 5, yaw: -Math.PI / 2, pitch: .02 });
-    if (test === "falls") Object.assign(player, { x: -73.97, z: -51.02, yaw: Math.atan2(-65.2 + 73.97, -(-47.2 + 51.02)), pitch: .14 });
+    if (test === "falls") Object.assign(player, { x: -73.6, z: -53.5, yaw: Math.atan2(-65.3 + 73.6, -(-47.3 + 53.5)), pitch: .08 });
+    if (test === "stream") Object.assign(player, streamPose);
     if (test === "lava") Object.assign(player, { x: lavaCoastPose.x, z: lavaCoastPose.z, yaw: lavaCoastPose.yaw, pitch: lavaCoastPose.pitch });
     if (test === "lavaSource" || test === "vent") Object.assign(player, { x: lavaSourcePose.x, z: lavaSourcePose.z, yaw: lavaSourcePose.yaw, pitch: lavaSourcePose.pitch });
     if (test === "forest") Object.assign(player, { x: 53.6, z: -35.6, yaw: 1.047, pitch: .075 });
@@ -1965,9 +2055,9 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       hint.textContent = "WASD to walk · drag or arrows to look · Shift to move faster";
     }
     function landmark(kind) {
-      let p = kind === "grove" ? { x: 53.6, z: -35.6, yaw: 1.047, pitch: .075 } : kind === "falls" ? { x: -73.97, z: -51.02, yaw: Math.atan2(-65.2 + 73.97, -(-47.2 + 51.02)), pitch: .14 } : kind === "vent" ? lavaSourcePose : lavaCoastPose;
+      let p = kind === "grove" ? { x: 53.6, z: -35.6, yaw: 1.047, pitch: .075 } : kind === "falls" ? { x: -73.6, z: -53.5, yaw: Math.atan2(-65.3 + 73.6, -(-47.3 + 53.5)), pitch: .08 } : kind === "stream" ? streamPose : kind === "vent" ? lavaSourcePose : lavaCoastPose;
       player.x = p.x; player.z = p.z; player.yaw = p.yaw; player.pitch = p.pitch;
-      setWalk(); hint.textContent = kind === "grove" ? "Grove clearing · follow the grassy lowland among the trees" : kind === "falls" ? "Falls trail · follow the bright stream downhill" : kind === "vent" ? "Vent trail · the fissure feeds the downhill flow" : "Lava trail · follow the warm flow toward the sea";
+      setWalk(); hint.textContent = kind === "grove" ? "Grove clearing · follow the grassy lowland among the trees" : kind === "falls" ? "Falls trail · follow the bright stream downhill" : kind === "stream" ? "Headwater bank · follow the creek to the falls and sea" : kind === "vent" ? "Vent trail · the fissure feeds the downhill flow" : "Lava trail · follow the warm flow toward the sea";
     }
     function setView(i) {
       view = i;
@@ -2005,16 +2095,9 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       return Math.hypot(player.x - startX, player.z - startZ);
     }
     let waterClock = 0, rainImpactClock = 0;
-    function buildLightningMesh(strike){
-      let seed=(weather.seed^0x9e3779b9)>>>0,rand=()=>((seed=seed*1664525+1013904223>>>0)>>>0)/4294967296,main=[];
-      for(let i=0;i<22;i++){const q=i/21;main.push([strike.x+(rand()-.5)*(1.55-q*.7),64*(1-q)+strike.y*q,strike.z+(rand()-.5)*(1.3-q*.65)]);}
-      const out=[];function strip(points,width){for(let i=0;i<points.length-1;i++){const a=points[i],b=points[i+1],dx=b[0]-a[0],dz=b[2]-a[2],d=Math.hypot(dx,dz)||1,nx=-dz/d*width,nz=dx/d*width;out.push(a[0]+nx,a[1],a[2]+nz,a[0]-nx,a[1],a[2]-nz,b[0]+nx,b[1],b[2]+nz,a[0]-nx,a[1],a[2]-nz,b[0]-nx,b[1],b[2]-nz,b[0]+nx,b[1],b[2]+nz);}}
-      strip(main,.115);for(const at of [6,12,16]){const start=main[at],fork=[start];let x=start[0],z=start[2],y=start[1],dir=(rand()>.5?1:-1)*(.7+rand()*.8);for(let j=0;j<5;j++){x+=dir*(.8+rand()*1.2);z+=(rand()-.5)*1.8;y-=1.7+rand()*1.1;fork.push([x,y,z]);}strip(fork,.065);}
-      gl.bindBuffer(gl.ARRAY_BUFFER,boltBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(out),gl.DYNAMIC_DRAW);boltVertexCount=out.length/3;
-    }
     function updateWeather(time,dt,eye,fwd,right){
       const target=weather.on?1:0;weather.blend+=Math.max(-dt*.24,Math.min(dt*.24,target-weather.blend));weather.lightning*=Math.exp(-dt*10.5);
-      if(weather.on&&weather.blend>.62&&time>=weather.nextStrike){weather.seed=(weather.seed*1664525+1013904223)>>>0;const side=((weather.seed>>>8)%2000/1000-1)*27,range=66+((weather.seed>>>19)%29),rx=eye[0]+fwd[0]*range-fwd[2]*side,rz=eye[2]+fwd[2]*range+fwd[0]*side,ry=Math.max(gridHeight(rx,rz),waterSurface(rx,rz,time));weather.lastStrike={x:rx,z:rz,y:ry,time};buildLightningMesh(weather.lastStrike);weather.lightning=1;weather.strikes++;weather.nextStrike=time+8.5+((weather.seed>>>3)%700)/100;playThunder(rx,rz,eye,right);}
+      if(weather.on&&weather.blend>.62&&time>=weather.nextStrike){weather.seed=(weather.seed*1664525+1013904223)>>>0;const az=.55+((weather.seed>>>8)%1000)/1000*1.85,elev=.27+((weather.seed>>>19)%90)/1000,bx=Math.sin(az)*Math.sqrt(1-elev*elev),bz=Math.cos(az)*Math.sqrt(1-elev*elev);weather.boltDir=[bx,elev,bz];weather.boltJitter=((weather.seed>>>2)%1000)/1000;weather.lastStrike={dir:[bx,elev,bz],azimuth:az,jitter:weather.boltJitter,time};weather.lightning=1;weather.strikes++;weather.nextStrike=time+8.5+((weather.seed>>>3)%700)/100;playThunder(bx,bz,right);}
     }
     // CPU counterpart of windGLSL: sound samples the same bounded gust train.
     function gustPulseCPU(x,z,time=waterClock){const q=x*.87+z*.49-time*8.4+110,a=Math.abs(((q/148)%1+1)%1-.5)*148,b=Math.abs((((q+47)/241)%1+1)%1-.5)*241,head=Math.max(Math.exp(-(a*a)/420),.72*Math.exp(-(b*b)/260)),cross=x*(-.49)+z*.87+7*Math.sin(q*.035),ribbon=Math.exp(-(cross*cross)/5200),teeth=.18+.82*Math.max(0,Math.sin(q*.10+.4*Math.sin(q*.027)));return Math.max(0,Math.min(1,head*ribbon*teeth*shelterAtCPU(x,z)));}
@@ -2027,7 +2110,17 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       const cx=x-s.nx*s.d,cz=z-s.nz*s.d;
       return phaseDist*(1.18+.24*shoreSetCPU(x,z,time))-time*2.48+.82*Math.sin(cx*.071-cz*.046)+.46*group;
     }
+    function freshwaterSurface(x,z){
+      const fallS=-((x-WATERFALL_LIP[0])+(z-WATERFALL_LIP[1]))*.7071,fallK=((x-WATERFALL_LIP[0])-(z-WATERFALL_LIP[1]))*.7071,poolDistance=Math.hypot(x-WATERFALL_POOL[0],z-WATERFALL_POOL[2]);
+      if(fallS>1.18&&fallS<3.7&&Math.abs(fallK)<2.55&&poolDistance<2.35)return WATERFALL_POOL[1];
+      const creek=streamSample(x,z);
+      if(creek&&creek.d<.82)return levelAt(streamLevels,streamLengths,creek.s);
+      const river=riverSample(x,z),width=river&&1.02+.63*river.q+.10*Math.sin(river.s*.39);
+      if(river&&river.q<.87&&river.d<width)return levelAt(riverLevels,riverLengths,river.s);
+      return null;
+    }
     function waterSurface(x, z, time = waterClock) {
+      const fresh=freshwaterSurface(x,z);if(fresh!==null)return fresh;
       const s=shoreline(x,z),sm=(a,b,v)=>{v=Math.max(0,Math.min(1,(v-a)/(b-a)));return v*v*(3-2*v);};
       const band=sm(-16,-6,s.d)*(1-sm(2.2,6.2,s.d)),off=sm(8,28,-s.d),set=shoreSetCPU(x,z,time);
       const swell=.20*Math.sin(x*.115+z*.065-time*1.12+.19*Math.sin(x*.021-z*.037))+.075*Math.sin(x*.38-z*.22+time*1.9)+.035*Math.sin(x*1.3+z*.9-time*3.2);
@@ -2150,7 +2243,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       gl.uniform3fv(sU.up, up);
       gl.uniform1f(sU.aspect, aspect);
       gl.uniform1f(sU.tanHalfFov, tanHalfFov);
-      gl.uniform1f(sU.stormBlend,weather.blend);gl.uniform1f(sU.lightning,weather.lightning);
+      gl.uniform1f(sU.stormBlend,weather.blend);gl.uniform1f(sU.lightning,weather.lightning);gl.uniform3fv(sU.boltDir,weather.boltDir);gl.uniform1f(sU.boltJitter,weather.boltJitter);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, bathy);
       gl.uniform1i(sU.bathy, 0);
@@ -2196,13 +2289,13 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       if (footprintMesh.n) { gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.useProgram(K); gl.uniformMatrix4fv(kU.m,false,m);gl.uniform1f(kU.t,t*.001);gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,groundTex);gl.uniform1i(kU.ground,2);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.uniform1i(kU.shore,9);gl.bindVertexArray(footprintMesh.v);gl.drawArrays(gl.TRIANGLES,0,footprintMesh.n);gl.disable(gl.BLEND); }
       if (grainMesh.n) { gl.useProgram(M);gl.uniformMatrix4fv(mU.m,false,m);gl.uniform1f(mU.time,t*.001);gl.uniform1i(mU.landPass,0);gl.bindVertexArray(grainMesh.v);gl.drawArrays(gl.TRIANGLES,0,grainMesh.n); }
       gl.disable(gl.POLYGON_OFFSET_FILL);
-      gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.useProgram(W); gl.uniformMatrix4fv(wU.m,false,m); gl.uniform1f(wU.t,t*.001);gl.uniform1f(wU.stormBlend,weather.blend);gl.uniform1f(wU.lightning,weather.lightning);gl.uniform2f(wU.stormStrike,weather.lastStrike?weather.lastStrike.x:0,weather.lastStrike?weather.lastStrike.z:0); gl.uniform3fv(wU.eye,eye); gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,groundTex);gl.uniform1i(wU.ground,2);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,bathy);gl.uniform1i(wU.bathy,4);gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,contactTexture);gl.uniform1i(wU.contactMap,7);gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,reefTex);gl.uniform1i(wU.reefMap,10);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.uniform1i(wU.shore,9);gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,shelterTex);gl.uniform1i(wU.shelterMap,11); gl.bindVertexArray(waterVAO); gl.drawElements(gl.TRIANGLES,waterI.length,gl.UNSIGNED_INT,0);gl.depthMask(true);gl.disable(gl.BLEND);
+      gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.useProgram(W); gl.uniformMatrix4fv(wU.m,false,m); gl.uniform1f(wU.t,t*.001);gl.uniform1f(wU.stormBlend,weather.blend); gl.uniform3fv(wU.eye,eye); gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,groundTex);gl.uniform1i(wU.ground,2);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,bathy);gl.uniform1i(wU.bathy,4);gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,contactTexture);gl.uniform1i(wU.contactMap,7);gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,reefTex);gl.uniform1i(wU.reefMap,10);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.uniform1i(wU.shore,9);gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,shelterTex);gl.uniform1i(wU.shelterMap,11); gl.bindVertexArray(waterVAO); gl.drawElements(gl.TRIANGLES,waterI.length,gl.UNSIGNED_INT,0);gl.depthMask(true);gl.disable(gl.BLEND);
       // Rain composites after far canopy so foreground streaks remain readable.
       if (rippleMesh.n) { gl.useProgram(M);gl.uniformMatrix4fv(mU.m,false,m);gl.uniform1f(mU.time,t*.001);gl.uniform1i(mU.landPass,0);gl.bindVertexArray(rippleMesh.v);gl.drawArrays(gl.TRIANGLES,0,rippleMesh.n); }
       // Accumulate parcel thickness in local fall coordinates before compositing sheets.
       let fallPoints=[];for(let i=0;i<900;i++){let source=i%3,age=(t*.001*.74+i*.618)%1,center=[.22,.53,.82][source],spread=[.15,.22,.14][source],rand=Math.sin(i*19.713+source*5.17)*43758.5453,offset=rand-Math.floor(rand)-.5,slot=Math.max(.025,Math.min(.975,center+offset*spread*(.55+.45*age)+Math.sin(i*2.17+t*.0013)*.018));fallPoints.push(slot,age,5.5+3.7*(1-age));}
       gl.bindFramebuffer(gl.FRAMEBUFFER,fallFbo);gl.viewport(0,0,128,256);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(FA);gl.bindVertexArray(fallVAO);gl.bindBuffer(gl.ARRAY_BUFFER,fallBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(fallPoints),gl.DYNAMIC_DRAW);gl.drawArrays(gl.POINTS,0,900);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
-      gl.useProgram(F); gl.uniform3fv(fU.eye,eye); gl.uniformMatrix4fv(fU.m,false,m); gl.uniform1f(fU.t,t*.001);gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,fallDensity);gl.uniform1i(fU.fallDensity,5); gl.bindVertexArray(flowVAO); gl.drawElements(gl.TRIANGLES,flowI.length,gl.UNSIGNED_INT,0);
+      gl.useProgram(F); gl.uniform3fv(fU.eye,eye); gl.uniformMatrix4fv(fU.m,false,m); gl.uniform1f(fU.t,t*.001);gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,fallDensity);gl.uniform1i(fU.fallDensity,5);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.uniform1i(fU.shore,9); gl.bindVertexArray(flowVAO); gl.drawElements(gl.TRIANGLES,flowI.length,gl.UNSIGNED_INT,0);
       let sp=[],sc=[],time=t*.001,vent=fissureVent,outlet=lavaOutlet,lipNow=lip,poolNow=pool;
       // A warm grey vent high on the slope plus low moist sea-contact steam.
       // Advect expanding gas packets along the common trade-wind direction.
@@ -2226,7 +2319,6 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       // Falling water is composited from the local density FBO; sprites remain impact-only.\r\n      // Larger, low-opacity froth is born only at the actual impact footprint.
       for(let i=0;i<42;i++){let p=(time*.55+i*.271)%1,a=i*2.399,x=-65.768+Math.cos(a)*p*(.18+.62*p),z=-47.768+Math.sin(a)*p*(.14+.44*p),y=poolNow[1]+.035+p*.18;sp.push(x,y,z,.05+p*.12);sc.push(.76,.91,.93,.68);}
       for(let i=0;i<38;i++){let p=(time*.62+i*.173)%1,seed=Math.sin(i*91.7)*43758.5,u=seed-Math.floor(seed),a=(seed*7.3-Math.floor(seed*7.3))*6.283,r=Math.sqrt(u)*(.12+.55*p),ix=-65.768,iz=-47.768,x=ix+Math.cos(a)*r,z=iz+Math.sin(a)*r,y=poolNow[1]+.05+p*(.36-p*.22);sp.push(x,y,z,.025+(i%5)*.011);sc.push(.78,.93,.94,1.12);}
-      if(weather.lightning>.012&&boltVertexCount){gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);gl.useProgram(BT);gl.uniformMatrix4fv(bU.m,false,m);gl.uniform1f(bU.lightning,weather.lightning);gl.bindVertexArray(boltVAO);gl.drawArrays(gl.TRIANGLES,0,boltVertexCount);gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);}
       gl.bindVertexArray(spriteVAO);gl.bindBuffer(gl.ARRAY_BUFFER,spritePos);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(sp),gl.DYNAMIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,spriteCol);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(sc),gl.DYNAMIC_DRAW);gl.useProgram(PZ);gl.uniformMatrix4fv(zU.m,false,m);gl.uniform2f(zU.viewport,canvas.width,canvas.height);gl.uniform1f(zU.tanHalfFov,tanHalfFov);gl.drawArrays(gl.POINTS,0,sp.length/4);
       gl.depthMask(true);gl.disable(gl.BLEND);
       gl.useProgram(Q);
@@ -2299,7 +2391,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     );
     document
       .querySelectorAll("button")
-      .forEach((b) => (b.onclick = () => b.dataset.view === "walk" ? setWalk() : b.dataset.view === "mute" ? toggleSound() : b.dataset.view === "storm" ? toggleStorm() : b.dataset.view === "grove" || b.dataset.view === "falls" || b.dataset.view === "lava" || b.dataset.view === "vent" ? landmark(b.dataset.view) : setView(+b.dataset.view)));
+      .forEach((b) => (b.onclick = () => b.dataset.view === "walk" ? setWalk() : b.dataset.view === "mute" ? toggleSound() : b.dataset.view === "storm" ? toggleStorm() : b.dataset.view === "grove" || b.dataset.view === "falls" || b.dataset.view === "stream" || b.dataset.view === "lava" || b.dataset.view === "vent" ? landmark(b.dataset.view) : setView(+b.dataset.view)));
     addEventListener("keydown", (x) => {
       enableSound();
       if ("123".includes(x.key)) setView(+x.key - 1);
@@ -2344,7 +2436,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
         sound: { enabled: !!audio.ctx, muted: audio.muted, events: audio.events },
         weather: { on:weather.on, blend:weather.blend, rain:weather.rainCount, ringlets:{active:weather.blend>.015?rainRingField.length/96:0,capacity:rainRingField.length/96}, lightning:weather.lightning, strikes:weather.strikes, thunder:weather.thunder, lastStrike:weather.lastStrike && {...weather.lastStrike}, nextStrike:weather.nextStrike },
         effects: { tracks: tracks.length, grains: grains.length, ripples: ripples.length, splashes: splashCount },
-        landmarks: { falls: fallsPath.length, lava: lavaPath.length },
+        landmarks: { falls: fallsPath.length, lava: lavaPath.length, stream: { spring:streamNodes[0].slice(), lip:lip.slice(), pool:pool.slice(), mouth:riverNodes[riverNodes.length-1].slice(), upperMetres:streamLengths[streamLengths.length-1], lowerMetres:riverLengths[riverLengths.length-1], bankCobbles:riverBankCobbles } },
         view,
         a,
         e,
