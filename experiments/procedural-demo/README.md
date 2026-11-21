@@ -10,6 +10,14 @@ See the optional [island tour](evidence/island-tour.mp4), [shore surf](evidence/
 
 The current systems comparison is available as [island systems](evidence/island-systems.jpg).
 
+## Coastal sand and surf
+
+Beach material uses a small mipmapped procedural field. Multiscale pale carbonate grains, sparse darker volcanic chips, locally sorted coarse inclusions, and shadowed shell edges sit in interrupted wind-ripple patches. The ripples occupy dry backshore, while the signed shoreline field compacts and darkens the foreshore into a smooth damp sheen.
+
+Incoming exposed-shore sets use three connected, coastline-following crest ribbons with ten cross-profile vertices. A shared shoreline phase drives the rounded shoal, forward-curled lip, collapse, water height, footprint wash, and surf audio. The lip occupies the final 7 m offshore, and the water surface carries its aerated trail shoreward. In a console, `ISLAND.state().surf` reports the static ribbon topology, phase period, and active shore band for a quick clear-weather check.
+
+[Start at the surf](procedural-demo.html?test=wave) opens a walk-height side-on breaker check beside the starting beach. The accompanying [sand and surf evidence](evidence/sand-and-surf.webp) shows the procedural grain, interrupted ripple patches, rolling green face, and soft foam touchdown.
+
 ## Grove and lava landmarks
 
 GROVE opens a walk-height grassy lowland, and `?test=forest` opens the same reachable clearing. LAVA frames the sea entry, while VENT opens the source headland. `?test=lava` and `?test=vent` provide those deterministic landmark views. The lava follows the sampled terrain continuously from its fissure to the shoreline.
