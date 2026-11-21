@@ -18,6 +18,8 @@ Incoming exposed-shore sets use three connected, coastline-following crest ribbo
 
 [Start at the surf](procedural-demo.html?test=wave) opens a walk-height side-on breaker check beside the starting beach. The accompanying [sand and surf evidence](evidence/sand-and-surf.webp) shows the procedural grain, interrupted ripple patches, rolling green face, and soft foam touchdown.
 
+[Start at the lagoon](procedural-demo.html?test=lagoon) frames the enclosed eastern water from its sheltered bank. The [lagoon and outer surf comparison](evidence/lagoon-and-outer-surf.webp) records its gentle wind ripples beside the exposed break.
+
 ## Grove and lava landmarks
 
 GROVE opens a walk-height grassy lowland, and `?test=forest` opens the same reachable clearing. LAVA frames the sea entry, while VENT opens the source headland. `?test=lava` and `?test=vent` provide those deterministic landmark views. The lava follows the sampled terrain continuously from its fissure to the shoreline.

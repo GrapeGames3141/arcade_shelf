@@ -212,6 +212,7 @@ void main(){vec2 screen=uv*2.-1.;vec3 ray=normalize(forward+right*screen.x*aspec
     // walker.  R is signed metres (land positive); G/B are the inward normal.
     const shoreGLSL = `uniform sampler2D shore;
 vec2 shoreUV(vec2 p){return clamp((p+vec2(150.,100.))/vec2(300.,200.),0.,1.)*vec2(159./160.,111./112.)+.5/vec2(160.,112.);}
+float marineAt(vec2 p){vec2 raw=(p+vec2(150.,100.))/vec2(300.,200.);if(any(lessThan(raw,vec2(0.)))||any(greaterThan(raw,vec2(1.))))return 1.;return texture(shore,shoreUV(p)).a;}
 vec3 shoreInfo(vec2 p){vec3 s=texture(shore,shoreUV(p)).rgb;return vec3((s.r*2.-1.)*48.,normalize(s.gb*2.-1.));}
 float shoreBand(float d){return smoothstep(-16.,-6.,d)*(1.-smoothstep(2.2,6.2,d));}
 float shoreSet(vec2 p,float tt){return .68+.32*sin(dot(p,vec2(.009,.014))-tt*.17);}
@@ -222,12 +223,12 @@ float shorePhase(vec2 p,vec3 si,float tt){float sea=max(-si.x,0.),travel=-sea*(.
 float shorePhase(vec2 p,float tt){return shorePhase(p,shoreInfo(p),tt);}
 float breakerZone(float d){return smoothstep(-9.,-5.6,d)*(1.-smoothstep(.35,2.5,d));}
 float breakerPulse(vec2 p,vec3 si,float tt){float phase=shorePhase(p,si,tt),crest=smoothstep(.18,.76,max(0.,sin(phase))),peel=.60+.40*sin(dot(p-si.yz*si.x,vec2(.19,-.13))+tt*.24+.8*sin(dot(p,vec2(.047,.063))));return crest*smoothstep(.12,.88,peel);}
-float surfWave(vec2 p,vec3 si,float tt){float d=si.x,band=shoreBand(d),off=smoothstep(8.,28.,-d),set=shoreSet(p,tt);float swell=.20*sin(dot(p,vec2(.115,.065))-tt*1.12+.19*sin(dot(p,vec2(.021,-.037))) )+.075*sin(dot(p,vec2(.38,-.22))+tt*1.9)+.035*sin(dot(p,vec2(1.3,.9))-tt*3.2);float phase=shorePhase(p,si,tt),pulse=breakerPulse(p,si,tt),head=pow(max(0.,sin(phase)),2.)*(.10+.16*set),roll=breakerZone(d)*pulse*(.13+.12*set),run=.040*sin(phase)+head;return swell*(.24+.76*off)+band*run+roll;}
+float surfWave(vec2 p,vec3 si,float tt){float marine=marineAt(p),lagoon=0.;if(marine<.999){lagoon=.012*sin(dot(p,vec2(1.48,-.93))+tt*1.74)+.007*sin(dot(p,vec2(-2.37,-1.82))-tt*2.28+.7*sin(dot(p,vec2(.12,.17))));if(marine<.001)return lagoon;}float d=si.x,band=shoreBand(d),off=smoothstep(8.,28.,-d),set=shoreSet(p,tt);float swell=.20*sin(dot(p,vec2(.115,.065))-tt*1.12+.19*sin(dot(p,vec2(.021,-.037))) )+.075*sin(dot(p,vec2(.38,-.22))+tt*1.9)+.035*sin(dot(p,vec2(1.3,.9))-tt*3.2);float phase=shorePhase(p,si,tt),pulse=breakerPulse(p,si,tt),head=pow(max(0.,sin(phase)),2.)*(.10+.16*set),roll=breakerZone(d)*pulse*(.13+.12*set),run=.040*sin(phase)+head;float ocean=swell*(.24+.76*off)+band*run+roll;return marine<.999?mix(lagoon,ocean,marine):ocean;}
 float surfWave(vec2 p,float tt){return surfWave(p,shoreInfo(p),tt);}
-float shoreBreak(vec2 p,float tt){vec3 si=shoreInfo(p);return breakerZone(si.x)*breakerPulse(p,si,tt);}
+float shoreBreak(vec2 p,float tt){vec3 si=shoreInfo(p);return marineAt(p)*breakerZone(si.x)*breakerPulse(p,si,tt);}
 // A finite 4.1-second run-up reconstruction: old fronts advect seaward
 // along each locally sampled shore normal and shear sideways as they drain.
-float crestHistory(vec2 p,float tt){float wash=0.;for(int k=1;k<=5;k++){float age=float(k)*.82;vec3 s=shoreInfo(p);vec2 side=vec2(-s.z,s.y);vec2 past=p+s.yz*(.42+.31*age)*age+side*(.18*sin(age*3.7+dot(p,vec2(.17,-.11)))+.11*sin(age*7.1+dot(p,vec2(.43,.29))));vec3 old=shoreInfo(past);float pulse=max(0.,sin(shorePhase(past,old,tt-age)));wash=max(wash,smoothstep(.16,.84,pulse)*exp(-age*.38)*(.94-.09*float(k)));}return wash;}`;
+float crestHistory(vec2 p,float tt){float marine=marineAt(p);if(marine<.01)return 0.;float wash=0.;for(int k=1;k<=5;k++){float age=float(k)*.82;vec3 s=shoreInfo(p);vec2 side=vec2(-s.z,s.y);vec2 past=p+s.yz*(.42+.31*age)*age+side*(.18*sin(age*3.7+dot(p,vec2(.17,-.11)))+.11*sin(age*7.1+dot(p,vec2(.43,.29))));vec3 old=shoreInfo(past);float pulse=max(0.,sin(shorePhase(past,old,tt-age)));wash=max(wash,smoothstep(.16,.84,pulse)*exp(-age*.38)*(.94-.09*float(k)));}return wash*marine;}`;
     // The same wrapped, non-random gust train is inserted in every moving
     // shader. Two irregular periods leave real calm gaps but never exhaust.
     const windGLSL = `uniform sampler2D shelterMap;uniform float stormBlend;float shelterAt(vec2 p){vec2 uv=(p+vec2(150.,100.))/vec2(300.,200.);if(any(lessThan(uv,vec2(0.)))||any(greaterThan(uv,vec2(1.))))return 1.;return texture(shelterMap,uv).r;}float gustPulse(vec2 p,float tt){vec2 w=vec2(.87,.49),c=vec2(-.49,.87);float q=dot(p,w)-tt*8.4+110.;float a=abs(fract(q/148.)-.5)*148.,b=abs(fract((q+47.)/241.)-.5)*241.;float head=max(exp(-(a*a)/420.),.72*exp(-(b*b)/260.));float cross=dot(p,c)+7.*sin(q*.035);float ribbon=exp(-(cross*cross)/5200.);float teeth=.18+.82*max(0.,sin(q*.10+.4*sin(q*.027)));return clamp(head*ribbon*teeth*shelterAt(p),0.,1.);}vec2 windDrive(vec2 p,float tt,float phase){float elastic=.42*sin(tt*.83+phase+dot(p,vec2(.021,-.016)))+.16*sin(tt*1.67-phase*.7+dot(p,vec2(.049,.027)));float trade=.34+.18*sin(dot(p,vec2(.043,-.031))-tt*.43+phase)+.11*sin(dot(p,vec2(-.018,.057))+tt*.71-phase*.7)+elastic;float gust=gustPulse(p,tt);vec2 cross=vec2(-.49,.87)*(.12*sin(dot(p,vec2(.071,.029))+tt*.63+phase)+.055*sin(tt*1.7+phase*2.));return vec2(.87,.49)*(trade+gust*.72+stormBlend*(.64+gust*.92))+cross;}`;
@@ -251,9 +252,10 @@ void main(){
   if(closeDepth<-.03)discard;
 
   vec3 V=normalize(eye-world),sun=normalize(vec3(-.64,.48,.55));
-  float gust=gustPulse(world.xz,t);
+  float marine=marineAt(world.xz);
+  float gust=gustPulse(world.xz,t)*(.26+.74*marine)+stormBlend*.12*(1.-marine);
   vec2 gp=world.xz*vec2(.72,1.18)+vec2(-t*.16,t*.11)+vec2(.87,.49)*gust*.085;
-  vec2 g=vec2(n(gp+vec2(.05,0.))-n(gp-vec2(.05,0.)),n(gp+vec2(0.,.05))-n(gp-vec2(0.,.05)))*(1.5+gust*.75+stormBlend*1.65);
+  vec2 g=vec2(n(gp+vec2(.05,0.))-n(gp-vec2(.05,0.)),n(gp+vec2(0.,.05))-n(gp-vec2(0.,.05)))*(1.5+gust*.75+stormBlend*1.65)*mix(.13+.12*stormBlend,1.,marine);
   vec3 NN=normalize(N+vec3(-g.x,0.,-g.y));
   float fres=.04+.78*pow(1.-max(dot(V,NN),0.),4.);
   vec3 through=refract(-V,NN,1./1.333);
@@ -314,7 +316,7 @@ void main(){
   vec3 body=mix(deep,bed,exp(-depth/max(.14,-through.y)*vec3(.58,.22,.13)));
 
   vec3 si=shoreInfo(world.xz);
-  float phase=shorePhase(world.xz,si,t),pulse=smoothstep(.72,.98,sin(phase));
+  float phase=shorePhase(world.xz,si,t),pulse=smoothstep(.72,.98,sin(phase))*marine;
   float torn=n(world.xz*1.9+si.yz*3.+vec2(t*.16,-t*.11));
   float cells=n(world.xz*13.-si.yz*t*.72);
   float lace=smoothstep(.31,.68,torn)*(1.-smoothstep(.72,.88,cells));
@@ -334,10 +336,10 @@ void main(){
   float margin=smoothstep(.965,.990,rimR)*(1.-smoothstep(1.002,1.027,rimR))*(1.-reefGaps(rimA,rimR));
   float foamPatch=.48+.52*smoothstep(.35,.69,n(world.xz*.31+vec2(t*.012,-t*.009)))*smoothstep(.12,.60,n(world.xz*.87+vec2(4.2,-1.7)));
   float sandy=1.-.48*smoothstep(.62,.83,n(world.xz*.55+vec2(8.1,2.3)));
-  float outer=margin*foamPatch*sandy*(.58+.42*lace);
-  float foam=clamp(leading*.76+touchdownFoam*.48+after*.34+retained*.48+outer*.86,0.,.88);
+  float outer=margin*foamPatch*sandy*(.58+.42*lace)*marine;
+  float foam=marine*clamp(leading*.76+touchdownFoam*.48+after*.34+retained*.48+outer*.86,0.,.88);
 
-  vec3 c=mix(body,reflectSky(reflect(-V,NN)),fres*.62);float cats=pow(max(0.,sin(dot(world.xz,vec2(.63,-.34))*2.8-t*4.4+fb(world.xz*.34)*4.)),18.)*(.18+.82*stormBlend);c+=vec3(.34,.42,.48)*cats*(.18+.55*stormBlend);
+  vec3 c=mix(body,reflectSky(reflect(-V,NN)),fres*.62);float cats=marine*pow(max(0.,sin(dot(world.xz,vec2(.63,-.34))*2.8-t*4.4+fb(world.xz*.34)*4.)),18.)*(.18+.82*stormBlend);c+=vec3(.34,.42,.48)*cats*(.18+.55*stormBlend);
   c+=vec3(1.,.84,.52)*pow(max(dot(reflect(-sun,NN),V),0.),180.);
   c=mix(c,vec3(.96,.985,.91),foam);
   c=mix(c,farSea(-V),smoothstep(210.,470.,length(world.xz)));
@@ -384,7 +386,7 @@ void main(){
   float pulse=smoothstep(.17,.72,max(0.,sin(shorePhase(center,s,t))));
   float peel=.5+.5*sin(dot(coast,vec2(.15,-.10))+t*.20+.4*sin(dot(coast,vec2(.041,.083))));
   float peelGate=smoothstep(.18,.72,peel);
-  float energy=smoothstep(-7.0,-5.65,desired)*(1.-smoothstep(-1.15,-.35,desired))*pulse*peelGate;
+  float energy=marineAt(coast)*smoothstep(-7.0,-5.65,desired)*(1.-smoothstep(-1.15,-.35,desired))*pulse*peelGate;
   // The rising shoal first rounds up, then throws forward and finally loses
   // its overhang into a low collapsing nose as it reaches shallow water.
   float roll=smoothstep(-6.5,-3.6,desired)*(.62+.38*peel);
@@ -549,7 +551,7 @@ void main(){if(world.y<-.70)discard;if((leafFlag>.5||twigFlag>.5)&&detailFade<.9
   base*=1.+green*((grit.r-.52)*.44+(grit2.b-.53)*.26);
   if(world.y<.43){float wet=0.;
     for(int i=0;i<7;i++){float age=float(i)*.46;wet=max(wet,smoothstep(-.055,.018,surfWave(uv,time-age)-world.y)*exp(-age*.42));}
-    wet*=smoothstep(.01,.70,beach);vec3 shoreWet=shoreInfo(uv);float polish=smoothstep(-1.2,2.7,shoreWet.x)*(1.-smoothstep(-1.,8.,shoreWet.x));float head=surfWave(uv,shoreWet,time)-world.y,film=smoothstep(-.014,.010,head)*shoreBand(shoreWet.x)*smoothstep(.01,.70,beach),runFoam=film*smoothstep(.72,.96,sin(shorePhase(uv,shoreWet,time)))*smoothstep(.30,.70,n(uv*9.-shoreWet.yz*time*.72));base=mix(base,base*vec3(.54,.64,.68),max(max(wet,film*.64),polish*.18));base=mix(base,vec3(.91,.94,.86),runFoam*.42);base+=vec3(.075,.09,.097)*(wet+film*.45)*pow(1.-max(dot(normalize(eye-world),N),0.),2.6);
+    wet*=smoothstep(.01,.70,beach);vec3 shoreWet=shoreInfo(uv);float marine=marineAt(uv),polish=smoothstep(-1.2,2.7,shoreWet.x)*(1.-smoothstep(-1.,8.,shoreWet.x));float head=surfWave(uv,shoreWet,time)-world.y,film=smoothstep(-.014,.010,head)*shoreBand(shoreWet.x)*smoothstep(.01,.70,beach),runFoam=marine*film*smoothstep(.72,.96,sin(shorePhase(uv,shoreWet,time)))*smoothstep(.30,.70,n(uv*9.-shoreWet.yz*time*.72));base=mix(base,base*vec3(.54,.64,.68),max(max(wet,film*.64),polish*.18));base=mix(base,vec3(.91,.94,.86),runFoam*.42);base+=vec3(.075,.09,.097)*(wet+film*.45)*pow(1.-max(dot(normalize(eye-world),N),0.),2.6);
   }
 }
 if(landPass){
@@ -936,11 +938,53 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     // crossing in the same generated terrain used by the collision mesh.
     const shoreW=160,shoreH=112,shoreStepX=300/(shoreW-1),shoreStepZ=200/(shoreH-1),shoreDistance=new Float32Array(shoreW*shoreH),shoreNormal=new Float32Array(shoreW*shoreH*2),shorePixels=new Uint8Array(shoreW*shoreH*4);
     const shoreAt=(i,j)=>Math.max(-2,Math.min(2,H(-150+i*shoreStepX,-100+j*shoreStepZ)));
-    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){const q=j*shoreW+i,land=shoreAt(i,j)>=0;let edge=false;for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){if(!ox&&!oy)continue;const x=i+ox,z=j+oy;if(x>=0&&x<shoreW&&z>=0&&z<shoreH&&((shoreAt(x,z)>=0)!==land))edge=true;}shoreDistance[q]=edge?0:1e6;}
-    const relax=(forward)=>{const y0=forward?0:shoreH-1,y1=forward?shoreH:-1,dy=forward?1:-1,x0=forward?0:shoreW-1,x1=forward?shoreW:-1,dx=forward?1:-1;for(let j=y0;j!==y1;j+=dy)for(let i=x0;i!==x1;i+=dx){let q=j*shoreW+i,d=shoreDistance[q];for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){if(!ox&&!oy)continue;const x=i+ox,z=j+oy;if(x<0||x>=shoreW||z<0||z>=shoreH)continue;d=Math.min(d,shoreDistance[z*shoreW+x]+Math.hypot(ox*shoreStepX,oy*shoreStepZ));}shoreDistance[q]=d;}};
+    // Wet cells connected to the map perimeter are ocean. Enclosed wet
+    // components are protected lagoons. The nearest-water label extends over
+    // each bank, so both sides of a berm use the correct wave response.
+    const waterCell=new Uint8Array(shoreW*shoreH),marineCell=new Uint8Array(shoreW*shoreH),bankDistance=new Float32Array(shoreW*shoreH),bankMarine=new Uint8Array(shoreW*shoreH),flood=[];
+    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){
+      const q=j*shoreW+i;
+      waterCell[q]=shoreAt(i,j)<0?1:0;
+      bankDistance[q]=waterCell[q]?0:1e6;
+    }
+    const floodOcean=(i,j)=>{const q=j*shoreW+i;if(!waterCell[q]||marineCell[q])return;marineCell[q]=1;flood.push(q);};
+    for(let i=0;i<shoreW;i++){floodOcean(i,0);floodOcean(i,shoreH-1);}
+    for(let j=1;j<shoreH-1;j++){floodOcean(0,j);floodOcean(shoreW-1,j);}
+    for(let head=0;head<flood.length;head++){
+      const q=flood[head],i=q%shoreW,j=(q/shoreW)|0;
+      for(const n of [i>0?q-1:-1,i<shoreW-1?q+1:-1,j>0?q-shoreW:-1,j<shoreH-1?q+shoreW:-1])if(n>=0&&waterCell[n]&&!marineCell[n]){marineCell[n]=1;flood.push(n);}
+    }
+    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){
+      const q=j*shoreW+i;let edge=false;
+      for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+        if(!ox&&!oy)continue;
+        const x=i+ox,z=j+oy;
+        if(x>=0&&x<shoreW&&z>=0&&z<shoreH&&waterCell[z*shoreW+x]!==waterCell[q])edge=true;
+      }
+      shoreDistance[q]=edge?0:1e6;
+      bankMarine[q]=marineCell[q];
+    }
+    // Both distance fields share the same two directional sweeps.  The first
+    // finds the nearest coastline, and the second carries its ocean/lagoon
+    // identity over the adjacent bank without another terrain query.
+    const relax=(forward)=>{
+      const y0=forward?0:shoreH-1,y1=forward?shoreH:-1,dy=forward?1:-1,x0=forward?0:shoreW-1,x1=forward?shoreW:-1,dx=forward?1:-1;
+      for(let j=y0;j!==y1;j+=dy)for(let i=x0;i!==x1;i+=dx){
+        const q=j*shoreW+i;let coast=shoreDistance[q],bank=bankDistance[q],label=bankMarine[q];
+        for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+          if(!ox&&!oy)continue;
+          const x=i+ox,z=j+oy;
+          if(x<0||x>=shoreW||z<0||z>=shoreH)continue;
+          const n=z*shoreW+x,step=Math.hypot(ox*shoreStepX,oy*shoreStepZ);
+          coast=Math.min(coast,shoreDistance[n]+step);
+          if(bankDistance[n]+step<bank){bank=bankDistance[n]+step;label=bankMarine[n];}
+        }
+        shoreDistance[q]=coast;bankDistance[q]=bank;bankMarine[q]=label;
+      }
+    };
     for(let pass=0;pass<3;pass++){relax(true);relax(false);}
-    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){const q=j*shoreW+i;shoreDistance[q]*=shoreAt(i,j)>=0?1:-1;}
-    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){const q=j*shoreW+i,dl=shoreDistance[j*shoreW+Math.max(0,i-1)],dr=shoreDistance[j*shoreW+Math.min(shoreW-1,i+1)],du=shoreDistance[Math.max(0,j-1)*shoreW+i],dd=shoreDistance[Math.min(shoreH-1,j+1)*shoreW+i];let nx=(dr-dl)/(2*shoreStepX),nz=(dd-du)/(2*shoreStepZ),len=Math.hypot(nx,nz)||1;nx/=len;nz/=len;shoreNormal[q*2]=nx;shoreNormal[q*2+1]=nz;const p=q*4;shorePixels[p]=Math.round(Math.max(0,Math.min(255,(shoreDistance[q]/48*.5+.5)*255)));shorePixels[p+1]=Math.round((nx*.5+.5)*255);shorePixels[p+2]=Math.round((nz*.5+.5)*255);shorePixels[p+3]=255;}
+    for(let q=0;q<shoreDistance.length;q++)shoreDistance[q]*=waterCell[q]?-1:1;
+    for(let j=0;j<shoreH;j++)for(let i=0;i<shoreW;i++){const q=j*shoreW+i,dl=shoreDistance[j*shoreW+Math.max(0,i-1)],dr=shoreDistance[j*shoreW+Math.min(shoreW-1,i+1)],du=shoreDistance[Math.max(0,j-1)*shoreW+i],dd=shoreDistance[Math.min(shoreH-1,j+1)*shoreW+i];let nx=(dr-dl)/(2*shoreStepX),nz=(dd-du)/(2*shoreStepZ),len=Math.hypot(nx,nz)||1;nx/=len;nz/=len;shoreNormal[q*2]=nx;shoreNormal[q*2+1]=nz;const p=q*4;shorePixels[p]=Math.round(Math.max(0,Math.min(255,(shoreDistance[q]/48*.5+.5)*255)));shorePixels[p+1]=Math.round((nx*.5+.5)*255);shorePixels[p+2]=Math.round((nz*.5+.5)*255);shorePixels[p+3]=bankMarine[q]?255:0;}
     const shoreTex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,shoreW,shoreH,0,gl.RGBA,gl.UNSIGNED_BYTE,shorePixels);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     // Bake actual upwind terrain shelter once. The sea-facing map edge is
     // deliberately open; ridges reduce the common travelling gust inland.
@@ -952,8 +996,9 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       const at=(a,b)=>(Math.max(0,Math.min(shoreH-1,b))*shoreW+Math.max(0,Math.min(shoreW-1,a)))*4,mix=(a,b,t)=>a+(b-a)*t;
       const field=k=>mix(mix(shorePixels[at(i,j)+k],shorePixels[at(i+1,j)+k],fx),mix(shorePixels[at(i,j+1)+k],shorePixels[at(i+1,j+1)+k],fx),fz);
       let d=(field(0)/255*2-1)*48,nx=field(1)/255*2-1,nz=field(2)/255*2-1,l=Math.hypot(nx,nz)||1;
-      return {d,nx:nx/l,nz:nz/l};
+      return {d,nx:nx/l,nz:nz/l,marine:field(3)/255};
     }
+    function marineAtCPU(x,z){return x<-150||x>150||z<-100||z>100?1:shoreline(x,z).marine;}
     function shelterAtCPU(x,z){const u=Math.max(0,Math.min(shoreW-1,(x+150)/300*(shoreW-1))),v=Math.max(0,Math.min(shoreH-1,(z+100)/200*(shoreH-1))),i=Math.floor(u),j=Math.floor(v),fx=u-i,fz=v-j,at=(a,b)=>shelterPixels[(Math.min(shoreH-1,b)*shoreW+Math.min(shoreW-1,a))*4],mix=(a,b,t)=>a+(b-a)*t;return mix(mix(at(i,j),at(i+1,j),fx),mix(at(i,j+1),at(i+1,j+1),fx),fz)/255;}
     function normal(x, z) {
       let e = 0.4;
@@ -2109,8 +2154,10 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     const breakerP=[],breakerArc=[],breakerI=[],breakerSegments=640,breakerStations=breakerSegments+1,breakerSlots=3,breakerProfiles=10,breakerCoast=[];
     for(let i=0;i<=breakerSegments;i++){
       const angle=i*Math.PI*2/breakerSegments,dx=Math.cos(angle),dz=Math.sin(angle);let previous=shoreline(-10+dx*8,-4+dz*8),lastR=8,hit=null;
-      for(let radius=10;radius<=178;radius+=2){const sample=shoreline(-10+dx*radius,-4+dz*radius);if(previous.d>=0&&sample.d<0){const f=previous.d/(previous.d-sample.d);hit=[-10+dx*(lastR+(radius-lastR)*f),-4+dz*(lastR+(radius-lastR)*f)];break;}previous=sample;lastR=radius;}
-      breakerCoast.push(hit||[-10+dx*76,-4+dz*62]);
+      // A radial can cross the enclosed lagoon before it reaches the sea.
+      // Continue until it finds the perimeter-connected water body.
+      for(let radius=10;radius<=178;radius+=2){const sample=shoreline(-10+dx*radius,-4+dz*radius);if(previous.d>=0&&sample.d<0){const f=previous.d/(previous.d-sample.d),r=lastR+(radius-lastR)*f,candidate=[-10+dx*r,-4+dz*r];if(marineAtCPU(candidate[0]+dx*.8,candidate[1]+dz*.8)>.5){hit=candidate;break;}}previous=sample;lastR=radius;}
+      breakerCoast.push(hit||[-10+dx*138,-4+dz*92]);
     }
     const breakerArcLength=[0];
     for(let i=1;i<breakerStations;i++)breakerArcLength.push(breakerArcLength[i-1]+Math.hypot(breakerCoast[i][0]-breakerCoast[i-1][0],breakerCoast[i][1]-breakerCoast[i-1][1]));
@@ -2230,7 +2277,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       for(const w of audio.wind)w.amp.gain.setTargetAtTime(w.gain*(.45+.8*gust+weather.blend*.95),audio.ctx.currentTime,.18);
       if(audio.rustle) audio.rustle.amp.gain.setTargetAtTime(.10*forest*(.12+.88*burst)*(gust+weather.blend*.8),audio.ctx.currentTime,.055);
       for(const r of audio.rain)r.amp.gain.setTargetAtTime(.085*weather.blend,audio.ctx.currentTime,.16);
-      let coast=shoreline(player.x,player.z),near=Math.exp(-Math.abs(coast.d)*.055),phase=shorePhaseCPU(player.x,player.z,waterClock,coast),crest=Math.max(0,Math.sin(phase))*(.35+.65*near),swash=Math.max(0,Math.sin(phase));
+      let coast=shoreline(player.x,player.z),marine=coast.marine,near=Math.exp(-Math.abs(coast.d)*.055)*marine,phase=shorePhaseCPU(player.x,player.z,waterClock,coast),crest=Math.max(0,Math.sin(phase))*(.35+.65*near)*marine,swash=Math.max(0,Math.sin(phase))*marine;
       if(audio.surf[0])audio.surf[0].amp.gain.setTargetAtTime(audio.surf[0].gain*near*(.12+1.18*crest),audio.ctx.currentTime,.12);
       if(audio.surf[1])audio.surf[1].amp.gain.setTargetAtTime(audio.surf[1].gain*near*(.05+.68*swash*(.35+crest)),audio.ctx.currentTime,.07);
       for (const s of audio.spatial) {
@@ -2247,6 +2294,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     if (test === "forest") Object.assign(player, { x: 53.6, z: -35.6, yaw: 1.047, pitch: .075 });
     if (test === "wind") Object.assign(player, { x: -54, z: -62, yaw: -1.77014, pitch: -.09 });
     if (test === "wave") Object.assign(player, { x: 107.81, z: -48.34, yaw: -.4304, pitch: -.17 });
+    if (test === "lagoon") Object.assign(player, { x: 97.8, z: 35.1, yaw: -.5236, pitch: -.17 });
     function activeButton(value) {
       document
         .querySelectorAll("button")
@@ -2329,7 +2377,12 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
     }
     function waterSurface(x, z, time = waterClock) {
       const fresh=freshwaterSurface(x,z);if(fresh!==null)return fresh;
-      const s=shoreline(x,z),sm=(a,b,v)=>{v=Math.max(0,Math.min(1,(v-a)/(b-a)));return v*v*(3-2*v);};
+      const s=shoreline(x,z),marine=s.marine,sm=(a,b,v)=>{v=Math.max(0,Math.min(1,(v-a)/(b-a)));return v*v*(3-2*v);};
+      let lagoon=0;
+      if(marine<.999){
+        lagoon=.012*Math.sin(x*1.48-z*.93+time*1.74)+.007*Math.sin(-x*2.37-z*1.82-time*2.28+.7*Math.sin(x*.12+z*.17));
+        if(marine<.001)return lagoon;
+      }
       const band=sm(-16,-6,s.d)*(1-sm(2.2,6.2,s.d)),off=sm(8,28,-s.d),set=shoreSetCPU(x,z,time);
       const swell=.20*Math.sin(x*.115+z*.065-time*1.12+.19*Math.sin(x*.021-z*.037))+.075*Math.sin(x*.38-z*.22+time*1.9)+.035*Math.sin(x*1.3+z*.9-time*3.2);
       const phase=shorePhaseCPU(x,z,time,s),pulse=breakerPulseCPU(x,z,time,s),zone=sm(-9,-5.6,s.d)*(1-sm(.35,2.5,s.d)),run=.040*Math.sin(phase)+(.10+.16*set)*Math.max(0,Math.sin(phase))**2,roll=zone*pulse*(.13+.12*set);
@@ -2337,7 +2390,8 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
       const reefGap=1-sm(.10,.37,Math.abs(Math.sin(a*3.1+r*11+.65*Math.sin(a*5)))),rock=1-reefGap;
       const rim=sm(.955,.982,r)*(1-sm(1.012,1.040,r))*rock,ridgePhase=Math.sin(r*31-time*2.05+a*2.7+.55*Math.sin(a*9));
       const ridge=rim*(.22+.18*Math.max(0,ridgePhase)**2)*sm(.24,.72,.5+.5*Math.sin(a*17+r*11));
-      return swell*(.24+.76*off)+band*run+roll+ridge;
+      const ocean=swell*(.24+.76*off)+band*run+roll+ridge;
+      return marine<.999?lagoon+(ocean-lagoon)*marine:ocean;
     }
     function updatePlayer(dt) {
       if (mode !== "walk") return;
@@ -2643,6 +2697,7 @@ precision highp float;in float a;out vec4 o;void main(){vec2 q=gl_PointCoord*2.-
         groundElevation: gridHeight(player.x, player.z),
         reefMargin: reefMargin(player.x, player.z),
         waterSurface: waterSurface(player.x, player.z),
+        marineExposure: marineAtCPU(player.x, player.z),
         surf: { connectedCrestSlots: breakerSlots, stations: breakerStations, profileVertices: breakerProfiles, triangles: breakerI.length / 3, phasePeriodSeconds: Math.PI * 2 / 2.48, lipBandMetres: [-7, -.35] },
         prevailingWindXZ: [.87,.49],
         islandSystems: { gust:gustPulseCPU(player.x,player.z), shelter:shelterAtCPU(player.x,player.z), light:canopyLightAt(player.x,player.z), intertidalOutcrops, shellGritCount, seaweedRibbonCount, seedlings:seedlingCount, fallenLeafClusters:fallenLeafCount },
