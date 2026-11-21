@@ -332,7 +332,7 @@ function tube(mb,pts,rad0,sides,o={}){const n=pts.length;if(n<2)return;const bas
       const rr=o.rmod?r*o.rmod(i/(n-1),j/sides,pts[i]):r;
       mb.v(V.madd(pts[i],dir,rr),dir,[j/sides,o.vlen?len:i/(n-1)],o.col?o.col(i/(n-1),j/sides):[1,1,1,1],o.ext?o.ext(i/(n-1),j/sides,pts[i]):[0,0,0,0]);}}
   for(let i=0;i<n-1;i++)for(let j=0;j<sides;j++){const a=base+i*(sides+1)+j,b=a+1,c=a+sides+2,d=a+sides+1;mb.q(a,b,c,d);}
-  if(o.cap){const e=n-1,c=mb.v(V.madd(pts[e],Tn[e],rad(1,e)*0.6),Tn[e],[0.5,o.vlen?len:1],o.col?o.col(1,0):[1,1,1,1],o.ext?o.ext(1,0,pts[e]):[0,0,0,0]);
+  if(o.cap){const e=n-1,c=mb.v(V.madd(pts[e],Tn[e],rad(1,e)*(o.capH===undefined?0.6:o.capH)),Tn[e],[0.5,o.vlen?len:1],o.col?o.col(1,0):[1,1,1,1],o.ext?o.ext(1,0,pts[e]):[0,0,0,0]);
     for(let j=0;j<sides;j++){const a=base+e*(sides+1)+j;mb.t(a,a+1,c);}}
   if(o.cap0){const c=mb.v(V.madd(pts[0],Tn[0],-rad(0,0)*0.5),V.mul(Tn[0],-1),[0.5,0],o.col?o.col(0,0):[1,1,1,1],o.ext?o.ext(0,0,pts[0]):[0,0,0,0]);
     for(let j=0;j<sides;j++){const a=base+j;mb.t(a+1,a,c);}}
@@ -430,6 +430,7 @@ float shadowAt(vec3 P,vec3 N){
     float rot=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))*6.2831;
 #endif
    float rs=1.8/uSMk.y;float bd=0.,nb=0.;
+    {float d=texture(uShadowR,c.xy).r;if(d<c.z-b){bd+=d;nb+=1.;}} // centre tap: a thin occluder (fish, shrimp, leaf) right above must never be missed by the rotated ring, or the pixel pops fully lit
     int nb0=uPCSS>1.5?8:5,np=uPCSS>1.5?12:8;float fb=float(nb0),fp=float(np);
     for(int i=0;i<8;i++){if(i>=nb0)break;float a=rot+float(i)*2.39996;vec2 o=vec2(cos(a),sin(a))*sqrt((float(i)+.5)/fb)*rs;float d=texture(uShadowR,c.xy+o).r;if(d<c.z-b){bd+=d;nb+=1.;}}
     if(nb<.5)return 1.;bd/=nb;float pen=max(clamp((c.z-bd)*uSMk.x*.055,.03,1.6)/uSMk.y,1.3*ts);float sum=0.;
@@ -516,14 +517,14 @@ vec3 sandMat(vec3 P,vec3 N,out float h,out float rough,out float spec){
   float cr=hash12(mc*1.31+7.),c2=hash12(mc+3.1);
   float fw=length(fwidth(g));float det=1.-smoothstep(.3,1.1,fw);
   // rounded grains with soft crevices: height from the distance to the cell boundary (F2 - F1)
-  float edge=sqrt(md2)-sqrt(md);float gr=.46+.16*hash12(mc*2.7+1.);float circ=sqrt(max(0.,1.-md/(gr*gr)));float dome=min(circ,smoothstep(0.,.3,edge));
+  float edge=sqrt(md2)-sqrt(md);float gr=.42+.2*hash12(mc*2.7+1.);float circ=sqrt(max(0.,1.-md/(gr*gr)));float dome=min(circ,smoothstep(0.,.22,edge));
   h=dome*(.55/gs)*det;
   vec3 base,gc;
   if(t==0){base=vec3(.56,.49,.38);gc=cr<.34?vec3(.66,.58,.45):cr<.56?vec3(.52,.42,.3):cr<.72?vec3(.7,.68,.63):cr<.82?vec3(.8,.78,.72):cr<.9?vec3(.56,.38,.24):cr<.96?vec3(.36,.33,.29):vec3(.18,.16,.14);gc*=.8+.36*c2;rough=.9;spec=.12;}
   else if(t==1){base=vec3(.05,.05,.055);gc=vec3(.035,.035,.04)+cr*.03;rough=.55;spec=.4+step(.9,cr)*2.5;}
   else if(t==2){base=vec3(.15,.10,.07);gc=mix(vec3(.10,.07,.045),vec3(.24,.16,.10),cr);rough=.95;spec=.08;}
   else{base=vec3(.48,.43,.36);gc=cr<.3?vec3(.62,.55,.45):cr<.55?vec3(.40,.34,.28):cr<.75?vec3(.72,.70,.66):cr<.9?vec3(.30,.29,.29):vec3(.56,.42,.30);gc*=.8+.35*c2;rough=.4;spec=.45;h=dome*.32*det;}
-  vec3 alb=mix(base,gc,det*(t==3?.85:.85));if(t!=3)alb*=mix(1.,mix(.5,1.,smoothstep(0.,.5,dome)),det*det);
+  vec3 alb=mix(base,gc,det*(t==3?.85:.85));if(t!=3)alb*=mix(1.,mix(.74,1.,smoothstep(0.,.45,dome)),det*det);
   alb*=.94+.12*hash12(floor(g*2.3));
   if(t==3)alb*=mix(.35,1.,smoothstep(0.,.45,dome*det+1.-det));
   float n=fbm(vec3(q*.11,1.3));alb*=.84+.3*n;alb*=.9+.2*fbm(vec3(q*.9,4.1));alb=mix(alb,alb*vec3(1.04,.98,.9),smoothstep(.45,.75,fbm(vec3(q*.25,7.7)))*.5);
@@ -549,7 +550,11 @@ vec3 rockMat(vec3 o,vec3 N,inout float ao,out float h,out float rough,out float 
     alb=c1*(.82+.3*n1);alb=mix(alb,alb*.45,sk1*.55);alb=mix(alb,vec3(.78,.76,.72),sk3*.35);alb=mix(alb,alb*.3,sk2*.5);
     float band2=1.-smoothstep(.01,.03,abs(fbm2(o*vec3(.15,.4,.15)+uSeed)-.5));alb=mix(alb,vec3(.8,.79,.75),band2*.5*smoothstep(.55,.7,fbm(o*.3+2.)));
     h=n3*.015+sk1*.004;rough=.55;spec=.3;}
-  else{float lay=sin(o.y*8.+n2*3.)*.5+.5;alb=mix(vec3(.12,.13,.15),vec3(.22,.23,.25),n1)*(.85+.25*lay);h=lay*.04+n3*.03;rough=.62;spec=.3;}
+  else{ // slate: thin cleavage layers on the edges, flat matte faces with faint mottling and rust stains
+    float fq=5.;float ly=(vCol.r>.5?vO.x:vO.y)*fq+n2*.6;float gl=length(vec2(dFdx(ly),dFdy(ly)))/max(length(dFdx(vW))+length(dFdy(vW)),1e-4)*1.41;float side=smoothstep(.3*fq,.7*fq,gl);
+    float lay=abs(fract(ly)-.5);float fwl=fwidth(ly);float gap=(1.-smoothstep(fwl*.5,fwl*1.5+.05,lay))*side*(1.-smoothstep(.35,.6,fwl));
+    alb=mix(vec3(.085,.09,.1),vec3(.17,.18,.19),n1)*(.9+.2*fbm(o*2.3));alb=mix(alb,vec3(.26,.18,.11),smoothstep(.62,.8,fbm(o*.7+4.))*.35);alb*=1.-gap*.55;
+    h=-gap*.05+n3*.012+side*(fract(ly)*.02);rough=.78;spec=.18;}
   alb*=mix(.5,1.,ao);
   float top=smoothstep(.55,.95,N.y);float bf=fbm(o*.8);
   alb=mix(alb,alb*vec3(.72,.95,.5)+vec3(0.,.012,0.),top*.45*bf);
@@ -581,7 +586,11 @@ void main(){
     float film=smoothstep(.55,.7,fbm(vO*1.7+2.))*(1.-moss);alb=mix(alb,alb*1.25+vec3(.03,.03,.02),film*.25);}
   else if(uMat==4){vec3 ro=mat3(.80,.36,-.48,-.6,.48,-.64,0.,.8,.6)*vO;float n=fbm(ro*.5+uSeed);alb=mix(vec3(.52,.24,.12),vec3(.66,.34,.19),n);alb*=mix(.7,1.,smoothstep(-2.,4.,vO.y));
     alb=mix(alb,vec3(.74,.7,.62),smoothstep(.72,.8,fbm(ro*1.3+7.))*.4);float fs=fbm(ro*6.)*.6+fbm(ro*17.)*.4;alb*=.9+.18*fs;alb=mix(alb,alb*.6,step(.985,hash13(floor(ro*14.)))*.6);h=fs*.012;rough=.95;spec=.08;}
-  else if(uMat==5){float p=vnoise(vO*6.5)*.6+vnoise(vO*15.)*.4;alb=vec3(.035,.04,.04)*(.5+.9*p);h=p*.14;rough=1.;spec=.04;}
+  else if(uMat==5){ // open-cell filter foam: thin struts round deep pores (3D cellular noise, about 3 mm cells), fading to an average where it would alias
+    vec3 q=vO*3.6,ip=floor(q),fp=fract(q);float f1=9.,f2=9.;
+    for(int k=0;k<27;k++){vec3 o=vec3(float(k%3),float((k/3)%3),float(k/9))-1.;vec3 r=o+vec3(hash13(ip+o),hash13(ip+o+17.3),hash13(ip+o+41.7))-fp;float d=dot(r,r);if(d<f1){f2=f1;f1=d;}else if(d<f2)f2=d;}
+    f1=sqrt(f1);f2=sqrt(f2);float aa=clamp(length(fwidth(q))*1.2-.2,0.,1.);float strut=mix(1.-smoothstep(.0,.1,f2-f1),.3,aa),pore=mix(smoothstep(.08,.42,f1),.5,aa);
+    alb=mix(vec3(.014,.015,.016),vec3(.12,.125,.125),strut)*(1.-.7*pore);h=(strut*.4-pore*.6)*.25*(1.-aa);rough=mix(.85,.45,strut);spec=.55*strut*(.5+hash13(ip));}
   else if(uMat==6){spec=.6;}
   else if(uMat==7){lit=false;float y=vW.y;
     if(uVar==0){alb=vec3(.006);lit=true;rough=.9;spec=.05;}
@@ -624,7 +633,7 @@ void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uCam-v
     alb=alb*.68;alb=mix(alb,alb*.7,lv*.45*(1.-mid));alb=mix(alb,alb*1.25,mid*.5);if(!gl_FrontFacing)alb=mix(alb,vec3(.30,.11,.12),.75);h=mid*.02-lv*.012;trans=.22;spec=.55;rough=.35;}
   else if(sp==1){ // Amazon sword: arcuate veins run from base to tip parallel to the margin (constant u), joined by faint cross veins
     float du=abs(u-.5);float av=max(1.-smoothstep(.006,.018,abs(du-.16)),1.-smoothstep(.005,.015,abs(du-.31)))*.8;float cv=(1.-smoothstep(.0,.06,abs(fract(v*26.+du*3.)-.5)))*.25*(1.-mid);
-    alb=mix(alb,alb*1.35+vec3(.02,.03,0.),mid*.85);alb=mix(alb,alb*1.22,max(av,cv));h=mid*.02+av*.006;trans=.5;spec=.35;}
+    alb=mix(alb,alb*1.35+vec3(.02,.03,0.),mid*.85);alb=mix(alb,alb*1.3+vec3(.01,.02,0.),max(av,cv));h=mid*.02+av*.008;trans=.5;spec=.4;rough=.45;}
   else if(sp==2){float lat=abs(fract(v*13.-abs(u-.5)*3.)-.5);float lv=1.-smoothstep(0.,.09,lat);
     alb=mix(alb,alb*.62,lv*.55*(1.-mid));alb=mix(alb,alb*1.45,mid*.65);trans=.32;spec=.45;rough=.45;
     if(!gl_FrontFacing){float sor=step(.62,vnoise(vec3(u*9.,v*30.,vExt.x*5.)))*smoothstep(.15,.3,abs(u-.5))*smoothstep(.75,.35,v)*(1.-lv);alb=mix(alb,vec3(.07,.045,.02),sor*.85);}}
@@ -635,6 +644,8 @@ void main(){vec3 N=normalize(vN);if(!gl_FrontFacing)N=-N;vec3 V=normalize(uCam-v
   else if(sp==9){trans=.65;rough=.7;spec=.1;}
   else if(sp==10){trans=.2;rough=.75;spec=.15;}
   alb*=.9+.18*vnoise(vec3(u*5.,v*18.,vExt.x*7.));
+  if(!gl_FrontFacing&&sp!=7&&sp!=5&&sp!=9){alb=mix(alb*1.15,vec3(lum(alb)*1.15),.18);spec*=.6;} // undersides are paler and duller
+  if(sp<=2||sp==7){float lh=fract(sin(vExt.x*91.7+float(sp)*3.1)*43758.5);if(lh>.94){float y2=(lh-.94)/.06;alb=mix(alb,mix(vec3(.5,.42,.14),vec3(.36,.24,.1),y2)*(.8+.3*vnoise(vec3(u*6.,v*20.,lh*9.))),.55+.3*(1.-v));spec*=.5;trans*=.7;}} // the odd yellowing or melting old leaf, as in any real tank
   if(sp==1||sp==2||sp==4||sp==8){float bl=abs(u-.5)*2.;h+=(sin(v*17.+bl*4.+vExt.x*3.)*.5+.5)*.035*bl*bl+sin(v*41.+u*9.)*.006;} // blade puckering between the veins
   if(sp!=5&&sp!=9){float age=1.-v;alb*=mix(1.06,.82,age*age);alb=mix(alb,alb*vec3(1.08,1.12,.72),smoothstep(.75,1.,v)*(sp==3||sp==7?.08:.25));
     float edge=smoothstep(.36,.5,abs(u-.5));alb=mix(alb,alb*vec3(.85,.72,.5),edge*.35);
@@ -671,9 +682,12 @@ void main(){vec3 q=aPos,n=aNor;float s=aExt.x;int part=int(aCol.z+.5);vL=vec3(aP
   vW=w;vUV=aUV;vCol=aCol;vExt=vec4(s,aExt.yzw);gl_Position=uVP*vec4(w,1.);}`;
 const FS_AXO=H+C_UNI+C_FN+C_FS+`
 uniform vec3 uC1;uniform vec3 uC2;uniform vec3 uC3;uniform vec3 uEye;uniform vec3 uIris;uniform float uIrid;uniform float uSpots;uniform float uJaw;
+uniform float uSee;uniform float uFinSep;uniform sampler2D uScene;uniform vec2 uRes;
 in vec3 vW;in vec3 vN;in vec2 vUV;in vec4 vCol;in vec4 vExt;in vec3 vL;out vec4 oC;
 void main(){vec3 N=normalize(vN);bool back=!gl_FrontFacing;if(back)N=-N;vec3 V=normalize(uCam-vW);
   int part=int(vCol.z+.5);float s=vL.z;float u=vUV.x;
+  // the tail fin is thin and see-through: drawn in the see-through pass (uSee) blending with the scene behind it
+  if(uSee>.5&&part!=1)discard;if(uSee<.5&&uFinSep>.5&&part==1)discard;
   vec3 alb=uC1;float rough=.34,spec=.55,trans=.32,ao=vCol.x,h=0.;
   if(part==0||part==5){
     float sp=fbm(vec3(vL.x*1.9,vL.y*1.9,s*1.4)+7.);float sp2=vnoise(vec3(vL.xy*5.,s*4.));
@@ -684,8 +698,12 @@ void main(){vec3 N=normalize(vN);bool back=!gl_FrontFacing;if(back)N=-N;vec3 V=n
       float side=smoothstep(.3,.75,abs(cos(u*TAU)));
       float cg=smoothstep(4.8,5.6,s)*smoothstep(11.9,11.1,s)*(1.-smoothstep(0.,.17,abs(fract((s-5.)/.58)-.5)));
       h=-.05*cg*side;alb*=1.-cg*side*.16;
-      float jw=vCol.y;float ml=smoothstep(.3,.5,jw)*smoothstep(.7,.5,jw)*smoothstep(3.,2.3,s)*smoothstep(.1,.6,s);
-      alb=mix(alb,uJaw>.05?vec3(.5,.17,.19):alb*vec3(.74,.62,.62),ml*(uJaw>.05?1.:.7));h-=ml*.02*(uJaw>.05?0.:1.);
+      // fine freckles on leucistics (a few dark specks, as in close photos)
+      float fz=1.-smoothstep(.2,.6,length(fwidth(vec2(s*9.,(vL.x+vL.y)*9.))));
+      vec2 fq=vec2(s*9.,(vL.x+vL.y)*9.);float frk=step(.982,hash12(floor(fq)))*(1.-smoothstep(.18,.32,length(fract(fq)-.5)))*(1.-step(.5,uSpots))*fz;alb=mix(alb,alb*vec3(.5,.45,.45),frk*.5);
+      // closed mouth: a thin lip line along the smooth mouth curve (vCol.w = height above it); open mouth: the stretched triangles at the jaw seam show the red inside
+      float jw=vCol.y,sr=smoothstep(3.,2.3,s)*smoothstep(.1,.6,s);float ml=uJaw>.05?smoothstep(.3,.5,jw)*smoothstep(.7,.5,jw)*sr:smoothstep(.05,.012,abs(vCol.w))*sr;
+      alb=mix(alb,uJaw>.05?vec3(.5,.17,.19):alb*vec3(.74,.62,.62),ml*(uJaw>.05?1.:.6));
       float blush=smoothstep(2.4,3.8,s)*smoothstep(5.6,4.2,s)*.5+belly*.35+smoothstep(.0,.3,abs(cos(u*TAU))-.6)*.15;alb=mix(alb,alb*vec3(1.04,.82,.82),blush*uSpots*0.+blush*(1.-step(.3,uSpots))*.8);}
     float fl=step(.968,hash13(floor(vec3(vL.xy*8.,s*8.))));spec+=fl*uIrid*3.;
     alb*=.95+.08*vnoise(vec3(vL.xy*12.,s*12.));}
@@ -703,44 +721,57 @@ void main(){vec3 N=normalize(vN);bool back=!gl_FrontFacing;if(back)N=-N;vec3 V=n
     col+=Lc*shw*cc*(part==3||part==4?.3:1.)*causAt(vW);col+=envColor(reflect(-V,N))*fr*.6;}
   if(part!=2){col+=alb*uAmb*.08*vec3(1.,.55,.5);if(inWater(vW)&&(part==0||part==5||part==1))col+=alb*uC3*uLcol*exp(-uAbs*max(uWL-vW.y,0.))*.07*shadowAt(vW,N);}
   if(uSel>0.)col+=vec3(.05,.1,.09)*uSel;
-  oC=vec4(applyWater(col,vW),1.);}`;
+  col=applyWater(col,vW);
+  if(uSee>.5){float fy=vExt.y;float op=mix(.82,.22,smoothstep(.05,.95,fy))+pow(1.-max(dot(N,V),0.),2.)*.25;
+    vec3 Rt=normalize(cross(vec3(0.,1.,0.),V)+1e-5),Up=cross(V,Rt);vec2 off=vec2(dot(N,Rt),dot(N,Up))*.004;
+    vec3 bh=texture(uScene,clamp(gl_FragCoord.xy/uRes+off,vec2(.001),vec2(.999))).rgb;col=mix(bh*mix(vec3(1.),uC1*1.2+.12,.5),col,clamp(op,0.,1.));}
+  oC=vec4(col,1.);}`;
 
 // ---------- fish (instanced) ----------
 const VS_FISH=H+C_UNI+`
+uniform int uSp;
 in vec3 aPos;in vec3 aNor;in vec2 aUV;in vec4 aCol;in vec4 aExt;in vec4 iM0;in vec4 iM1;in vec4 iM2;in vec4 iM3;in vec4 iA;in vec4 iB;
 out vec3 vW;out vec3 vN;out vec2 vUV;out vec4 vExt;out vec4 vI;
 void main(){mat4 M=mat4(iM0,iM1,iM2,iM3);vec3 p=aPos,n=aNor;float x=p.x;
-  float u=clamp((.3-x)/.8,0.,1.);float k=7.5,ph=iA.x,A=iA.y*.2,B=iA.z*.3;
+  // a startled pufferfish gulps water and becomes a ball: genFish stores each vertex's push onto the ball in aCol (xyz) and how much of the ball normal to take (w)
+  float pf=uSp==6?iB.y:0.;if(pf>.001){p+=aCol.xyz*pf;if(aCol.w>0.)n=normalize(mix(n,normalize((p-vec3(.15,-.03,0.))/vec3(.0961,.09,.0784)),aCol.w*pf));}
+  // puffers swim with a stiff body, sculling with the dorsal and anal fins; the tail is mostly a rudder
+  float u=clamp((.3-x)/.8,0.,1.);float k=7.5,ph=iA.x,A=iA.y*.2*(uSp==6?.3*(1.-pf):1.),B=iA.z*.3*(uSp==6?.6:1.);
   float sw=sin(ph-x*k),cw=cos(ph-x*k);
   p.z+=A*u*u*sw+B*u*u;
   float du=(x<.3&&x>-.5)?-1.25:0.;float dl=A*(2.*u*du*sw-u*u*k*cw)+B*2.*u*du;
   n=normalize(vec3(n.x-n.z*dl,n.y,n.z));
-  if(aExt.x>1.5&&aExt.x<2.5)p.z+=sign(aPos.z)*sin(iA.w+aExt.z)*.025*aExt.y;
+  if(aExt.x>1.5&&aExt.x<2.5)p.z+=sign(aPos.z)*sin(iA.w+aExt.z)*(uSp==6?.04:.025)*aExt.y;
   if(aExt.x>.5)p.z+=sin(uTime*6.+x*18.+aExt.z)*.007*aExt.y;
+  if(uSp==6&&aExt.x>.5&&aExt.x<1.5&&aExt.z>.5&&aExt.z<2.5)p.z+=sin(ph*1.7+aExt.z*1.3-x*9.)*.06*aExt.y;
   vec4 w=M*vec4(p,1.);vW=w.xyz;vN=normalize(mat3(M)*n);vUV=aUV;vExt=aExt;vI=iB;gl_Position=uVP*w;}`;
 const FS_FISH=H+C_UNI+C_FN+C_FS+`
 uniform int uSp;uniform int uFinPass;
 in vec3 vW;in vec3 vN;in vec2 vUV;in vec4 vExt;in vec4 vI;out vec4 oC;
 vec3 hue(float h){return clamp(abs(fract(h+vec3(0.,.6667,.3333))*6.-3.)-1.,0.,1.);}
 float band(float v,float c,float w,float s){return smoothstep(w+s,w,abs(v-c));}
-void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5;if(uFinPass==0&&fin)discard;if(uFinPass==1&&!fin)discard;
+void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,barb=part>3.5;if(uFinPass==0&&fin)discard;if(uFinPass==1&&!fin)discard;
   vec3 N=normalize(vN);vec3 V=normalize(uCam-vW);if(fin){if(dot(N,V)<0.)N=-N;}else if(!gl_FrontFacing)N=-N;
   float x=vUV.x,y=vUV.y;float nv=max(dot(N,V),0.);vec3 N0=N;
   vec3 alb=vec3(.6);float rough=.3,spec=.6,trans=.2,alpha=1.,silv=0.,ir=0.;vec3 irc=vec3(0.);float fid=part>1.5?5.:vExt.z,edge=vExt.y;
-  if(eye){ // glassy eye: black pupil, metallic iris, clear cornea
-    float r=length(vUV);vec3 irisC=uSp==1?vec3(.62,.66,.68):uSp==4?vec3(.6,.16,.1):uSp==0?vec3(.62,.52,.3):uSp==5?vec3(.42,.34,.2):vec3(.66,.62,.5);
-    if(uSp==1)irisC=mix(irisC,vec3(.2,.55,.75),smoothstep(.2,.8,vUV.y)*.6);if(uSp==4)irisC=mix(irisC*.5,irisC,smoothstep(-.2,.6,vUV.y));
-    float pu=smoothstep(.6,.54,r);alb=mix(irisC*.55*(.85+.15*sin(atan(vUV.y,vUV.x)*9.)),vec3(.01),pu);alb*=mix(.25,1.,smoothstep(1.,.78,r));
-    rough=.04;spec=2.;trans=0.;silv=(1.-pu)*smoothstep(1.,.8,r)*.22;}
+  if(barb){alb=vec3(.82,.74,.68);rough=.5;spec=.3;trans=.5;}
+  else if(eye){ // glassy eye: black pupil, metallic iris, clear cornea
+    vec2 eu=vUV;if(uSp==6){float tt=uTime*.75+vI.x*7.+vExt.z*1.7,k=floor(tt);vec2 la=vec2(hash12(vec2(k,vExt.z)),hash12(vec2(k,vExt.z+5.)))-.5,lb=vec2(hash12(vec2(k+1.,vExt.z)),hash12(vec2(k+1.,vExt.z+5.)))-.5;
+      eu-=mix(la,lb,smoothstep(.0,.12,fract(tt)))*vec2(.42,.26);} // pea puffers swivel each eye on its own, in quick darts
+    float r=length(eu),rs=length(vUV);vec3 irisC=uSp==1?vec3(.62,.66,.68):uSp==4?vec3(.6,.16,.1):uSp==0?vec3(.62,.52,.3):uSp==5?vec3(.42,.34,.2):uSp==6?vec3(.95,.7,.12):vec3(.66,.62,.5);
+    if(uSp==1)irisC=mix(irisC,vec3(.2,.55,.75),smoothstep(.2,.8,vUV.y)*.6);if(uSp==6)irisC=mix(vec3(.03,.32,.3),vec3(.9,.66,.1),smoothstep(.62,.8,r)); // pea puffer: iridescent teal iris inside a gold ring
+    if(uSp==4)irisC=mix(irisC*.5,irisC,smoothstep(-.2,.6,vUV.y));
+    float pu=uSp==6?smoothstep(.47,.41,r):smoothstep(.6,.54,r);alb=mix(irisC*.55*(.85+.15*sin(atan(eu.y,eu.x)*9.)),vec3(.01),pu);alb*=mix(.25,1.,smoothstep(1.,.78,max(r,rs)));
+    rough=.04;spec=2.;trans=0.;silv=(1.-pu)*smoothstep(1.,.8,r)*.22;if(uSp==6){ir=(1.-pu)*smoothstep(.74,.55,r)*.45;irc=vec3(.1,.7,.55);}}
   else if(!fin){
     // smooth overlapping scales: dark posterior rims, each scale slightly domed; fades out where it would alias
     vec2 sc=vec2(x*58.,y*8.);float row=floor(sc.y);sc.x+=row*.5;vec2 f=fract(sc);float fw=length(fwidth(sc));
-    float sk=(1.-smoothstep(.25,.7,fw))*smoothstep(.86,.74,x)*smoothstep(.15,.22,x)*(uSp==5?0.:1.);
+    float sk=(1.-smoothstep(.25,.7,fw))*smoothstep(.86,.74,x)*smoothstep(.15,.22,x)*(uSp==5||uSp==6?0.:1.);
     float d=length((f-vec2(.22,.5))*vec2(1.,1.25));float rim=smoothstep(.46,.62,d)*sk;
     vec2 q=(f-vec2(.25,.5))*vec2(1.,1.25);vec2 tl=q*smoothstep(.62,.15,length(q));vec3 Tx=normalize(cross(N,vec3(0.,1.,0.))+1e-4);vec3 Ty=cross(Tx,N);N=normalize(N+(Tx*tl.x+Ty*tl.y)*sk*.45);
     float oper=band((1.-x)-(.155+.035*y*y),0.,.006,.012)*smoothstep(.95,.5,abs(y)); // gill cover edge
     float lat=band(y,.06+.04*(x-.5),.012,.02)*smoothstep(.83,.78,x)*smoothstep(.15,.3,x);
-    float belly=smoothstep(.05,-.55,y),back=smoothstep(-.1,.75,y);
+    float belly=smoothstep(.05,-.55,y),back=smoothstep(-.1,.75,y),pbl=0.;
     if(uSp==1){ // neon tetra
       alb=mix(vec3(.17,.17,.11),vec3(.8,.8,.76),belly);silv=belly*.8;
       float bl=band(y,.2-.06*(x-.6),.12,.045)*smoothstep(.9,.85,x)*smoothstep(.2,.3,x);
@@ -764,15 +795,26 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5;if(uFinPas
     else if(uSp==4){ // cherry barb
       alb=mix(vec3(.28,.03,.03),vec3(.6,.05,.055),smoothstep(.8,.0,y));alb=mix(alb,vec3(.72,.3,.3),belly*.45);silv=belly*.3;
       float dash=band(y,.03-.04*(x-.5),.05,.05)*smoothstep(.86,.78,x)*smoothstep(.15,.25,x)*(.75+.25*sin(x*40.));alb=mix(alb,vec3(.16,.03,.03),dash*.55);rim*=1.25;}
+    else if(uSp==6){ // pea puffer: golden yellow with big near-black saddles and blotches, fine dark speckling, cream belly; males carry a dark belly line
+      float bel=smoothstep(-.3,-.62,y),ang=asin(clamp(y,-1.,1.));alb=mix(vec3(.62,.48,.07),vec3(.84,.72,.48),bel);float side=smoothstep(-.5,-.2,y);
+      float bl=smoothstep(.5,.535,fbm(vec3(x*6.5,ang*1.9,vI.x*11.))+.02*smoothstep(.35,.9,y)-.14*smoothstep(.8,.96,x)*smoothstep(.55,.2,y))*side;alb=mix(alb,vec3(.016,.015,.008),bl*.96);
+      float spk=smoothstep(.74,.8,vnoise(vec3(x*46.,y*20.,vI.x*5.)))*side*(1.-bl);alb=mix(alb,vec3(.14,.11,.03),spk*.5);
+      float ml=step(.55,vI.x)*band(y,-.56,.025,.03)*smoothstep(.78,.62,x)*smoothstep(.25,.4,x)*(1.-vI.y);alb=mix(alb,vec3(.16,.12,.05),ml*.5);oper=0.;
+      alb=mix(alb,alb*vec3(1.08,1.,.92),vI.y*bel); // stretched belly skin when puffed
+      if(vI.y>.05){ // swollen belly skin shows its tiny spinules as a fine pebbly texture, faded out where it would alias
+        vec2 sq=vec2(x*55.,ang*26.),ci=floor(sq),fs=fract(sq)-.5-(vec2(hash12(ci),hash12(ci+7.))-.5)*.45;float dd=length(fs),kk=smoothstep(-.05,-.45,y)*vI.y*(1.-smoothstep(.25,.7,length(fwidth(sq))));
+        vec3 Tx=normalize(cross(N,vec3(0.,1.,0.))+1e-4),Ty=cross(Tx,N);N=normalize(N+(Tx*fs.x+Ty*fs.y)*smoothstep(.32,.0,dd)*kk*.9);alb*=1.-.2*smoothstep(.2,.0,dd)*kk;}
+      alb=mix(alb,vec3(.2,.19,.14),vI.z*(1.-vI.y)*smoothstep(-.25,-.6,y)*.6); // after a fright the belly goes dusky for half a minute (stress colour)
+      ir=.08*side*(1.-bl);irc=vec3(.3,.75,.6);silv=0.;rim=0.;pbl=bl;}
     else{ // panda cory: beige armour plates, black mask, tail spot
-      alb=mix(vec3(.4,.28,.19),vec3(.62,.5,.4),belly);silv=.08+belly*.1;
-      float pl=band(fract(x*36.+abs(y-.05)*1.3),.5,.06,.08)*smoothstep(.82,.76,x)*smoothstep(.16,.24,x);alb*=1.-pl*.16*(.7+.6*hash12(vec2(floor(x*36.+abs(y-.05)*1.3),step(0.,y-.05))));
+      alb=mix(vec3(.56,.48,.42),vec3(.8,.73,.67),belly);alb=mix(alb,alb*vec3(1.,.86,.8),.55);alb*=.92+.12*fbm(vec3(x*14.,y*4.,vI.x*7.));silv=.12+belly*.12;
+      float pl=band(fract(x*30.+abs(y-.05)*2.2),.5,.025,.05)*smoothstep(.82,.76,x)*smoothstep(.16,.24,x);alb*=1.-pl*.13;alb*=1.-band(y,.05,.012,.02)*smoothstep(.82,.76,x)*smoothstep(.16,.24,x)*.12;
       float mask=smoothstep(.045,.025,abs((1.-x)-.145-y*.03))*smoothstep(-.45,-.15,y);float tail=smoothstep(.045,.025,abs(x-.25))*smoothstep(-.35,-.05,y);
       alb=mix(alb,vec3(.025),max(mask,tail));rim=0.;}
     alb*=1.-rim*.16;alb=mix(alb,alb*vec3(1.,.55,.5),oper*.6);alb=mix(alb,alb*.8,lat*.35);
     // countershading: the back carries dark melanophores and little guanine, so it stays dark and matte from above
-    float dors=smoothstep(.3,.88,y);alb=mix(alb,alb*vec3(.13,.125,.1)+vec3(.022,.02,.012),dors*.94);silv*=1.-smoothstep(.35,.85,y);ir*=1.-smoothstep(.75,1.,y)*.7;
-    rough=mix(.38,.14,silv);spec=mix(.45,1.,silv)*(1.-dors*.4);trans=.18;}
+    float dors=smoothstep(.3,.88,y)*(uSp==5?.18:uSp==6?.06:1.);alb=mix(alb,alb*vec3(.13,.125,.1)+vec3(.022,.02,.012),dors*.94);silv*=1.-smoothstep(.35,.85,y);ir*=1.-smoothstep(.75,1.,y)*.7;
+    rough=mix(.38,.14,silv);spec=mix(.45,1.,silv)*(1.-dors*.4);trans=.18;if(uSp==6){rough=.46+pbl*.2;spec*=.7*(1.-pbl*.5);}}
   else{ // fins: thin, rayed, mostly clear
     float ray=fid<.5?abs(vUV.y):vUV.x;float rays=smoothstep(.5,1.,abs(sin(ray*(fid<.5?30.:22.))));trans=.85;rough=.35;spec=.5;
     alb=vec3(.82,.84,.82);alpha=.16+rays*.08;
@@ -783,6 +825,7 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5;if(uFinPas
     else if(uSp==3){float hv=floor(vI.x*5.);vec3 c1=hv<1.?vec3(.95,.38,.05):hv<2.?vec3(.85,.08,.05):hv<3.?vec3(.95,.7,.1):hv<4.?vec3(.15,.35,.85):vec3(.9,.25,.1);vec3 c2=hv<3.?vec3(.1,.1,.12):vec3(.95,.55,.1);float sp2=step(.62,vnoise(vec3(vUV*vec2(18.,7.),vI.x*9.)));
       alb=mix(c1,c2*.6,sp2*.6);alb=mix(alb,vec3(.03),step(.8,vnoise(vec3(vUV*vec2(26.,10.),vI.x*3.)))*.7);alb*=.75+.35*smoothstep(.2,1.,edge);alpha=(fid<.5?.5:fid<1.5?.5:.3)*(.75+.35*rays);}
     else if(uSp==4){alb=mix(vec3(.75,.12,.08),vec3(.55,.06,.05),edge*.5);alpha=.5;if(fid>.5&&fid<1.5)alb=mix(alb,vec3(.08),band(edge,.35,.12,.08));}
+    else if(uSp==6){if(fid>.5&&fid<2.5){alb=vec3(.98,.8,.06);alpha=.62;}else if(fid<.5){alb=mix(vec3(.95,.78,.12),vec3(.12,.1,.04),rays*smoothstep(.55,.15,edge)*.8);alpha=.32+rays*.18*smoothstep(.6,.1,edge);}else{alb=vec3(.9,.86,.6);alpha=.13;}}
     else{alb=vec3(.86,.84,.8);alpha=.24;if(fid>.5&&fid<1.5){float bl=smoothstep(.15,.45,vExt.w);alb=mix(alb,vec3(.02),bl);alpha=max(alpha,bl*.92);}if(fid<.5)alpha=.22+rays*.08;}
     if(fid>4.5){alpha*=smoothstep(0.,.3,vUV.y)*smoothstep(1.,.7,vUV.y)*smoothstep(1.,.55,vUV.x)*1.3;}
     alpha*=mix(1.,.6,smoothstep(.7,1.,edge));}
@@ -809,8 +852,9 @@ void main(){mat4 M=mat4(iM0,iM1,iM2,iM3);vec3 p=aPos,n=aNor;int part=int(aExt.x+
     if(part==3){float amp=.008+.03*swimming;p.x+=sin(uTime*(6.+12.*swimming)+aExt.z)*amp*aExt.y;}
     if(p.x<-.08){float a=-curl*clamp((-.08-p.x)/.4,0.,1.);vec2 r=vec2(p.x+.08,p.y-.17);float c=cos(a),s=sin(a);p.xy=vec2(-.08,.17)+vec2(r.x*c+r.y*s,-r.x*s+r.y*c);n.xy=vec2(n.x*c+n.y*s,-n.x*s+n.y*c);}}
   else if(uKind==3){p.y+=sin(uTime*7.+p.x*6.+iA.x)*.12*iA.y;p.z+=cos(uTime*5.+p.x*5.+iA.x)*.1*iA.y;}
-  else if(uKind==1){if(part==2)p.y+=sin(uTime*1.3+iA.x)*.03*aExt.y;}
-  vec4 w=M*vec4(p,1.);vW=w.xyz;vN=normalize(mat3(M)*n);vUV=aUV;vExt=aExt;vB=iB;gl_Position=uVP*w;}`;
+  else if(uKind==1){if(part==2){p.y+=sin(uTime*1.3+iA.x)*.03*aExt.y;vec3 b0=vec3(.5,.09,sign(p.z)*.08);p=mix(p,b0,iA.y*.85);} // a startled nerite pulls its tentacles in
+    if(part==1&&p.x>.38)p.x-=iA.y*.07;}
+  vec4 w=M*vec4(p,1.);vW=w.xyz;vN=normalize(mat3(M)*n);vUV=aUV;vExt=aExt;if(uKind==1)vExt.w=iA.y;vB=iB;gl_Position=uVP*w;}`;
 const FS_CRIT=H+C_UNI+C_FN+C_FS+`
 uniform int uKind;uniform sampler2D uScene;uniform vec2 uRes;uniform float uSee;in vec3 vW;in vec3 vN;in vec2 vUV;in vec4 vExt;in vec4 vB;out vec4 oC;
 void main(){vec3 N=normalize(vN);vec3 V=normalize(uCam-vW);if(dot(N,V)<0.)N=-N;int part=int(vExt.x+.5);
@@ -849,7 +893,10 @@ void main(){vec3 N=normalize(vN);vec3 V=normalize(uCam-vW);if(dot(N,V)<0.)N=-N;i
       else{alb=vec3(.075,.08,.032)*(.86+.14*sin(r*130.+vnoise(vec3(a*4.,r*4.,2.))*3.));alb=mix(alb,vec3(.16,.15,.06),smoothstep(.75,1.,r)*.4);rough=.28;spec=.8;}
       alb*=mix(.7,1.,smoothstep(0.,.2,r));trans=.05;}
     else if(part==3){float rr=length(vUV-.5)*2.;alb=mix(vec3(.82,.78,.66),vec3(.6,.5,.3),smoothstep(.75,1.,rr));if(vB.a<.5)alb=mix(alb,vec3(.04,.03,.02),smoothstep(.93,1.,rr)*step(.5,fract(atan(vUV.y-.5,vUV.x-.5)*3.4)));rough=.3;spec=.6;trans=.1;}
-    else{alb=vec3(.42,.4,.36)*(.85+.3*vnoise(vW*30.));trans=.45;rough=.5;}}
+    else if(part==1){ // foot and snout: pale, finely speckled; on the glass you see pedal waves, darker bands running forward along the sole
+      alb=vec3(.46,.45,.41)*(.9+.12*vnoise(vec3(vUV*18.,1.)));alb*=1.-.14*smoothstep(.74,.9,vnoise(vec3(vUV*95.,3.)));
+      float pw=sin(vUV.x*34.-uTime*2.4);alb*=1.-.2*(1.-vExt.w)*smoothstep(.2,1.,pw)*smoothstep(.62,.2,abs(vUV.y)*2.)*smoothstep(-.42,-.2,vUV.x);trans=.5;rough=.55;spec=.35;}
+    else{alb=vec3(.2,.2,.18)*(.85+.3*vnoise(vW*30.));trans=.45;rough=.5;}}
   else if(uKind==2){alb=vec3(.36,.22,.12)*(.8+.4*vnoise(vW*20.));rough=.7;spec=.15;trans=.1;}
   else if(uKind==3){alb=vec3(.55,.05,.05)*(.75+.3*abs(sin(vUV.y*40.)));rough=.25;spec=.8;trans=.6;}
   else if(uKind==4){alb=vB.rgb*(.8+.3*vnoise(vW*25.));rough=.6;spec=.2;trans=.5;}
@@ -884,7 +931,7 @@ void main(){float d=length(vQ);if(d>1.)discard;float s=waterSeg(vW);vec3 Tr=exp(
 const FS_SURF=H+C_UNI+C_FN+`
 uniform sampler2D uScene;uniform vec2 uRes;
 in vec3 vW;in vec3 vN;in vec2 vUV;in vec4 vCol;in vec4 vExt;in vec3 vO;out vec4 oC;
-void main(){vec2 g=simGrad(vW.xz)+swellGrad(vW.xz,uTime,uRuffle);
+void main(){vec2 gs=simGrad(vW.xz),gw=swellGrad(vW.xz,uTime,uRuffle);vec2 g=gs+gw;
   // fine capillary detail for shading only (sparkle in reflections), faded out where it would alias
   float fw=length(fwidth(vW.xz));float df=1.-smoothstep(.08,.35,fw);vec2 e1=normalize(vec2(.8,.6)),e2=normalize(vec2(-.3,1.));
   g+=(e1*cos(dot(e1,vW.xz)*11.+uTime*9.)+e2*cos(dot(e2,vW.xz)*16.3-uTime*12.)*.7)*.007*uRuffle*df;
@@ -898,7 +945,9 @@ void main(){vec2 g=simGrad(vW.xz)+swellGrad(vW.xz,uTime,uRuffle);
     sky+=uLcol*.03;
     col=mix(sky,refl*.92,F);
     col=applyWater(col,vW);}
-  else{float F=.02+.98*pow(1.-max(dot(N,V),0.),5.);vec3 refr=texture(uScene,clamp(suv+N.xz*.06,vec2(.002),vec2(.998))).rgb;
+  else{float F=.02+.98*pow(1.-max(dot(N,V),0.),5.);
+    // seen from above, the bed shifts by about depth x slope x 0.25: the steep little wavelets that focus caustics barely move it, so they count for less here
+    vec2 gr=gs+gw*.35;vec3 refr=texture(uScene,clamp(suv-gr*.05,vec2(.002),vec2(.998))).rgb;
     vec3 R=reflect(-V,N);vec3 env=envColor(R);float ly=uWL+12.15;if(R.y>.02){vec3 hp=vW+R*((ly-vW.y)/R.y);float lamp=smoothstep(2.5,-1.,abs(hp.x)-44.5)*smoothstep(2.,-1.5,abs(hp.z)-4.6);env=mix(env,vec3(1.,.97,.93)*uLampE*2.2,lamp);}
     float sp=pow(max(dot(R,normalize(vec3(.1,1.,.2))),0.),400.)*uLampE*.15;col=mix(refr,env,F)+sp;}
   oC=vec4(col,1.);}`;
@@ -993,7 +1042,7 @@ void main(){ivec2 fs=ivec2(textureSize(uDepth,0));ivec2 ip=ivec2(gl_FragCoord.xy
   vec3 dx=dot(pr-P,pr-P)<dot(P-pl,P-pl)?pr-P:P-pl,dy=dot(pu-P,pu-P)<dot(P-pd,P-pd)?pu-P:P-pd;vec3 N=normalize(cross(dx,dy));if(dot(N,uCam-P)<0.)N=-N;
   float ign=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));float a0=ign*6.2831;
   vec3 T=normalize(abs(N.y)<.99?cross(N,vec3(0.,1.,0.)):cross(N,vec3(1.,0.,0.)));vec3 B=cross(N,T);
-  float R=uRad*clamp(L/60.,.6,2.2);float occ=0.;
+  float R=uRad*clamp(L/60.,.2,2.2);float occ=0.; // shrinks in macro close-ups so small fish do not occlude themselves
   for(int i=0;i<16;i++){if(i>=uN)break;float fi=(float(i)+.5)/float(uN);float ang=a0+float(i)*2.39996;float rr=sqrt(fi);
     vec3 dir=T*(cos(ang)*rr)+B*(sin(ang)*rr)+N*sqrt(max(1.-rr*rr,0.)+.04);vec3 S=P+dir*R*mix(.2,1.,fi*fi)+N*.08;
     vec4 c=uVP*vec4(S,1.);vec2 su=c.xy/c.w*.5+.5;if(any(lessThan(su,vec2(0.)))||any(greaterThan(su,vec2(1.))))continue;
@@ -1093,7 +1142,7 @@ function genSword(seed){const r=rng(seed),mb=new MB(),n=11+Math.floor(r()*7);
     const dir=[Math.cos(a)*Math.sin(tilt),Math.cos(tilt),Math.sin(a)*Math.sin(tilt)],g=0.75+r()*0.4,ph=r()*TAU;
     leaf(mb,{base:[Math.cos(a)*0.3,0,Math.sin(a)*0.3],dir,side:[-Math.sin(a),0,Math.cos(a)],len:14+r()*12,width:3.0+r()*1.8,
       prof:t=>t<0.3?0.07:0.07+0.93*Math.pow(Math.sin(PI*(t-0.3)/0.7),0.75),droop:0.5+r()*1.0,segs:16,
-      col:t=>t<0.3?gcol([0.3,0.5,0.18],g):gcol([0.15,0.40,0.10],g*(0.9+0.2*t)),flex:p=>Math.pow(clamp(p[1]/24,0,1),1.3)*1.7,
+      col:t=>t<0.3?gcol([0.26,0.44,0.15],g):gcol([0.12,0.33,0.08],g*(0.9+0.2*t)),flex:p=>Math.pow(clamp(p[1]/24,0,1),1.3)*1.7,
       phase:ph,sp:SPC.sword,ao:t=>0.45+0.55*Math.min(1,t*3),fold:0.1});}
   return mb.normals();}
 function genCrypt(seed){const r=rng(seed),mb=new MB(),n=10+Math.floor(r()*7);
@@ -1228,15 +1277,19 @@ function slab(r,mb,w,d,t,xf){const n=20,pts=[];for(let i=0;i<n;i++){const a=i/n*
   for(let i=0;i<n;i++){const a=b+2+i*2,c=b+2+((i+1)%n)*2;mb.t(tp,c,a);mb.t(bt,a+1,c+1);mb.q(a,c,c+1,a+1);}}
 function genCave(seed){const r=rng(seed),mb=new MB();
   const rx=(p,ang,o)=>{const c=Math.cos(ang),s=Math.sin(ang);return[p[0]*c-p[1]*s+o[0],p[0]*s+p[1]*c+o[1],p[2]+o[2]];};
-  slab(r,mb,3.4,4.2,1.3,p=>rx(p,PI/2+0.08,[-4.6,3.0,0]));
-  slab(r,mb,3.2,4.0,1.3,p=>rx(p,PI/2-0.1,[4.4,2.8,0]));
-  slab(r,mb,6.8,5.0,1.2,p=>rx(p,0.05,[0,6.6,0.2]));
+  // vertex colour red marks each slab's cleavage axis for the slate shader: 1 = layers stack along x (standing slabs), 0 = along y
+  const mark=(b,v)=>{for(let i=b;i<mb.n;i++)mb.C[i*4]=v;};let b0=mb.n;
+  slab(r,mb,3.4,4.2,1.3,p=>rx(p,PI/2+0.08,[-4.6,3.0,0]));mark(b0,1);b0=mb.n;
+  slab(r,mb,3.2,4.0,1.3,p=>rx(p,PI/2-0.1,[4.4,2.8,0]));mark(b0,1);b0=mb.n;
+  slab(r,mb,6.8,5.0,1.2,p=>rx(p,0.05,[0,6.6,0.2]));mark(b0,0);
   mb.normals();for(let i=0;i<mb.n;i++)mb.C[i*4+3]=mb.P[i*3+1]<6&&Math.abs(mb.P[i*3])<4?0.6:1;return mb;}
-function genAirstone(){const mb=new MB();tube(mb,[[0,-0.2,0],[0,1.5,0]],1.5,14,{cap:true,cap0:true});mb.normals();return mb;}
+function genAirstone(){const mb=new MB();tube(mb,[[0,-0.2,0],[0,1.28,0],[0,1.5,0]],[1.5,1.5,1.36],18,{cap:true,cap0:true,capH:0.05});mb.normals();return mb;} // a flat-topped stone cylinder with a rounded edge
 function genAirline(pts){const mb=new MB();tube(mb,pts,0.22,6,{col:()=>[1,1,1,1]});return mb;}
 function genSponge(){const mb=new MB();
   tube(mb,[[0,0,0],[0,1,0]],4.5,20,{cap:true,cap0:true});const nb=mb.n;mb.normals();
-  const sp=new MB();tube(sp,[[0,1,0],[0,12,0]],4.0,24,{cap:true,cap0:true});sp.normals();
+  // hydro sponge: a foam cylinder cut by ring grooves
+  const sp=new MB(),spP=[];for(let i=0;i<=44;i++)spP.push([0,1+i*0.25,0]);
+  tube(sp,spP,t=>{const y=1+11*t,ph=((y-1.55)/1.85%1+1)%1,d=Math.min(ph,1-ph);return 4.0-0.42*(1-sstep(0,0.13,d))*sstep(1.3,1.8,y)*sstep(11.7,11.2,y);},28,{cap:true,cap0:true});sp.normals();
   const tb=new MB();tube(tb,[[0,12,0],[0,TK.wl-2.6,0],[0.5,TK.wl-1.6,0],[1.6,TK.wl-1.2,0]],0.75,10,{cap:true,cap0:true});tb.normals();
   const al=new MB();tube(al,[[0,TK.wl-2.5,0.6],[0,TK.top+2,0.6],[0,TK.top+3,-2],[0,TK.top+1,-6]],0.22,6,{});
   return{base:mb,sponge:sp,tube:tb,air:al};}
@@ -1298,7 +1351,7 @@ function genAxolotl(){const mb=new MB();const kind=[];// 0 body(straight), 1 rig
       const x=rx*Math.sign(c)*Math.pow(Math.abs(c),2/n);let y=ry*Math.sign(sn)*Math.pow(Math.abs(sn),2/n);if(y<0)y*=0.86;
       const mY=-0.12-0.1*(1-s/AX_HINGE_S);const jaw=(s<AX_HINGE_S&&y<mY)?1:0;
       const ao=ry>1e-4?0.72+0.28*clamp((y/ry+1)/2,0,1):0.9;
-      mb.v([x,y,-s],[0,1,0],[j/M,s/AXL],[ao,jaw,0,0],[s,0,0,0]);kind.push(0);}}
+      mb.v([x,y,-s],[0,1,0],[j/M,s/AXL],[ao,jaw,0,y-mY],[s,0,0,0]);kind.push(0);}} // w: height above the mouth line, so the shader can draw the lip as a smooth curve
   for(let i=0;i<NS-1;i++)for(let j=0;j<M;j++){const a=i*(M+1)+j,b=a+1,c=a+M+2,d=a+M+1;mb.q(a,d,c,b);}
   const fin=(s0,dir,fn)=>{const rows=64,b=mb.n;for(let i=0;i<rows;i++){const s=lerp(s0,AXL,i/(rows-1)),ry=axRY(s),base=ry*0.8*dir,tip=(ry+fn(s))*dir;
       for(let k=0;k<4;k++){const f=k/3;mb.v([Math.sin(s*2.1+f*2)*0.035*f,lerp(base,tip,f),-s],[1,0,0],[f,s/AXL],[1,0,1,0],[s,f,0,0]);kind.push(0);}}
@@ -1335,8 +1388,9 @@ function genAxolotl(){const mb=new MB();const kind=[];// 0 body(straight), 1 rig
   const legInfo=[];
   AX_LEGS.forEach((L,li)=>{const sg=L.sg,fr=L.front;const knee=[sg*1.15,-0.28,fr?0.15:-0.12],wrist=V.add(knee,[sg*0.28,-0.72,fr?0.22:-0.05]);
     const hip=fr?[sg*1.0,-0.42,0]:[sg*0.92,-0.5,0];legInfo.push({knee,hip,s:L.s});
-    const add=(pts,rad,kf,cap)=>{const b=mb.n;tube(mb,pts,rad,7,{cap,col:()=>[0.95,0,5,li],ext:()=>[L.s,0,0,kf]});for(let i=b;i<mb.n;i++)kind.push(2);};
+    const add=(pts,rad,kf,cap)=>{const b=mb.n;tube(mb,pts,rad,10,{cap,col:()=>[0.95,0,5,li],ext:()=>[L.s,0,0,kf]});for(let i=b;i<mb.n;i++)kind.push(2);};
     add([[0,0.15,0],V.lerp([0,0,0],knee,0.5),knee],t=>lerp(0.33,0.23,t),0,false);
+    {const ic=icosphere(2),b=mb.n;for(const q of ic.P)mb.v(V.madd(knee,q,0.232),q,[0,0],[0.95,0,5,li],[L.s,0,0,0]);for(const f of ic.F)mb.t(b+f[0],b+f[1],b+f[2]);for(let i=b;i<mb.n;i++)kind.push(2);} // rounded elbow
     add([knee,V.lerp(knee,wrist,0.5),wrist],t=>lerp(0.23,0.15,t),1,false);
     // a flat little palm, then long, slender, splayed fingers (four in front, five behind) with rounded tips
     const nT=fr?4:5,bd=V.norm([sg*0.55,-0.12,fr?0.8:-0.25]),palm=V.madd(V.add(wrist,[0,-0.05,0]),bd,0.16);
@@ -1357,6 +1411,8 @@ const FISHP={
   danio:{h:.09,w:.048,top:.95,bot:1,ped:.4,tmT:.45,tmB:.45,headE:1.4,snT:.22,snB:.16,mouthY:.18,eye:[.11,.18,.033],caud:{len:.23,span:.15,fork:.6},dors:[-.08,.13,.09],anal:[-.08,.2,.08],pec:.3},
   guppy:{h:.105,w:.055,top:1,bot:1.05,ped:.44,tmT:.4,tmB:.4,headE:1.6,snT:.2,snB:.16,mouthY:.25,eye:[.115,.2,.046],caud:{len:.44,span:.33,fork:0,fan:true},dors:[-.08,.26,.2],anal:[-.1,.1,.08],pec:.3},
   cherrybarb:{h:.135,w:.06,top:1.05,bot:1,ped:.34,tmT:.38,tmB:.45,headE:1.9,snT:.18,snB:.14,mouthY:.0,eye:[.12,.12,.036],caud:{len:.2,span:.17,fork:.45},dors:[.02,.15,.15],anal:[-.1,.12,.1],pec:.3},
+  // dwarf (pea) puffer: almost round in section, blunt head with a small beak, big high-set eyes, tiny dorsal and anal fins set far back, no pelvic fins
+  puffer:{h:.14,w:.13,top:1.05,bot:1.2,ped:.36,tmT:.3,tmB:.4,headE:1.5,snT:.34,snB:.34,mouthY:.02,eye:[.19,.44,.056],caud:{len:.21,span:.14,fork:0,fan:true},dors:[-.2,.085,.1],anal:[-.2,.075,.09],pec:.34,noVent:true,ball:{cx:.15,yc:-.03,rx:.31,ry:.3,rz:.28}},
   cory:{h:.15,w:.11,top:1.12,bot:.72,ped:.4,tmT:.4,tmB:.4,headE:1.3,snT:.32,snB:.22,mouthY:-.45,eye:[.17,.42,.04],adip:[-.2,.035],caud:{len:.2,span:.16,fork:.35},dors:[.1,.16,.2],anal:[-.12,.1,.08],pec:.28,flat:true,barbels:true},
 };
 function genFish(name){const P=FISHP[name],mb=new MB();const NX=44,S=22,x0=0.5,x1=-0.32;
@@ -1388,14 +1444,35 @@ function genFish(name){const P=FISHP[name],mb=new MB();const NX=44,S=22,x0=0.5,x
   if(P.adip){const ax=P.adip[0];fgrid(4,2,(u,v)=>{const bx=ax+.025-u*.05;return{p:[bx-v*.012,topAt(bx)-.003+v*P.adip[1]*Math.sin(PI*u),0],uv:[u,v]};},(u,v)=>[1,v,4,0]);}
   for(const sg of[-1,1]){const bx=P.pec-0.03,by=-botAt(bx)*0.45,bz=sg*widAt(bx)*0.9;
     fgrid(4,3,(u,v)=>({p:[bx-u*0.12-v*0.02,by-u*0.03+(v-0.5)*0.055*(1-u*.5),bz+sg*u*0.055],uv:[u,v]}),(u,v)=>[2,u,sg*1.5,0]);
-    const vx=-0.02;fgrid(3,2,(u,v)=>({p:[vx-u*0.075-v*.01,-botAt(vx)*0.92-u*0.04,sg*(widAt(vx)*.35+u*0.02+v*0.012)],uv:[u,v]}),(u,v)=>[1,u,3,0]);
+    const vx=-0.02;if(!P.noVent)fgrid(3,2,(u,v)=>({p:[vx-u*0.075-v*.01,-botAt(vx)*0.92-u*0.04,sg*(widAt(vx)*.35+u*0.02+v*0.012)],uv:[u,v]}),(u,v)=>[1,u,3,0]);
     // eye: a shallow glassy dome; uv holds eye-plane coordinates (-1..1)
     const E=P.eye,ex=lerp(x0,x1,E[0]),ey=cyF(E[0])+E[1]*P.h,er=E[2],ez=sg*widAt(ex)*0.86,b=mb.n,NR=6,NA=16;
     for(let r=0;r<=NR;r++)for(let k=0;k<=NA;k++){const rr=r/NR,a=k/NA*TAU,ca=Math.cos(a),sa=Math.sin(a);const bulge=Math.sqrt(Math.max(0,1-rr*rr));
       mb.v([ex+ca*rr*er,ey+sa*rr*er,ez+sg*bulge*er*.2],[ca*rr*.8,sa*rr*.8,sg*bulge+.0001],[ca*rr,sa*rr],[1,1,1,1],[3,0,sg,0]);}
     for(let r=0;r<NR;r++)for(let k=0;k<NA;k++){const a=b+r*(NA+1)+k;if(sg>0)mb.q(a,a+1,a+NA+2,a+NA+1);else mb.q(a,a+NA+1,a+NA+2,a+1);}}
-  if(P.barbels)for(const sg of[-1,1])for(const k of[0,1]){tube(mb,[[x0-.01,cyF(0)-P.h*0.12,sg*0.02],[x0+0.01+k*0.02,cyF(0)-P.h*0.32,sg*(0.04+k*0.02)],[x0-0.005,cyF(0)-P.h*0.5,sg*(0.05+k*0.03)]],0.006,4,{col:()=>[1,1,1,1],ext:()=>[0,0,0,0]});}
+  if(P.ball)puffMorph(mb,P,{topAt,botAt,widAt,cyF,x0,x1});
+  if(P.barbels)for(const sg of[-1,1])for(const k of[0,1]){tube(mb,[[x0-.015,cyF(0)-P.h*0.15,sg*0.02],[x0+0.0+k*0.012,cyF(0)-P.h*0.3,sg*(0.035+k*0.015)],[x0-0.012,cyF(0)-P.h*0.42,sg*(0.042+k*0.022)]],t=>lerp(0.0085,0.004,t),5,{cap:true,col:()=>[1,1,1,1],ext:()=>[4,0,0,0]});}
   return mb;}
+
+// pufferfish inflation as a morph target: for each vertex, the push (in aCol.xyz) that moves it onto the ball, and in aCol.w how much of the ball's normal to take.
+// Body rings are pushed straight out from the ball's axis; the eyes ride the ball surface and turn with it; pectorals move with their roots; dorsal, anal and tail sit behind the ball.
+// VS_FISH repeats the ball centre and squared radii for the normals: keep them in sync with FISHP.puffer.ball.
+function puffMorph(mb,P,F){const B=P.ball,PP=mb.P,C=mb.C,E=mb.E,n=mb.n;
+  // smooth max of the body and ball radii (k = 0.045) rounds the creases where the snout and the tail stalk leave the ball
+  const push=q=>{const dx=q[0]-B.cx,s2=1-(dx/B.rx)**2,dy=q[1]-B.yc,dz=q[2],r0=Math.hypot(dy,dz);if(r0<1e-6)return[0,0,0,0];
+    const cy=dy/r0,cz=dz/r0,rE=s2>0?1/Math.sqrt((cy/(B.ry*Math.sqrt(s2)))**2+(cz/(B.rz*Math.sqrt(s2)))**2):0,k=0.045,rN=(r0+rE+Math.sqrt((r0-rE)**2+k*k))/2,d=Math.max(0,rN-r0);
+    return[0,cy*d,cz*d,clamp((rE-r0)/0.02+0.5,0,1)];};
+  const ballN=q=>V.norm([(q[0]-B.cx)/B.rx**2,(q[1]-B.yc)/B.ry**2,q[2]/B.rz**2]);
+  const rot=(v,k,c,sn)=>{const kv=V.cross(k,v),kd=V.dot(k,v);return[v[0]*c+kv[0]*sn+k[0]*kd*(1-c),v[1]*c+kv[1]*sn+k[1]*kd*(1-c),v[2]*c+kv[2]*sn+k[2]*kd*(1-c)];};
+  const eyeT={};for(const sg of[-1,1]){const E0=P.eye,ex=lerp(F.x0,F.x1,E0[0]),ec=[ex,F.cyF(E0[0])+E0[1]*P.h,sg*F.widAt(ex)*0.86],d=push(ec),q=V.add(ec,d),nb=ballN(q),a=[0,0,sg];
+    const ax=V.cross(a,nb),l=V.len(ax);eyeT[sg]={ec,q,k:l>1e-6?V.mul(ax,1/l):[1,0,0],c:V.dot(a,nb),s:l};}
+  const pecD={};for(const sg of[-1,1]){const bx=P.pec-0.03;pecD[sg]=push([bx,-F.botAt(bx)*0.45,sg*F.widAt(bx)*0.9]);}
+  for(let i=0;i<n;i++){const v=[PP[i*3],PP[i*3+1],PP[i*3+2]],part=E[i*4],fid=E[i*4+2];let d=[0,0,0,0];
+    if(part<0.5)d=push(v);
+    else if(part>2.5&&part<3.5){const T=eyeT[fid<0?-1:1],o=V.sub(v,T.ec),w=V.add(T.q,rot(o,T.k,T.c,T.s));d=[w[0]-v[0],w[1]-v[1],w[2]-v[2],0];}
+    else if(part>1.5&&part<2.5){const pd=pecD[fid<0?-1:1];d=[pd[0],pd[1],pd[2],0];}
+    else if(part>0.5&&part<1.5&&(fid>0.5&&fid<2.5)){const bp=fid<1.5?[v[0],F.topAt(v[0]),0]:[v[0],-F.botAt(v[0]),0],pd=push(bp);d=[pd[0],pd[1],pd[2],0];}
+    C[i*4]=d[0];C[i*4+1]=d[1];C[i*4+2]=d[2];C[i*4+3]=d[3];}}
 
 // ---------- shrimp ----------
 // Neocaridina / Caridina built in straight space: x forward, y up (ground at 0), z to the side, total length ~1 (rostrum tip to telson tip).
@@ -1464,7 +1541,8 @@ function genSnail(){const mb=new MB();
   mb.normals();
   // underside: pale columellar shelf around the aperture, and a broad muscular foot (what you see when it grazes the glass)
   {const c=mb.v([0,0.11,0],[0,-1,0],[0.5,0.5],[1,1,1,1],[3,0,0,0]);const N=40;for(let i=0;i<=N;i++){const a=i/N*TAU;mb.v([Math.cos(a)*0.5,0.11,Math.sin(a)*0.43],[0,-1,0],[0.5+Math.cos(a)*0.5,0.5+Math.sin(a)*0.5],[1,1,1,1],[3,1,0,0]);}for(let i=0;i<N;i++)mb.t(c,c+1+i,c+2+i);}
-  const s=icosphere(2),b=mb.n;for(const p of s.P){const q=[p[0]*0.5+0.06,p[1]*0.06+0.05,p[2]*0.34];mb.v(q,p,[0,0],[1,1,1,1],[1,0,0,0]);}for(const f of s.F)mb.t(b+f[0],b+f[1],b+f[2]);
+  // foot (uv = local x, z so the shader can run pedal waves along it) and a snout lobe under the tentacles
+  const s=icosphere(2);for(const[sx,sy,sz,ox,oy]of[[0.5,0.06,0.34,0.06,0.05],[0.11,0.05,0.1,0.52,0.065]]){const b=mb.n;for(const p of s.P){const q=[p[0]*sx+ox,p[1]*sy+oy,p[2]*sz];mb.v(q,p,[q[0],q[2]],[1,1,1,1],[1,0,0,0]);}for(const f of s.F)mb.t(b+f[0],b+f[1],b+f[2]);}
   for(const sg of[-1,1])tube(mb,[[0.5,0.09,sg*0.08],[0.6,0.12,sg*0.13],[0.68,0.13,sg*0.17]],t=>lerp(0.025,0.008,t),4,{ext:t=>[2,t,0,0]});
   return mb;}
 
@@ -1646,8 +1724,8 @@ function sculpt(x,z,mode,rad,dt){const r2=rad*rad;const i0=Math.max(0,Math.floor
 // ============================================================
 const MORPHS={
   leucistic:{name:'Leucistic',c1:[.86,.66,.64],c2:[.30,.25,.25],c3:[.5,.05,.09],eye:[.015,.015,.02],iris:[.07,.06,.06],irid:.15,spots:.12},
-  wild:{name:'Wild type',c1:[.17,.16,.095],c2:[.05,.05,.035],c3:[.26,.13,.17],eye:[.02,.02,.02],iris:[.55,.45,.2],irid:.9,spots:1},
-  golden:{name:'Golden albino',c1:[.95,.76,.38],c2:[1,.9,.62],c3:[.95,.42,.38],eye:[.5,.12,.12],iris:[.85,.6,.5],irid:1.2,spots:.35},
+  wild:{name:'Wild type',c1:[.105,.1,.062],c2:[.035,.034,.024],c3:[.22,.1,.14],eye:[.02,.02,.02],iris:[.55,.45,.2],irid:.9,spots:1},
+  golden:{name:'Golden albino',c1:[.95,.68,.24],c2:[1,.88,.55],c3:[.95,.45,.36],eye:[.5,.12,.12],iris:[.85,.6,.5],irid:1.2,spots:.35},
   melanoid:{name:'Melanoid',c1:[.05,.055,.05],c2:[.025,.025,.025],c3:[.15,.10,.12],eye:[.01,.01,.01],iris:[.05,.05,.05],irid:0,spots:.3},
   copper:{name:'Copper',c1:[.60,.42,.28],c2:[.36,.20,.12],c3:[.80,.30,.30],eye:[.45,.12,.1],iris:[.75,.5,.35],irid:.5,spots:.9},
   lavender:{name:'Lavender',c1:[.55,.52,.60],c2:[.20,.17,.23],c3:[.55,.30,.42],eye:[.02,.02,.025],iris:[.3,.3,.35],irid:.4,spots:.8},
@@ -1658,6 +1736,7 @@ const FISHSP={
   neon:{name:'Neon Tetra',L:3.5,sp:1,cruise:[2.5,6],burst:15,school:.9,zone:[.25,.7],coast:.6,warm:true,note:'Tropical: likes warmer water than an axolotl.'},
   guppy:{name:'Guppy',L:3.3,sp:3,cruise:[2,5],burst:12,school:.2,zone:[.45,.95],coast:.15,warm:true,note:'Colorful fancy tails; prefers warm water.'},
   cherrybarb:{name:'Cherry Barb',L:4.5,sp:4,cruise:[2.5,5.5],burst:14,school:.5,zone:[.2,.7],coast:.55,warm:true,note:'Ruby red; tropical.'},
+  puffer:{name:'Pea Puffer',L:2.5,sp:6,cruise:[0.8,2.6],burst:9,school:0,zone:[.15,.75],coast:.8,warm:true,puffer:true,note:'Tropical; puffs up when startled. Eats bloodworms and snails; would nip an axolotl\'s gills.'},
   cory:{name:'Panda Cory',L:4,sp:5,cruise:[1,3.5],burst:10,school:.6,zone:'bottom',coast:.7,warm:true,note:'Bottom sifter; tropical.'},
 };
 const SHRIMPSP={
@@ -1821,6 +1900,13 @@ let fish=[];
 function addFish(sp,n){for(let i=0;i<n;i++){const S=FISHSP[sp];const y=S.zone==='bottom'?8:lerp(12,36,Math.random());
   fish.push({sp,p:[lerp(-35,35,Math.random()),y,lerp(-14,14,Math.random())],v:[(Math.random()-0.5)*4,0,(Math.random()-0.5)*4],ph:Math.random()*TAU,size:S.L*(0.85+Math.random()*0.3),
     var:Math.random(),wander:Math.random()*100,bend:0,yaw:0,pitch:0,roll:0,amp:0.4,pec:0,rest:0,eat:0,gulpT:20+Math.random()*60});}}
+// pufferfish defence: swell for a few seconds, then deflate slowly; a cool-down stops it puffing again straight away
+function puffUp(f){if(f.puffCool>0)return false;f.puffT=3+Math.random()*2.5;f.puffCool=f.puffT+6;f.beating=true;f.stress=1;return true;}
+// tapping the glass startles nearby fish: puffers puff up, the rest dart away from the tap
+let puffTold=false;
+function startleAt(p){let puffed=0;for(const f of fish){const d=V.dist(f.p,p);if(d>12)continue;const S=FISHSP[f.sp];
+    if(S.puffer){if(puffUp(f))puffed++;}else{const away=V.norm(V.sub(f.p,p));f.v=V.madd(f.v,away,S.burst*0.7*(1-d/12));f.beating=true;f.beatT=0.6;}}
+  if(puffed&&!puffTold&&typeof toast==='function'){puffTold=true;toast('The pea puffer puffs up. Puffing is stressful for it, so tap gently.',3600);}return puffed;}
 function setFishCount(sp,n){const cur=fish.filter(f=>f.sp===sp);if(cur.length<n)addFish(sp,n-cur.length);else if(cur.length>n){let k=cur.length-n;fish=fish.filter(f=>!(f.sp===sp&&k-->0));}}
 function fishUpdate(dt){const t=NOW();const axH=AX.head;const night=LIGHT.night;
   for(const f of fish){const S=FISHSP[f.sp];let acc=[0,0,0];const bottom=S.zone==='bottom';
@@ -1828,15 +1914,17 @@ function fishUpdate(dt){const t=NOW();const axH=AX.head;const night=LIGHT.night;
     let n=0,ali=[0,0,0],coh=[0,0,0],sep=[0,0,0];
     for(const o of fish){if(o===f)continue;const d=V.sub(o.p,f.p),dd=V.len(d);if(dd<0.01)continue;
       if(dd<f.size*1.6)sep=V.madd(sep,d,-1/(dd*dd));if(o.sp===f.sp&&dd<14){n++;ali=V.add(ali,o.v);coh=V.add(coh,o.p);}}
-    if(n){ali=V.mul(ali,1/n);coh=V.sub(V.mul(coh,1/n),f.p);acc=V.madd(acc,V.sub(ali,f.v),0.35*S.school);acc=V.madd(acc,coh,0.12*S.school);}
+    // shoaling: tetras and danios hold a loose, aligned group; the pull grows when the axolotl is close (they bunch up when wary)
+    const wary=V.dist(f.p,AX.head)<16?1.8:1;
+    if(n){ali=V.mul(ali,1/n);coh=V.sub(V.mul(coh,1/n),f.p);acc=V.madd(acc,V.sub(ali,f.v),0.45*S.school*wary);acc=V.madd(acc,coh,0.16*S.school*wary);}
     acc=V.madd(acc,sep,2.5);
     // wander
-    f.wander+=dt*0.25;const w=[noise3(f.wander,1.3,f.var*9),noise3(f.wander,7.1,f.var*9)*0.35,noise3(f.wander,4.4,f.var*9)];acc=V.madd(acc,w,bottom?1.2:2.2);
+    f.wander+=dt*0.25;const w=[noise3(f.wander,1.3,f.var*9),noise3(f.wander,7.1,f.var*9)*0.35,noise3(f.wander,4.4,f.var*9)];acc=V.madd(acc,w,bottom?1.2:f.hunt||f.peek>0?0.4:2.2);
     // depth preference
     const floor=topH(f.p[0],f.p[2]);const ylo=bottom?floor+0.9:lerp(floor+3,TK.wl-2,S.zone[0]),yhi=bottom?floor+3:lerp(floor+3,TK.wl-2,S.zone[1]);
-    if(f.p[1]<ylo)acc[1]+=(ylo-f.p[1])*0.8;if(f.p[1]>yhi)acc[1]-=(f.p[1]-yhi)*0.5;
+    if(!f.hunt&&!(f.peek>0)){if(f.p[1]<ylo)acc[1]+=(ylo-f.p[1])*0.8;if(f.p[1]>yhi)acc[1]-=(f.p[1]-yhi)*0.5;}
     // walls
-    const m=5;if(f.p[0]<TK.x0+m)acc[0]+=(TK.x0+m-f.p[0])*1.5;if(f.p[0]>TK.x1-m)acc[0]-=(f.p[0]-(TK.x1-m))*1.5;
+    const m=f.hunt||f.peek>0?1.2:5;if(f.p[0]<TK.x0+m)acc[0]+=(TK.x0+m-f.p[0])*1.5;if(f.p[0]>TK.x1-m)acc[0]-=(f.p[0]-(TK.x1-m))*1.5;
     if(f.p[2]<TK.z0+m)acc[2]+=(TK.z0+m-f.p[2])*1.5;if(f.p[2]>TK.z1-m)acc[2]-=(f.p[2]-(TK.z1-m))*1.5;
     if(f.p[1]>TK.wl-1.2)acc[1]-=(f.p[1]-(TK.wl-1.2))*4;
     // terrain ahead
@@ -1844,13 +1932,36 @@ function fishUpdate(dt){const t=NOW();const axH=AX.head;const night=LIGHT.night;
     // axolotl avoidance
     for(let k=0;k<AX.spine.length;k+=3){const s=AX.spine[k],d=V.sub(f.p,s),dd=V.len(d);if(dd<7){acc=V.madd(acc,V.norm(d),(7-dd)*1.6);}}
     // food
-    let fd=null,fdd=1e9;for(const fo of foods){if(!FOODS[fo.type].fish||fo.eaten)continue;const dd=V.dist(fo.p,f.p);if(dd<fdd&&dd<38){fdd=dd;fd=fo;}}
+    let fd=null,fdd=1e9;for(const fo of foods){if(!FOODS[fo.type].fish||fo.eaten||(S.puffer&&fo.type!=='worm'))continue; // pea puffers take meaty food only and ignore flakes
+      const dd=V.dist(fo.p,f.p);if(dd<fdd&&dd<38){fdd=dd;fd=fo;}}
     let maxs=lerp(S.cruise[0],S.cruise[1],0.5+0.5*noise3(t*0.2,f.var*5,2));
     if(fd){const d=V.sub(fd.p,f.p);acc=V.madd(acc,V.norm(d),6);maxs=S.burst*0.6;if(fdd<0.9&&f.eat<=0){f.eat=0.6;fd.bites=(fd.bites||0)+1;if(fd.type==='flake'||fd.bites>4)eatFood(fd,'fish');}}
     f.eat-=dt;
+    if(S.puffer){ // pea puffers stalk snails: swim over, hover a finger's width off the shell to aim, strike, then lose interest for a while
+      f.huntCool=(f.huntCool===undefined?15+Math.random()*30:f.huntCool)-dt;
+      if(fd||f.puff>0.15)f.hunt=null;
+      else if(!f.hunt&&f.huntCool<=0){let best=null,bd=30;for(const sn of snails){const d=V.dist(sn.p,f.p);if(d<bd){bd=d;best=sn;}}if(best){f.hunt=best;f.huntT=16;f.aim=0;}else f.huntCool=12;}
+      if(f.hunt){const sn=f.hunt;f.huntT-=dt;
+        if(!snails.includes(sn)||f.huntT<=0){f.hunt=null;f.huntCool=25+Math.random()*40;}
+        else{const nrm=sn.surf==='front'?[0,0,-1]:sn.surf==='back'?[0,0,1]:topNormal(sn.p[0],sn.p[2]),hov=V.madd(sn.p,nrm,1.9),d=V.sub(hov,f.p),dd=V.len(d),at=V.norm(V.sub(sn.p,f.p));
+          acc=V.madd(acc,d,2.4);acc=V.madd(acc,f.v,-1.4);maxs=dd>4?S.cruise[1]*1.3:1;
+          if(dd<1){f.aim+=dt;f.v=V.madd(V.mul(f.v,Math.exp(-dt*4)),at,dt*1.5);f.beating=true;
+            if(f.aim>1+f.var){f.v=V.madd(f.v,at,6);sn.stop=3+Math.random()*3;f.hunt=null;f.huntCool=35+Math.random()*60;}}}}
+      // curious about people: with the camera close in front of the glass, an idle puffer comes over and hovers there, looking out
+      const near=CAM.pos[2]>TK.z1+1&&CAM.pos[2]<TK.z1+62&&Math.abs(CAM.pos[0])<TK.x1+20;f.peekCool=(f.peekCool===undefined?4+Math.random()*8:f.peekCool)-dt;
+      if(!f.peek&&near&&!f.hunt&&!fd&&!(f.puff>0.15)&&f.peekCool<=0&&Math.random()<dt*0.25)f.peek=7+Math.random()*7;
+      if(f.peek>0){f.peek-=dt;const tg=[clamp(CAM.pos[0]+(f.var-.5)*12,TK.x0+4,TK.x1-4),clamp(CAM.pos[1]+(f.var-.5)*5,floor+4,TK.wl-4),TK.z1-2.2],d=V.sub(tg,f.p),dd=V.len(d);
+        acc=V.madd(acc,d,1.8);acc=V.madd(acc,f.v,-1.2);maxs=dd>4?S.cruise[1]*1.2:0.8;if(dd<1.5)f.v=V.madd(V.mul(f.v,Math.exp(-dt*3)),[0,0,1],dt*1.2);
+        if(f.peek<=0||!near||fd||f.hunt||f.puff>0.15){f.peek=0;f.peekCool=18+Math.random()*30;}}}
     if(bottom){f.gulpT-=dt;if(f.gulpT<0){acc[1]+=40;maxs=S.burst*0.8;if(f.p[1]>TK.wl-2.5){f.gulpT=40+Math.random()*80;addRipple(f.p[0],f.p[2],0.4);}}
       if(f.p[1]<floor+1.5&&Math.random()<dt*0.3)f.rest=1+Math.random()*2;}
     if(f.rest>0){f.rest-=dt;f.v=V.mul(f.v,Math.exp(-dt*3));acc=[0,0,0];}
+    if(S.puffer){ // bumped by the axolotl or a bigger fish: puff up
+      if(!(f.puffCool>0)){let bump=false;for(let k=0;k<AX.spine.length&&!bump;k+=2){const q=AX.spine[k];if(q&&V.dist(f.p,q)<axR(k*AXL/(AXK-1))*0.8+f.size*0.4)bump=true;}
+        if(!bump)for(const o of fish){if(o!==f&&o.size>f.size*1.3&&V.dist(o.p,f.p)<o.size*0.3+f.size*0.4){bump=true;break;}}if(bump)puffUp(f);}
+      // a puffer swells in a few quick gulps of water
+      f.puffT=(f.puffT||0)-dt;f.puffCool=(f.puffCool||0)-dt;f.stress=Math.max(0,(f.stress||0)-dt/30);f.puffAge=f.puffT>0?(f.puffAge||0)+dt:0;const pt=f.puffT>0?Math.min(1,(1+Math.floor(f.puffAge*3.5))/4):0;f.puff=lerp(f.puff||0,pt,clamp(dt*(pt>(f.puff||0)?7:0.8),0,1));
+      if(f.puff>0.15){acc=V.mul(acc,1-f.puff*0.9);f.v=V.mul(f.v,Math.exp(-dt*3*f.puff));f.v[1]+=dt*0.5*f.puff;f.yaw+=dt*0.4*f.puff*(f.var>0.5?1:-1);}}
     if(night>0.5){maxs*=0.45;}
     f.v=V.madd(f.v,acc,dt*2.2);let sp=V.len(f.v);
     if(sp>maxs)f.v=V.mul(f.v,lerp(1,maxs/sp,clamp(dt*2,0,1)));if(sp<0.4&&f.rest<=0)f.v=V.madd(f.v,[Math.cos(f.yaw),0,Math.sin(f.yaw)],0.3);
@@ -1863,7 +1974,7 @@ function fishUpdate(dt){const t=NOW();const axH=AX.head;const night=LIGHT.night;
     // burst-and-coast: small fish beat for a few strokes, then glide with the tail almost still
     f.beatT=(f.beatT||0)-dt;if(f.beatT<=0){f.beating=!f.beating||fd||f.rest>0||Math.random()>(S.coast||0);f.beatT=f.beating?0.28+Math.random()*0.5:0.18+Math.random()*0.5*(S.coast||0);}
     f.beatA=lerp(f.beatA===undefined?1:f.beatA,f.beating?1:0.12,clamp(dt*9,0,1));if(!f.beating&&!fd)f.v=V.mul(f.v,Math.exp(-dt*0.5));
-    f.amp=lerp(f.amp,(0.35+sp/S.cruise[1]*0.5)*(0.25+0.75*f.beatA),clamp(dt*5,0,1));f.ph+=dt*TAU*(1.5+sp*0.55)*(0.3+0.7*f.beatA);f.pec+=dt*TAU*(f.rest>0||sp<1?3:1.5);}}
+    f.amp=lerp(f.amp,(0.35+sp/S.cruise[1]*0.5)*(0.25+0.75*f.beatA),clamp(dt*5,0,1));f.ph+=dt*TAU*(1.5+sp*0.55)*(0.3+0.7*f.beatA);f.pec+=dt*TAU*(S.puffer?7:f.rest>0||sp<1?3:1.5);}}
 
 // ---------- shrimp & snails ----------
 let shrimp=[],snails=[];
@@ -1886,7 +1997,8 @@ function shrimpUpdate(dt){for(const s of shrimp){s.t-=dt;const g=topH(s.p[0],s.p
       if(s.p[1]<=topH(s.p[0],s.p[2])&&s.vy<0){s.p[1]=topH(s.p[0],s.p[2]);s.state='graze';s.t=2+Math.random()*4;}}}}
 function addSnail(sp,n){for(let i=0;i<n;i++){const x=lerp(-40,40,Math.random());snails.push({sp,surf:'front',p:[x,lerp(8,30,Math.random()),TK.z1-0.05],h:Math.random()*TAU,var:Math.random(),size:SNAILSP[sp].L*(0.9+Math.random()*0.2)});}}
 function setSnailCount(sp,n){const cur=snails.filter(s=>s.sp===sp);if(cur.length<n)addSnail(sp,n-cur.length);else if(cur.length>n){let k=cur.length-n;snails=snails.filter(s=>!(s.sp===sp&&k-->0));}}
-function snailUpdate(dt){for(const s of snails){s.h+=(noise3(NOW()*0.05,s.var*20,0))*dt*0.6;const sp=0.18*dt;
+function snailUpdate(dt){for(const s of snails){s.tuck=lerp(s.tuck||0,s.stop>0?1:0,Math.min(1,dt*(s.stop>0?8:1.5)));if(s.stop>0){s.stop-=dt;continue;} // clamped down after a puffer's strike
+    s.h+=(noise3(NOW()*0.05,s.var*20,0))*dt*0.6;const sp=0.18*dt;
     if(s.surf==='floor'){s.p[0]+=Math.cos(s.h)*sp;s.p[2]+=Math.sin(s.h)*sp;s.p[1]=topH(s.p[0],s.p[2]);
       if(s.p[2]>TK.z1-0.8){s.surf='front';s.p[2]=TK.z1-0.05;s.h=PI/2;}else if(s.p[2]<TK.z0+0.8){s.surf='back';s.p[2]=TK.z0+0.05;s.h=PI/2;}
       s.p[0]=clamp(s.p[0],TK.x0+1,TK.x1-1);}
@@ -1927,8 +2039,11 @@ function bubbleUpdate(dt){const em=emitters();
     while(a>=1){a-=1;const ang=Math.random()*TAU,rr=Math.sqrt(Math.random())*e.spread;spawnBubble([e.p[0]+Math.cos(ang)*rr,e.p[1],e.p[2]+Math.sin(ang)*rr],lerp(e.r[0],e.r[1],Math.pow(Math.random(),1.5)));}
     emitAcc.set(e.it,a);}
   // small bubbles rise at 15-25 cm/s and zig-zag; the stream fans out a little as it climbs
-  for(const b of bubbles){const vt=clamp(11+b.r*75,11,28);b.vy=lerp(b.vy,vt,clamp(dt*6,0,1));b.p[1]+=b.vy*dt;b.ph+=dt*(10+b.wob*8);b.p[0]+=(Math.sin(b.ph)*b.r*b.wob*6+(b.dx||0))*dt;b.p[2]+=(Math.cos(b.ph*0.8)*b.r*b.wob*5+(b.dz||0))*dt;b.r*=1+dt*0.025;}
-  bubbles=bubbles.filter(b=>{if(b.p[1]>=TK.wl-b.r*0.5){simDrop(b.p[0],b.p[2],b.r*2.2+0.4,0.012+b.r*0.09);return false;}return true;});}
+  for(const b of bubbles){if(b.surf)continue;const vt=clamp(11+b.r*75,11,28);b.vy=lerp(b.vy,vt,clamp(dt*6,0,1));b.p[1]+=b.vy*dt;b.ph+=dt*(10+b.wob*8);b.p[0]+=(Math.sin(b.ph)*b.r*b.wob*6+(b.dx||0))*dt;b.p[2]+=(Math.cos(b.ph*0.8)*b.r*b.wob*5+(b.dz||0))*dt;b.r*=1+dt*0.025;}
+  // at the surface a bubble lingers for a moment, half out of the water, drifting outward before it pops
+  bubbles=bubbles.filter(b=>{if(b.surf){b.life-=dt;b.p[0]+=(b.dx||0)*dt*2.2;b.p[2]+=(b.dz||0)*dt*2.2;b.p[1]=TK.wl-b.r*0.3+Math.sin(b.ph+=dt*6)*0.01;
+      if(b.life<=0||b.p[0]<TK.x0+0.5||b.p[0]>TK.x1-0.5||b.p[2]<TK.z0+0.5||b.p[2]>TK.z1-0.5){simDrop(b.p[0],b.p[2],b.r*2.2+0.4,0.008+b.r*0.06);return false;}return true;}
+    if(b.p[1]>=TK.wl-b.r*0.5){simDrop(b.p[0],b.p[2],b.r*2.2+0.4,0.012+b.r*0.09);if(b.r<0.22&&Math.random()<0.55){b.surf=true;b.life=0.25+Math.random()*1.3;b.vy=0;return true;}return false;}return true;});}
 const NPART=480;const parts=new Float32Array(NPART*4);
 // sand dust kicked up by landings, steps and sinking food: drifts, spreads and settles
 const dust=[];
@@ -2143,7 +2258,7 @@ function fillInstances(){
   for(const k in MESH.fish)MESH.fish[k].n=0;
   for(const f of fish){const m=MESH.fish[f.sp];if(m.n>=m.maxN)continue;const cp=Math.cos(f.pitch);const fw=[cp*Math.cos(f.yaw),Math.sin(f.pitch),cp*Math.sin(f.yaw)];
     let sd=V.norm(V.cross(fw,[0,1,0]));let up=V.cross(sd,fw);const cr=Math.cos(f.roll),sr=Math.sin(f.roll);const up2=V.add(V.mul(up,cr),V.mul(sd,sr)),sd2=V.sub(V.mul(sd,cr),V.mul(up,sr));
-    setInst(m,m.n++,M4.basis(f.p,fw,up2,sd2,f.size),[f.ph,f.amp,f.bend,f.pec],[f.var,0,0,0]);}
+    setInst(m,m.n++,M4.basis(f.p,fw,up2,sd2,f.size),[f.ph,f.amp,f.bend,f.pec],[f.var,f.puff||0,f.stress||0,0]);}
   const sm=MESH.shrimp;sm.n=0;
   for(const s of shrimp){const up=s.state==='swim'?[0,1,0]:topNormal(s.p[0],s.p[2]);let fw=[Math.cos(s.yaw),0,Math.sin(s.yaw)];fw=V.norm(V.sub(fw,V.mul(up,V.dot(fw,up))));const sd=V.cross(fw,up);
     const S=SHRIMPSP[s.sp];const c=V.mul(S.col,0.85+s.var*0.3);const code=(s.state==='walk'?1:0)+(s.state==='swim'?2:0);
@@ -2151,7 +2266,7 @@ function fillInstances(){
   const sn=MESH.snail;sn.n=0;
   for(const s of snails){let up,fw;if(s.surf==='floor'){up=topNormal(s.p[0],s.p[2]);fw=[Math.cos(s.h),0,Math.sin(s.h)];fw=V.norm(V.sub(fw,V.mul(up,V.dot(fw,up))));}
     else{up=s.surf==='front'?[0,0,-1]:[0,0,1];fw=[Math.cos(s.h),Math.sin(s.h),0];}
-    setInst(sn,sn.n++,M4.basis(s.p,fw,up,V.cross(fw,up),s.size),[s.var*9,0,0,0],[0,0,0,SNAILSP[s.sp].pat]);}
+    setInst(sn,sn.n++,M4.basis(s.p,fw,up,V.cross(fw,up),s.size),[s.var*9,s.tuck||0,0,0],[0,0,0,SNAILSP[s.sp].pat]);}
   for(const k in MESH.food)MESH.food[k].n=0;
   for(const f of foods){const F=FOODS[f.type],m=MESH.food[F.kind];if(m.n>=m.maxN)continue;
     setInst(m,m.n++,M4.trs(f.p,f.yaw,1,f.type==='worm'||f.type==='pellet'?0:f.state==='rest'?0:f.pitch*0.3,f.type==='flake'&&f.state!=='rest'?f.pitch*0.5:0),[f.ph,f.state==='rest'?0.5:1,0,0],[f.col[0],f.col[1],f.col[2],0]);}
@@ -2171,7 +2286,7 @@ function render(){STATS.draws=0;STATS.tris=0;frameNo++;const q=QUAL[QK];updateDO
   bindUnit(0,null);gl.bindFramebuffer(gl.FRAMEBUFFER,SH.fbo);gl.viewport(0,0,SH.size,SH.size);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.depthMask(true);gl.clear(gl.DEPTH_BUFFER_BIT);
   common(PR.stdS,SH.vp);common(PR.plantS,SH.vp);drawItems(PR.stdS,PR.plantS,true);
   common(PR.axoS,SH.vp);axUniforms(PR.axoS);drawMesh(MESH.axoM);
-  common(PR.fishS,SH.vp);for(const k in MESH.fish)drawInst(MESH.fish[k]);
+  common(PR.fishS,SH.vp);for(const k in MESH.fish){U(PR.fishS,'uSp',FISHSP[k].sp);drawInst(MESH.fish[k]);}
   common(PR.critS,SH.vp);U(PR.critS,'uKind',0);drawInst(MESH.shrimp);
   bindUnit(0,SH.tex);bindUnit(1,CA.tex);bindUnit(2,sandTex);bindUnit(3,null);bindUnit(13,SIM.tex[SIM.cur]);bindUnit(14,SH.tex);gl.bindSampler(14,SH.raw);
   // main opaque
@@ -2184,15 +2299,16 @@ function render(){STATS.draws=0;STATS.tris=0;frameNo++;const q=QUAL[QK];updateDO
   drawStd(P,MESH.sil,ID4,ID3,11,0,[1,1,1],.3,1,0,false);
   drawStd(P,sandMesh,ID4,ID3,1,SETTINGS.sub,[1,1,1],.9,1,0,false);
   common(PR.plant,vp);drawItems(P,PR.plant,false);
-  common(PR.axo,vp);axUniforms(PR.axo);U(PR.axo,'uSel',AX.selGlow||0);drawMesh(MESH.axoM);
+  const seeOn=QK!=='low';common(PR.axo,vp);axUniforms(PR.axo);U(PR.axo,'uSel',AX.selGlow||0);U(PR.axo,'uSee',0);U(PR.axo,'uFinSep',seeOn?1:0);drawMesh(MESH.axoM);
   common(PR.fish,vp);U(PR.fish,'uFinPass',0);for(const k in MESH.fish){U(PR.fish,'uSp',FISHSP[k].sp);drawInst(MESH.fish[k]);}
   common(PR.crit,vp);U(PR.crit,'uSee',0);U(PR.crit,'uKind',1);drawInst(MESH.snail);
   for(const k of[2,3,4,5]){U(PR.crit,'uKind',k);drawInst(MESH.food[k]);}
   // see-through shrimp: copy the opaque scene drawn so far, then draw the shrimp (still multisampled) blending with that copy
-  if(MESH.shrimp.n&&QK==='low'){U(PR.crit,'uSee',0);U(PR.crit,'uKind',0);drawInst(MESH.shrimp);}
-  else if(MESH.shrimp.n){const tgt=RT.fMS||RT.fA,src=RT.fMS?RT.A:RT.B;gl.bindFramebuffer(gl.READ_FRAMEBUFFER,tgt);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,RT.fMS?RT.fA2:RT.fB);
+  if(!seeOn){U(PR.crit,'uSee',0);U(PR.crit,'uKind',0);drawInst(MESH.shrimp);}
+  else{const tgt=RT.fMS||RT.fA,src=RT.fMS?RT.A:RT.B;gl.bindFramebuffer(gl.READ_FRAMEBUFFER,tgt);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,RT.fMS?RT.fA2:RT.fB);
     gl.blitFramebuffer(0,0,RT.w,RT.h,0,0,RT.w,RT.h,gl.COLOR_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);
-    gl.bindFramebuffer(gl.FRAMEBUFFER,tgt);gl.viewport(0,0,RT.w,RT.h);bindUnit(4,src);common(PR.crit,vp);U(PR.crit,'uSee',1);U(PR.crit,'uRes',[RT.w,RT.h]);U(PR.crit,'uKind',0);drawInst(MESH.shrimp);U(PR.crit,'uSee',0);bindUnit(4,null);}
+    gl.bindFramebuffer(gl.FRAMEBUFFER,tgt);gl.viewport(0,0,RT.w,RT.h);bindUnit(4,src);common(PR.crit,vp);U(PR.crit,'uSee',1);U(PR.crit,'uRes',[RT.w,RT.h]);U(PR.crit,'uKind',0);drawInst(MESH.shrimp);U(PR.crit,'uSee',0);
+    common(PR.axo,vp);axUniforms(PR.axo);U(PR.axo,'uSee',1);U(PR.axo,'uRes',[RT.w,RT.h]);U(PR.axo,'uSel',AX.selGlow||0);drawMesh(MESH.axoM);U(PR.axo,'uSee',0);bindUnit(4,null);}
   if(RT.fMS){gl.bindFramebuffer(gl.READ_FRAMEBUFFER,RT.fMS);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,RT.fA);gl.blitFramebuffer(0,0,RT.w,RT.h,0,0,RT.w,RT.h,gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT,gl.NEAREST);
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);}
   gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(emptyVAO);
@@ -2299,6 +2415,7 @@ function updatePetCard(){$('petName').textContent=PET.name;$('petMorph').textCon
     if(PET.hunger<35)tips.push(PET.name+' is hungry. Bloodworms are a favorite.');else if(PET.hunger>95)tips.push(PET.name+' is full; extra food will rot.');
     if(PET.water<55)tips.push('The water is getting cloudy. Do a water change in Tank.');
     const warm=fish.filter(f=>FISHSP[f.sp].warm).length;if(warm)tips.push('Some fish here prefer warmer water than axolotls.');
+    if(fish.some(f=>FISHSP[f.sp].puffer))tips.push('In a real tank, pea puffers would nip at '+PET.name+'\'s gills. Keep them apart.');
     m.innerHTML=`Water 17.8 °C · pH 7.4 · 180 L<br>Last fed ${PET.lastFed?ago(Date.now()-PET.lastFed):'not yet'} · ${AX.mode==='rest'?'resting':AX.mode==='walk'||AX.mode==='tohide'?'exploring':AX.mode==='food'||AX.mode==='eat'?'hunting food':AX.mode==='glass'?'coming to say hi':'swimming'}`+(tips.length?'<br><span style="color:var(--warn)">'+tips.map(esc).join('<br>')+'</span>':'');}}
 
 // ---------- sheets ----------
@@ -2345,7 +2462,7 @@ function select(it){SELECTED=it;const s=$('sel');if(!it){s.classList.add('hidden
 function counterRow(name,note,swatch,val,max,onSet,warn){const d=document.createElement('div');d.className='row';
   d.innerHTML=`<div class="sw" style="background:${swatch}"></div><div class="l"><b>${esc(name)}</b><span${warn?' style="color:var(--warn)"':''}>${esc(note)}</span></div><div class="cnt"><button aria-label="Fewer">−</button><output>${val}</output><button aria-label="More">+</button></div>`;
   const o=d.querySelector('output');const[m,p]=d.querySelectorAll('button');m.onclick=()=>{val=Math.max(0,val-1);o.textContent=val;onSet(val);save();};p.onclick=()=>{val=Math.min(max,val+1);o.textContent=val;onSet(val);save();};return d;}
-const FSW={whitecloud:'linear-gradient(135deg,#6d6a4b,#c9b9a2 55%,#d0533a)',danio:'repeating-linear-gradient(180deg,#1f2d63 0 5px,#d9cfa0 5px 10px)',neon:'linear-gradient(180deg,#5a4f38 30%,#1fa2ff 30% 48%,#c51b14 48%)',
+const FSW={puffer:'radial-gradient(circle at 32% 34%,#2b2412 0 17%,transparent 19%),radial-gradient(circle at 68% 50%,#2b2412 0 15%,transparent 17%),linear-gradient(#d6bd3e 0 64%,#eee0bf 66%)',whitecloud:'linear-gradient(135deg,#6d6a4b,#c9b9a2 55%,#d0533a)',danio:'repeating-linear-gradient(180deg,#1f2d63 0 5px,#d9cfa0 5px 10px)',neon:'linear-gradient(180deg,#5a4f38 30%,#1fa2ff 30% 48%,#c51b14 48%)',
   guppy:'linear-gradient(135deg,#9aa0a4,#ff7a22 60%,#3a7bff)',cherrybarb:'linear-gradient(135deg,#a51a10,#e06a4a)',cory:'radial-gradient(circle at 70% 40%,#111 20%,#e8dccd 22%)'};
 function renderAnimals(){openSheet('Animals');const b=$('shBody');b.innerHTML=`<div class="sec">Your axolotl</div>
   <div class="row"><div class="l"><b>Name</b></div><input type="text" id="pname" maxlength="18" value="${esc(PET.name)}"></div>
@@ -2450,7 +2567,12 @@ function tap(e){if(document.body.classList.contains('clean')){document.body.clas
   if(MODE==='decor'){if(dbl)flyTo(e.clientX,e.clientY);else select(null);return;}
   if(dbl){flyTo(e.clientX,e.clientY);return;}
   if(axHit(r.o,r.d)){axPet();return;}
+  const gp=glassPoint(r.o,r.d);if(gp&&startleAt(gp))return;
   const g=pickGround(r.o,r.d);if(g){axCallTo(g[0]);RING=[0,0,0,0];}}
+// where a tap ray meets a side pane of the tank (null for the open top, or if the camera is inside the tank)
+function glassPoint(o,d){const lo=[TK.x0,0,TK.z0],hi=[TK.x1,TK.top,TK.z1];if(o[0]>lo[0]&&o[0]<hi[0]&&o[1]>lo[1]&&o[1]<hi[1]&&o[2]>lo[2]&&o[2]<hi[2])return null;
+  let t0=-1e9,t1=1e9,ax=-1;for(let k=0;k<3;k++){if(Math.abs(d[k])<1e-6){if(o[k]<lo[k]||o[k]>hi[k])return null;continue;}let a=(lo[k]-o[k])/d[k],b=(hi[k]-o[k])/d[k];if(a>b){const tt=a;a=b;b=tt;}if(a>t0){t0=a;ax=k;}t1=Math.min(t1,b);}
+  if(t0>t1||t0<0||ax===1)return null;const p=V.madd(o,d,t0);return p[1]<TK.wl?p:null;}
 canvas.addEventListener('wheel',e=>{e.preventDefault();const dy=e.deltaMode===1?e.deltaY*30:e.deltaY;const f=Math.exp(clamp(dy,-240,240)*(e.ctrlKey?0.006:0.0012));
   const toward=f<1?hitPoint(e.clientX,e.clientY):null;zoomBy(f,toward);if(SETTINGS.follow&&toward){SETTINGS.follow=false;markView('');}},{passive:false});
 const MOVEK=new Set(['w','a','s','d','q','e','r','c','arrowup','arrowdown','arrowleft','arrowright','pageup','pagedown']);
@@ -2486,7 +2608,7 @@ const AQ={ready:false,errors:ERRS,stats:STATS,
   remove(id){const it=items.find(i=>i.id===id);if(it){removeItem(it);finishLayout();}},
   items(){return items.map(i=>({id:i.id,kind:i.kind,x:+i.x.toFixed(1),z:+i.z.toFixed(1),y:+i.y.toFixed(1),scale:i.scale}));},
   select(id){if(MODE!=='decor')setMode('decor');select(items.find(i=>i.id===id)||null);},
-  feed(type,x,z){dropFood(type,x,z);},mode(m){setMode(m);},view(v){setView(v);},key(k,down){down?KEYS.add(k):KEYS.delete(k);},fs(){toggleFs();},pet(){axPet();},call(x){axCallTo(x);},
+  feed(type,x,z){dropFood(type,x,z);},glassTap(x,y,z){return startleAt([x,y,z]);},mode(m){setMode(m);},view(v){setView(v);},key(k,down){down?KEYS.add(k):KEYS.delete(k);},fs(){toggleFs();},pet(){axPet();},call(x){axCallTo(x);},
   axolotl(o){if(o&&o.at)axReset(o.at[0],o.at[1]);if(o&&o.yaw!==undefined){AX.yaw=o.yaw;axReset(AX.head[0],AX.head[2]);}if(o&&o.mode)axSetMode(o.mode,o.t||10);if(o&&o.morph)PET.morph=o.morph;return AX.mode;},
   set(k,v){if(k==='q'){QK=v;applyQuality();}else if(k in SETTINGS)SETTINGS[k]=v;else if(k in PET)PET[k]=v;},
   sandShape(s){sandShape(s);updateSandMesh();for(const it of items)updateItem(it);finishLayout();},
