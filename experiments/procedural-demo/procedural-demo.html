@@ -1204,21 +1204,39 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       }
       return points;
     }
+    // Catmull-Rom resampling, so a channel bends smoothly instead of kinking at
+    // every coarse node.  straightEnd lays the last metres along one direction
+    // (the creek arrives at the falls lip square to the drop).
+    function smoothPath(points,step,straightEnd){
+      const out=[],P=(i)=>points[Math.max(0,Math.min(points.length-1,i))];
+      for(let i=0;i<points.length-1;i++){
+        const p0=P(i-1),p1=P(i),p2=P(i+1),p3=P(i+2),n=Math.max(1,Math.ceil(Math.hypot(p2[0]-p1[0],p2[1]-p1[1])/step));
+        for(let j=0;j<n;j++){const t=j/n,t2=t*t,t3=t2*t,f=(a,b,c,d)=>.5*(2*b+(-a+c)*t+(2*a-5*b+4*c-d)*t2+(-a+3*b-3*c+d)*t3);out.push([f(p0[0],p1[0],p2[0],p3[0]),f(p0[1],p1[1],p2[1],p3[1])]);}
+      }
+      out.push(points[points.length-1].slice());
+      if(straightEnd){
+        const end=out[out.length-1],[dx,dz]=straightEnd;let acc=0;
+        for(let i=out.length-2;i>=0;i--){acc+=Math.hypot(out[i+1][0]-out[i][0],out[i+1][1]-out[i][1]);const k=Math.max(0,Math.min(1,(acc-2.6)/3.6)),b=k*k*(3-2*k),lx=end[0]-dx*acc,lz=end[1]-dz*acc;out[i]=[lx+(out[i][0]-lx)*b,lz+(out[i][1]-lz)*b];if(k>=1)break;}
+      }
+      return out;
+    }
     const WATERFALL_LIP = [-64-.7071*1.1,-46-.7071*1.1], WATERFALL_POOL = [-64-.7071*2.5,3.945,-46-.7071*2.5];
-    const streamNodes = drainagePath([[-40.5,-15.2],[-46.9,-24.9],[-54.3,-34.4],[-61.4,-43.4],WATERFALL_LIP],4.7,.34,17.3);
+    const streamNodes = smoothPath(drainagePath([[-40.5,-15.2],[-46.9,-24.9],[-54.3,-34.4],[-61.4,-43.4],WATERFALL_LIP],4.7,.8,17.3),.6,[-.7071,-.7071]);
     const streamLengths = (()=>{let a=[0];for(let i=1;i<streamNodes.length;i++)a.push(a[i-1]+Math.hypot(streamNodes[i][0]-streamNodes[i-1][0],streamNodes[i][1]-streamNodes[i-1][1]));return a;})();
-    const riverNodes = drainagePath([[WATERFALL_POOL[0],WATERFALL_POOL[2]],[-66.7,-56.0],[-67.0,-61.0],[-66.4,-66.0],[-65.8,-71.0],[-65.5,-75.5],[-65.4,-80.5]],4.4,.28,61.7);
+    const riverNodes = smoothPath(drainagePath([[WATERFALL_POOL[0],WATERFALL_POOL[2]],[-66.7,-56.0],[-67.0,-61.0],[-66.4,-66.0],[-65.8,-71.0],[-65.5,-75.5],[-65.4,-80.5]],4.4,.28,61.7),.6,null);
     const riverLengths = (()=>{let a=[0];for(let i=1;i<riverNodes.length;i++)a.push(a[i-1]+Math.hypot(riverNodes[i][0]-riverNodes[i-1][0],riverNodes[i][1]-riverNodes[i-1][1]));return a;})();
+    // Nearest point on a channel: distance d, signed offset a (positive to the
+    // left of the flow), arc length s, and whether x,z lies past the far end.
     function sampleDrainage(nodes,lengths,x,z,bounds){
       if(x<bounds[0]||x>bounds[1]||z<bounds[2]||z>bounds[3])return null;
-      let best=1e9,s=0,tx=0,tz=1;
+      let best=1e9,s=0,tx=0,tz=1,a=0,beyond=false;
       for(let i=1;i<nodes.length;i++){
-        const a=nodes[i-1],b=nodes[i],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),q=Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/(length*length))),px=a[0]+dx*q,pz=a[1]+dz*q,d=Math.hypot(x-px,z-pz);
-        if(d<best){best=d;s=lengths[i-1]+length*q;tx=dx/length;tz=dz/length;}
+        const p=nodes[i-1],b=nodes[i],dx=b[0]-p[0],dz=b[1]-p[1],length=Math.hypot(dx,dz),raw=((x-p[0])*dx+(z-p[1])*dz)/(length*length),q=Math.max(0,Math.min(1,raw)),px=p[0]+dx*q,pz=p[1]+dz*q,d=Math.hypot(x-px,z-pz);
+        if(d<best){best=d;s=lengths[i-1]+length*q;tx=dx/length;tz=dz/length;a=(x-px)*-tz+(z-pz)*tx;beyond=i===nodes.length-1&&raw>1;}
       }
-      return {d:best,s,q:s/lengths[lengths.length-1],tx,tz};
+      return {d:best,a,s,q:s/lengths[lengths.length-1],tx,tz,beyond};
     }
-    function streamSample(x,z){return sampleDrainage(streamNodes,streamLengths,x,z,[-69,-35,-52,-10]);}
+    function streamSample(x,z){return sampleDrainage(streamNodes,streamLengths,x,z,[-70,-35,-53,-10]);}
     function riverSample(x,z){return sampleDrainage(riverNodes,riverLengths,x,z,[-87,-61,-82,-43]);}
     function baseHeight(x, z) {
       let wx = x + (noise(x * 0.018, z * 0.018) - 0.5) * 13,
@@ -1260,57 +1278,118 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       );
       return base;
     }
-    function gradedLevels(nodes,lengths,endLevel,minFall){let levels=nodes.map(p=>Math.max(endLevel,baseHeight(p[0],p[1])-.22));levels[levels.length-1]=endLevel;for(let i=levels.length-2;i>=0;i--)levels[i]=Math.max(levels[i],levels[i+1]+(lengths[i+1]-lengths[i])*minFall);return levels;}
-    const streamLevels=gradedLevels(streamNodes,streamLengths,8.32,.10),riverLevels=riverNodes.map((p,i)=>3.945-4.70*riverLengths[i]/riverLengths[riverLengths.length-1]);
+    // ---- Waterfall cliff band ------------------------------------------------
+    // The creek's last metres run on a basalt bench that ends in a cliff, and
+    // the falls drops from the lip into an amphitheatre pool dug below it, so
+    // the water never runs perched on the slope or through the rock.
+    const FALL_BENCH = 8.70, FALL_POOL_BED = 2.96;
+    const smooth01 = (a, b, v) => { v = Math.max(0, Math.min(1, (v - a) / (b - a))); return v * v * (3 - 2 * v); };
+    function fallsFrame(x, z) { const fx = x - WATERFALL_LIP[0], fz = z - WATERFALL_LIP[1]; return [-(fx + fz) * .7071, (fx - fz) * .7071]; }
+    function fallsBench(x, z, g, toLip = false) {
+      const [fs, fk] = fallsFrame(x, z);
+      if (fs < -16 || fs > (toLip ? .05 : 0) || Math.abs(fk) > 13) return g;
+      const w = (1 - smooth01(7, 12.5, Math.abs(fk) + .9 * Math.sin(fs * .7))) * (1 - smooth01(9, 15.5, -fs)) * (toLip ? 1 : 1 - smooth01(-.85, -.2, fs)),
+        top = FALL_BENCH + .11 * Math.min(10, Math.max(0, -fs - .85)) + .18 * (noise(x * .31, z * .31) - .5);
+      return g + Math.max(0, top - g) * w;
+    }
+    function fallsDig(x, z, h) {
+      const [fs, fk] = fallsFrame(x, z);
+      if (fs < -.85 || fs > 9.5 || Math.abs(fk) > 9) return h;
+      const floor = FALL_POOL_BED + .10 * Math.max(0, fs - 3.2), e = Math.hypot((fs - 2.3) / 3.7, fk / (3.3 + .25 * Math.max(0, fs))), wall = floor + Math.max(0, e - 1) * 6.2 + .35 * (noise(x * .7, z * .7) - .5) * smooth01(.9, 1.3, e);
+      // the cliff face stays behind the falling sheet (which starts at fs = 0)
+      const face = fs < -.2 ? floor + (1 - smooth01(-.85, -.2, fs)) * (h - floor) : floor;
+      return Math.min(h, Math.max(wall, face));
+    }
+    // The ground before any channel is cut: the slope plus the cliff bench
+    // (for grading, the bench runs right to the lip, over the cliff face).
+    function naturalGround(x, z, toLip = false) { return fallsBench(x, z, baseHeight(x, z), toLip); }
+    // Incised grading: each level sits below the lower of the two banks (so no
+    // channel runs perched on a side slope), and never rises downstream.
+    function incisedLevels(nodes, lengths, first, minFall, clear, pad) {
+      const L = [];
+      for (let i = 0; i < nodes.length; i++) {
+        const [x, z] = nodes[i], j = Math.min(nodes.length - 1, i + 1), k = Math.max(0, i - 1), dx = nodes[j][0] - nodes[k][0], dz = nodes[j][1] - nodes[k][1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
+        let m = Infinity; for (const d of [0, -pad, pad, -pad * 1.7, pad * 1.7]) m = Math.min(m, naturalGround(x + nx * d, z + nz * d, true));
+        let level = m - clear; if (i === 0 && first !== null) level = first; else if (i > 0) level = Math.min(level, L[i - 1] - minFall * (lengths[i] - lengths[i - 1]));
+        L.push(level);
+      }
+      return L;
+    }
+    const streamLevels = incisedLevels(streamNodes, streamLengths, null, .06, .24, 1.05),
+      riverLevels = (() => { const total = riverLengths[riverLengths.length - 1], inc = incisedLevels(riverNodes, riverLengths, 3.945, .03, .20, 1.7); return inc.map((v, i) => i === 0 ? 3.945 : Math.min(v, 3.945 - 4.70 * riverLengths[i] / total)); })();
+    // Ease sudden changes of gradient by lowering (never raising) a level.
+    for (let pass = 0; pass < 6; pass++) for (let i = 1; i < streamLevels.length - 1; i++) streamLevels[i] = Math.min(streamLevels[i], (streamLevels[i - 1] + streamLevels[i] + streamLevels[i + 1]) / 3);
     function levelAt(levels,lengths,s){let i=1;while(i<lengths.length&&lengths[i]<s)i++;let a=Math.max(0,i-1),span=Math.max(.001,lengths[i]-lengths[a]),f=Math.max(0,Math.min(1,(s-lengths[a])/span));return levels[a]*(1-f)+levels[i]*f;}
-    // ---- Step-pool creek: flat pools linked by short white-water chutes -------
+    // ---- Step-pool creek: pools linked by white chutes ----------------------
     // Built from the lip upstream on the graded profile: each pool sits at the
-    // graded level of its own outlet sill, so the drops between pools carry the
-    // slope (a 28 degree mountain creek is a staircase, not a sloping sheet).
+    // level of its outlet sill, so the drops carry the slope.  Pool lengths,
+    // widths and step heights are irregular, a few steps bunch into cascades,
+    // and every step pours through a notch in a rock sill, off-centre and
+    // mostly alternating sides, so the chutes zig-zag down the channel.
     const creekPools = (() => {
-      const total = streamLengths[streamLengths.length - 1], pools = [];
+      const total = streamLengths[streamLengths.length - 1], pools = []; let seed = 7919;
+      const rr = () => (seed = (seed * 48271) % 2147483647) / 2147483647;
       let end = total, k = 0;
       while (end > .35) {
-        const lip = levelAt(streamLevels, streamLengths, end), up = levelAt(streamLevels, streamLengths, Math.max(0, end - 2.4)), slope = (up - lip) / 2.4;
-        let len = Math.max(1.7, Math.min(4.6, 3.9 - slope * 2.6 + .55 * Math.sin(k * 2.71 + 1.3)));
-        if (end - len < 1.2) len = end;
-        pools.unshift({ start: end - len, end, level: lip });
+        const lip = levelAt(streamLevels, streamLengths, end), up = levelAt(streamLevels, streamLengths, Math.max(0, end - 2.4)), slope = Math.max(.02, (up - lip) / 2.4), r = rr();
+        // a step of 0.3-1.1 m (now and then a run of small ones), so steep
+        // reaches get short pools rather than tall steps
+        const target = r < .17 ? .22 + .2 * rr() : .32 + .78 * rr();
+        let len = Math.max(.8, Math.min(5.4, target / slope));
+        const dropNow = levelAt(streamLevels, streamLengths, Math.max(0, end - len)) - lip; if (dropNow > 1.25) len = Math.max(.8, len * 1.2 / dropNow);
+        if (k === 0) len = Math.max(len, 2.8);
+        if (end - len < 1.0) len = end;
+        pools.unshift({ start: end - len, end, level: lip, width: .80 + .42 * rr(), notch: (rr() > .5 ? 1 : -1) * (.32 + .4 * rr()), notchW: .15 + .2 * rr(), sill: .05 + .13 * rr() });
         end -= len; k++;
       }
       pools[0].start = 0;
+      const last = pools[pools.length - 1]; last.notch = 0; last.notchW = .86; last.width = Math.max(1, last.width);
+      for (let i = 1; i < pools.length - 1; i++) if (Math.sign(pools[i].notch) === Math.sign(pools[i - 1].notch) && rr() < .8) pools[i].notch = -pools[i].notch;
       for (let i = 0; i < pools.length; i++) { const nx = pools[i + 1]; pools[i].drop = nx ? pools[i].level - nx.level : 0; pools[i].chute = nx ? Math.max(.28, Math.min(1.15, .22 + pools[i].drop * .36)) : 0; }
       return pools;
     })();
     function creekPoolAt(s) { let lo = 0, hi = creekPools.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (creekPools[mid].start <= s) lo = mid; else hi = mid - 1; } return lo; }
-    // Water leaves each sill flat and falls on a parabola into the next pool.
-    function creekWaterAt(s) {
+    function creekHalfWidth(s) { const i = creekPoolAt(s), P = creekPools[i], u = (s - P.start) / Math.max(.1, P.end - P.start); return (.60 + .40 * Math.sin(Math.PI * Math.min(1, .08 + u * .96))) * (.92 + .08 * Math.sin(s * .9)) * P.width; }
+    for (const P of creekPools) { const h = creekHalfWidth(Math.max(P.start, P.end - .02)); P.nc = P.notch * h; P.nw = P.notchW * h; }
+    function notchMask(P, a) { return 1 - smooth01(P.nw, P.nw + .16, Math.abs(a - P.nc)); }
+    // Water leaves each sill through its notch and falls on a parabola into the
+    // next pool; beside the notch the lower pool meets the rock step.
+    function creekWaterAt(s, a = 0) {
       const i = creekPoolAt(s), P = creekPools[i];
-      if (i > 0) { const A = creekPools[i - 1], u = (s - P.start) / A.chute; if (u < 1) return A.level - A.drop * u * u * (1.2 - .2 * u); }
+      if (i > 0) { const A = creekPools[i - 1], u = (s - P.start) / A.chute; if (u < 1) { const yN = A.level - A.drop * u * u * (1.2 - .2 * u); return P.level + (yN - P.level) * notchMask(A, a); } }
+      const toSill = P.end - s; if (toSill < .45 && P.drop > 0) return P.level - .03 * notchMask(P, a) * (1 - toSill / .45);
       return P.level;
     }
-    // 0 in still pools, 1 on a falling chute, decaying through the boil at its foot.
-    function creekChuteAt(s) {
+    // 0 in still pools, 1 on a falling chute (in its notch), then the boil.
+    function creekChuteAt(s, a = 0) {
       const i = creekPoolAt(s), P = creekPools[i];
       if (i === 0) return 0;
       const A = creekPools[i - 1], u = (s - P.start) / A.chute;
-      if (u < 1) return u < .22 ? .30 + u * 3.2 : 1;
-      return Math.exp(-(s - P.start - A.chute) / (.35 + A.drop * .25)) * Math.min(1, A.drop / .6);
+      if (u < 1) return (u < .22 ? .30 + u * 3.2 : 1) * (.12 + .88 * notchMask(A, a));
+      return Math.exp(-(s - P.start - A.chute) / (.35 + A.drop * .25)) * Math.min(1, A.drop / .6) * Math.exp(-Math.pow((a - A.nc) / Math.max(.35, A.nw + .35), 2));
     }
-    function creekHalfWidth(s) { const i = creekPoolAt(s), P = creekPools[i], u = (s - P.start) / Math.max(.1, P.end - P.start); return (.60 + .40 * Math.sin(Math.PI * Math.min(1, .08 + u * .96))) * (.92 + .08 * Math.sin(s * .9)); }
-    // Lining height across the wet width: a plunge scour below each chute, a rock sill at each outlet.
-    function creekBedAt(s, d) {
-      const i = creekPoolAt(s), P = creekPools[i], w = creekWaterAt(s);
+    // Bed under the water: a thin sheet down each notch with a rock step beside
+    // it, a plunge scour under the landing, and a rock sill at each outlet.
+    function creekBedAt(s, a) {
+      const d = Math.abs(a), i = creekPoolAt(s), P = creekPools[i], half = creekHalfWidth(s), x = Math.min(1, d / half), edge = 1 - x * x * x * x;
       let depth = .22;
-      if (i > 0) { const A = creekPools[i - 1], u = (s - P.start) / A.chute; if (u < 1) depth = .07 + .08 * u; else { const v = (s - P.start - A.chute) / Math.max(.5, P.end - P.start - A.chute); depth = .14 + (.28 + .22 * Math.min(1, A.drop)) * Math.exp(-(((v - .10) / .34) ** 2)) + .04 * Math.sin(s * 2.3); } }
-      const toSill = P.end - s; if (toSill < .6) depth = Math.min(depth, .05 + Math.max(0, toSill) * .22);
-      const half = creekHalfWidth(s), x = Math.min(1, d / half);
-      return w - depth * (1 - x * x * x * x);
+      if (i > 0) {
+        const A = creekPools[i - 1], u = (s - P.start) / A.chute;
+        const run = Math.max(.28, Math.min(.95, .2 + .6 * A.drop)), face = (s - P.start) / run;
+        if (u < 1 || face < 1) { const m = u < 1 ? notchMask(A, a) : 0, sheet = creekWaterAt(s, a) - (.07 + .08 * Math.min(1, u)) * edge, sillTop = A.level + A.sill + .06 * Math.sin(a * 3.1 + A.level), rough = .16 * (noise(s * 4.3 + a * 1.7, a * 4.9 - s) - .5) + .08 * (noise(s * 11.3 - a * 3.1, a * 12.7 + s * 2.) - .5), outside = sillTop + (P.level - .22 * edge - sillTop) * smooth01(0, 1, face) + rough * (1 - Math.abs(2 * Math.min(1, face) - 1)); return outside + (sheet - outside) * m; }
+        const v = (s - P.start - A.chute) / Math.max(.5, P.end - P.start - A.chute), lat = Math.exp(-Math.pow((a - A.nc) / Math.max(.3, half * .75), 2));
+        depth = .14 + (.28 + .22 * Math.min(1, A.drop)) * Math.exp(-(((v - .10) / .34) ** 2)) * (.4 + .6 * lat) + .04 * Math.sin(s * 2.3);
+      }
+      let bed = P.level - depth * edge;
+      const toSill = P.end - s;
+      if (toSill < .6) { const k = 1 - Math.max(0, toSill) / .6, m = P.drop > 0 ? notchMask(P, a) : 1, sillTop = P.drop > 0 ? P.level + P.sill : P.level - .05, notchFloor = P.level - .06 * edge; bed += (sillTop + (notchFloor - sillTop) * m - bed) * k * k; }
+      return bed;
     }
     // Lower stream: a gentle gravel bed with riffles where the water speeds up.
     function riverHalfWidth(s) { const q = s / riverLengths[riverLengths.length - 1]; return 1.02 + .63 * q + .10 * Math.sin(s * .39); }
     function riverRiffleAt(s) { return Math.pow(Math.max(0, Math.sin(s * .74 + .9 * Math.sin(s * .21))), 6); }
     function riverBedAt(s, d) {
-      const w = levelAt(riverLevels, riverLengths, s), half = riverHalfWidth(s), x = Math.min(1, d / half);
+      d = Math.abs(d); const w = levelAt(riverLevels, riverLengths, s), half = riverHalfWidth(s), x = Math.min(1, d / half);
       const depth = (.16 + .16 * Math.pow(Math.sin(s * .43 + 1.1), 2)) * (1 - .55 * riverRiffleAt(s));
       return w - depth * (1 - x * x * x * x);
     }
@@ -1318,12 +1397,12 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     function streamGround(x, z) {
       let g = gridHeight(x, z);
       const c = streamSample(x, z);
-      if (c) { const half = creekHalfWidth(c.s); if (c.d <= half) g = Math.max(g, creekBedAt(c.s, c.d)); else if (c.d <= half + .5) g = Math.max(g, creekWaterAt(c.s) + (c.d - half) * .6); }
+      if (c && !c.beyond) { const half = creekHalfWidth(c.s); if (c.d <= half) g = Math.max(g, creekBedAt(c.s, c.a)); else if (c.d <= half + .5) g = Math.max(g, creekWaterAt(c.s, Math.sign(c.a) * half) + (c.d - half) * .6); }
       const r = riverSample(x, z);
-      if (r && r.q < .9) { const half = riverHalfWidth(r.s); if (r.d <= half) g = Math.max(g, riverBedAt(r.s, r.d)); else if (r.d <= half + .5) g = Math.max(g, levelAt(riverLevels, riverLengths, r.s) + (r.d - half) * .6); }
+      if (r && !r.beyond && r.q < .9) { const half = riverHalfWidth(r.s); if (r.d <= half) g = Math.max(g, riverBedAt(r.s, r.d)); else if (r.d <= half + .5) g = Math.max(g, levelAt(riverLevels, riverLengths, r.s) + (r.d - half) * .6); }
       return g;
     }
-    function channelLevel(x,z){const creek=streamSample(x,z);if(creek&&creek.d<1.45)return creekWaterAt(creek.s);const river=riverSample(x,z);if(river&&river.d<2.7)return levelAt(riverLevels,riverLengths,river.s);return gridHeight(x,z)+.09;}
+    function channelLevel(x,z){const creek=streamSample(x,z);if(creek&&!creek.beyond&&creek.d<1.45)return creekWaterAt(creek.s,creek.a);const river=riverSample(x,z);if(river&&!river.beyond&&river.d<2.7)return levelAt(riverLevels,riverLengths,river.s);return gridHeight(x,z)+.09;}
     // Erosion is baked after the lava route and landmarks are fixed (see ERO).
     let ERO = null;
     function H(x, z) { const v = H0(x, z); return ERO ? v + erosionAt(x, z) : v; }
@@ -1333,36 +1412,31 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       return (d[q] * (1 - fx) + d[q + 1] * fx) * (1 - fz) + (d[q + ERO.W] * (1 - fx) + d[q + ERO.W + 1] * fx) * fz;
     }
     function H0(x, z) {
-      let base=baseHeight(x,z);
-      const creek=streamSample(x,z);
+      const base=naturalGround(x,z);
       let terrain=base;
-      if(creek){
-        const half=creekHalfWidth(creek.s),level=creekWaterAt(creek.s),d=creek.d,E=half+.5;
+      // Both channels: the lined bed sits 45 cm above the cut, the bank rises to
+      // 18 cm over the water at the lining edge, then eases into the ground.
+      const creek=streamSample(x,z);
+      if(creek&&!creek.beyond){
+        const half=creekHalfWidth(creek.s),d=creek.d,E=half+.5,level=creekWaterAt(creek.s,Math.sign(creek.a)*Math.min(d,half));
         if(d<E+1.6){
-          let target;
-          if(d<=half)target=creekBedAt(creek.s,d)-.45;
-          else if(d<=E)target=level-.45+(d-half)/.5*.63;
-          else{const k=Math.min(1,(d-E)/1.6),b=k*k*(3-2*k);target=level+.18+(base-(level+.18))*b;}
-          terrain=target;
+          if(d<=half)terrain=creekBedAt(creek.s,creek.a)-.45;
+          else if(d<=E)terrain=level-.45+(d-half)/.5*.63;
+          else{const k=smooth01(0,1.6,d-E);terrain=level+.18+(base-(level+.18))*k;}
         }
       }
       const river=riverSample(x,z);
-      if(river){
-        const width=1.02+.63*river.q+.10*Math.sin(river.s*.39),level=levelAt(riverLevels,riverLengths,river.s),lined=1-Math.max(0,Math.min(1,(river.q-.80)/.06)),bed=level-.19+(riverBedAt(river.s,Math.min(river.d,width))-.45-(level-.19))*lined,
-          shoulder=width+1.18+.32*river.q,edge=width+1.75+.32*river.q;
-        let cut=Math.max(0,Math.min(1,(edge-river.d)/(edge-width)));
-        cut=cut*cut*(3-2*cut);
-        let bank=Math.max(0,Math.min(1,(river.d-width)/(shoulder-width)));bank=bank*bank*(3-2*bank);
-        const bankBed=Math.max(base,level+.10+.14*bank),channelBed=bed*(1-bank)+bankBed*bank;
-        terrain=terrain*(1-cut)+channelBed*cut;
+      if(river&&!river.beyond){
+        const half=riverHalfWidth(river.s),level=levelAt(riverLevels,riverLengths,river.s),d=river.d,lined=1-smooth01(.80,.86,river.q),E=half+.5,B=2.2+.4*river.q;
+        if(d<E+B){
+          let target;
+          if(d<=half)target=level-.19+(riverBedAt(river.s,d)-.45-(level-.19))*lined;
+          else if(d<=E)target=level-.45*lined-.19*(1-lined)+(d-half)/.5*(.63*lined+.37*(1-lined));
+          else target=level+.18+(base-(level+.18))*smooth01(0,B,d-E);
+          const w=1-smooth01(E+B*.75,E+B,d);terrain=terrain*(1-w)+target*w;
+        }
       }
-      // The last metre turns over a compact rock lip into a real receiver.
-      // This shares the fall sheet's diagonal and gives the pool an actual bed.
-      const fx=x-WATERFALL_LIP[0],fz=z-WATERFALL_LIP[1],fallS=-(fx+fz)*.7071,fallK=(fx-fz)*.7071,
-        fallGate=Math.max(0,Math.min(1,(fallS+.78)/.65))*Math.max(0,Math.min(1,(2.85-fallS)/.72)),
-        fallCut=fallGate*Math.exp(-Math.pow(fallK/3.0,2)),
-        fallBed=fallS<1.25?8.10:2.96+.10*Math.max(0,fallS-2.5);
-      return terrain*(1-fallCut)+fallBed*fallCut;
+      return fallsDig(x,z,terrain);
     }
     const bathy = gl.createTexture(),
       bathyPixels = new Uint8Array(256 * 256);
@@ -1739,8 +1813,8 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
                     0.26 + 0.17 * g + 0.045 * noise(a * 0.11 + 8, b * 0.11),
                     0.055 + 0.065 * g,
                   ];
-        const naturalC=c.slice(),creek=streamSample(a,b),river=riverSample(a,b),water=creek?levelAt(streamLevels,streamLengths,creek.s):river?levelAt(riverLevels,riverLengths,river.s):0,
-          width=creek?(.72+.13*Math.sin(creek.s*.47)+.10*Math.sin(creek.s*1.31)):river?(1.02+.63*river.q+.10*Math.sin(river.s*.39)):0,
+        const naturalC=c.slice(),creekRaw=streamSample(a,b),riverRaw=riverSample(a,b),creek=creekRaw&&!creekRaw.beyond?creekRaw:null,river=riverRaw&&!riverRaw.beyond?riverRaw:null,water=creek?creekWaterAt(creek.s,Math.sign(creek.a)*Math.min(creek.d,creekHalfWidth(creek.s))):river?levelAt(riverLevels,riverLengths,river.s):0,
+          width=creek?creekHalfWidth(creek.s):river?riverHalfWidth(river.s):0,
           distance=creek?creek.d:river?river.d:99,wetBank=(creek||river)&&distance<width+1.55&&y<water+.72;
         if(wetBank){const wet=Math.max(0,Math.min(1,(distance-width+.22)/1.45)),gravel=.62+.24*noise(a*3.7,b*3.7),wetGravel=[.16*gravel+.035*wet,.145*gravel+.030*wet,.105*gravel+.025*wet],sandMix=river?Math.min(.75,.08+.67*river.q):0;c=wetGravel.map((v,i)=>v*(1-sandMix)+naturalC[i]*sandMix);}
         P.push(a, y, b);
@@ -2838,15 +2912,19 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       const p = at(s), a = at(s - .7), b = at(s + .7), dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
       return [p[0], p[1], dx / l, dz / l];
     }
-    function buildStreamLining(nodes, lengths, total, halfAt, waterAt, bedAt, sMax) {
-      const cols = 12, rows = [], first = pP.length / 3;
-      for (let s = 0; s <= sMax + 1e-6; s += .25) {
-        const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), E = half + .5, w = waterAt(s), row = [];
+    function buildStreamLining(nodes, lengths, halfAt, waterAt, bedAt, stations, sprayAt = null, rimAt = null) {
+      // The bank above the waterline rises to meet the ground and never stands
+      // above it; over the falls cliff the last lining overhangs as a rock lip.
+      const cols = 16, rows = [], first = pP.length / 3;
+      for (const s of stations) {
+        // Over the falls cliff the lining is only a thin rock rim: no bank wings.
+        const rim = rimAt && rimAt(s), [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), E = half + (rim ? .1 : .5), row = [], gOuter = [gridHeight(cx + tz * E, cz - tx * E), gridHeight(cx - tz * E, cz + tx * E)];
         for (let j = 0; j <= cols; j++) {
-          const a = -1 + 2 * j / cols, d = Math.abs(a) * E, px = cx - tz * a * E, pz = cz + tx * a * E;
-          let y = d <= half ? bedAt(s, d) : w + (d - half) * .6;
-          if (j === 0 || j === cols) y = Math.min(y, gridHeight(px, pz) + .03);
-          const above = y - w, wet = Math.max(0, Math.min(1, (.32 - above) / .30)), moss = Math.max(0, Math.min(1, (above - .05) / .3)) * (.4 + .6 * noise(px * 1.3, pz * 1.3)), tone = .35 + .65 * noise(px * 2.1 + 7, pz * 2.1);
+          const f = -1 + 2 * j / cols, a = f * E, d = Math.abs(a), px = cx - tz * a, pz = cz + tx * a, w = waterAt(s, Math.sign(a) * Math.min(d, half)), go = gOuter[a < 0 ? 0 : 1];
+          let y = d <= half ? bedAt(s, a) : w + (d - half) * (rim ? .4 : .6);
+          if (!rim && d > half && go > w - .6) y = Math.min(y, Math.max(w + .03, go + .03));
+          if (!rim && (j === 0 || j === cols)) { const g = gridHeight(px, pz); if (g > w - .6) y = Math.min(y, g + .03); }
+          const above = y - w, wet = Math.max(sprayAt ? sprayAt(s) : 0, Math.min(1, (.32 - above) / .30)), moss = Math.max(0, Math.min(1, (above - .05) / .3)) * (.4 + .6 * noise(px * 1.3, pz * 1.3)), tone = .35 + .65 * noise(px * 2.1 + 7, pz * 2.1);
           row.push([px, y, pz, tone, wet, moss]);
         }
         rows.push(row);
@@ -2858,35 +2936,51 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       }
       for (let r = 0; r < rows.length - 1; r++) for (let j = 0; j < cols; j++) { const a = first + r * (cols + 1) + j, b = a + 1, c = a + cols + 1, d = c + 1; const A = pP.slice(a * 3, a * 3 + 3), B = pP.slice(b * 3, b * 3 + 3), C = pP.slice(c * 3, c * 3 + 3); if (cross(vsub(B, A), vsub(C, A))[1] >= 0) { tri(a, b, c); tri(b, d, c); } else { tri(a, c, b); tri(b, c, d); } streamStats.liningTris += 2; }
     }
-    function buildStreamWater(nodes, lengths, sMax, halfAt, waterAt, bedAt, cascAt) {
-      const cols = 8; let last = null;
-      for (let s = 0; s <= sMax + 1e-6; s += .2) {
-        const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s) * 1.03, w = waterAt(s), casc = cascAt(s), row = [];
+    function buildStreamWater(nodes, lengths, halfAt, waterAt, bedAt, cascAt, stations) {
+      const cols = 12; let last = null;
+      for (const s of stations) {
+        const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), row = [];
         for (let j = 0; j <= cols; j++) {
-          const a = -1 + 2 * j / cols, px = cx - tz * a * half, pz = cz + tx * a * half, d = Math.abs(a) * half / 1.03;
-          const depth = Math.max(0, w - bedAt(s, Math.min(d, halfAt(s))));
-          row.push(flowVertex([px, w + .012 * casc * Math.sin(s * 9 + a * 5), pz], s, j / cols, 5 + .9 * casc, depth));
+          const f = -1 + 2 * j / cols, a = f * half * 1.03, aa = f * half, px = cx - tz * a, pz = cz + tx * a, w = waterAt(s, aa), casc = cascAt(s, aa);
+          const depth = Math.max(0, w - bedAt(s, aa));
+          row.push(flowVertex([px, w + .012 * casc * Math.sin(s * 9 + f * 5), pz], s, j / cols, 5 + .9 * casc, depth));
         }
         if (last) for (let j = 0; j < cols; j++) { flowI.push(last[j], row[j], last[j + 1], last[j + 1], row[j], row[j + 1]); streamStats.waterTris += 2; }
         last = row;
       }
     }
+    // Stations along a channel: fine through every step so the sills, notches
+    // and step faces are sharp, coarser along the calm pools.
+    function channelStations(sMax, coarse, fine, isFine) { const out = []; let s = 0; while (s < sMax - 1e-6) { out.push(s); s += isFine && isFine(s) ? fine : coarse; } out.push(sMax); return out; }
+    const creekTotalLength = streamLengths[streamLengths.length - 1], nearCreekStep = (s) => s > creekTotalLength - .9 || creekPools.some((P) => P.drop > 0 && s > P.end - .7 && s < P.end + P.chute + .25);
     {
-      const creekTotal = streamLengths[streamLengths.length - 1], riverTotal = riverLengths[riverLengths.length - 1];
-      buildStreamLining(streamNodes, streamLengths, creekTotal, creekHalfWidth, creekWaterAt, creekBedAt, creekTotal);
-      buildStreamLining(riverNodes, riverLengths, riverTotal, riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s), riverBedAt, riverTotal * .86);
-      // boulders frame each chute and stud the pool banks
-      const br = plantRng(12, 34, 56);
+      const riverTotal = riverLengths[riverLengths.length - 1], riverWater = (s) => levelAt(riverLevels, riverLengths, s);
+      buildStreamLining(streamNodes, streamLengths, creekHalfWidth, creekWaterAt, creekBedAt, channelStations(creekTotalLength, .25, .1, nearCreekStep), (s) => nearCreekStep(s) ? 1 : 0, (s) => s > creekTotalLength - .95);
+      buildStreamLining(riverNodes, riverLengths, riverHalfWidth, riverWater, riverBedAt, channelStations(riverTotal * .86, .25));
+      // Boulders: clusters on each sill beside its notch (the rocks that make
+      // the step), loose rocks on the banks and the odd one in a pool.
+      let bs = 4513; const br = () => (bs = (bs * 48271) % 2147483647) / 2147483647;
       for (let i = 0; i < creekPools.length; i++) {
         const P = creekPools[i];
-        if (P.drop > .15) for (const side of [-1, 1]) { const s = P.end + .05, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), half = creekHalfWidth(s), off = half * (.78 + .35 * br()), x = cx - tz * side * off, z = cz + tx * side * off, r = .22 + .22 * br() + .12 * Math.min(1, P.drop); boulder(x, z, creekWaterAt(s) - .25 - r * .2, r, r * (.75 + .4 * br()), r * (.8 + .3 * br()), -.07); streamStats.boulders++; }
-        if (br() > .45) { const s = P.start + (P.end - P.start) * (.3 + .5 * br()), side = br() > .5 ? 1 : -1, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), off = creekHalfWidth(s) + .25 + .3 * br(), x = cx - tz * side * off, z = cz + tx * side * off, r = .25 + .3 * br(); boulder(x, z, streamGround(x, z) - .12, r, r * (.6 + .3 * br()), r * (.8 + .3 * br()), -.06); streamStats.boulders++; }
-        if (P.drop > 0 && br() > .55) { const s = P.end - (P.end - P.start) * (.35 + .3 * br()), [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), a = (br() - .5) * .8, x = cx - tz * a * creekHalfWidth(s), z = cz + tx * a * creekHalfWidth(s), r = .14 + .14 * br(); boulder(x, z, creekBedAt(s, Math.abs(a) * creekHalfWidth(s)) - .05, r, r * (.9 + .4 * br()), r, -.09); streamStats.boulders++; }
+        if (P.drop > .12) {
+          // the step is a jumble of rocks beside the notch, some sitting on the face
+          const s0 = P.end - .06, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s0), half = creekHalfWidth(s0);
+          for (const side of [-1, 1]) {
+            let off = P.nc + side * (P.nw + .05); const limit = side > 0 ? half + .45 : -half - .45;
+            while (side > 0 ? off < limit : off > limit) {
+              const r = Math.min(.46, .15 + .17 * br() + .1 * Math.min(1, P.drop)), o = off + side * r * .8, sk = s0 + (br() - .45) * .35 + (br() < .3 ? .25 + .3 * br() : 0), [bx, bz, btx, btz] = centreAt(streamNodes, streamLengths, sk), low = sk > P.end + .1 ? Math.min(P.drop, (sk - P.end) * 1.4) : 0;
+              boulder(bx - btz * o, bz + btx * o, P.level + P.sill - low - r * (.42 + .28 * br()), r, r * (.55 + .4 * br()), r * (.7 + .45 * br()), -.07); streamStats.boulders++;
+              off = o + side * r * (.55 + .5 * br());
+            }
+          }
+        }
+        if (br() > .5) { const s = P.start + (P.end - P.start) * (.15 + .7 * br()), side = br() > .5 ? 1 : -1, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), off = side * (creekHalfWidth(s) + .2 + .45 * br()), x = cx - tz * off, z = cz + tx * off, r = .2 + .34 * br(); boulder(x, z, streamGround(x, z) - .1 - .1 * br(), r, r * (.5 + .35 * br()), r * (.75 + .4 * br()), -.06); streamStats.boulders++; }
+        if (P.drop > 0 && br() > .62) { const s = P.end - (P.end - P.start) * (.3 + .4 * br()), [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), a = (br() - .5) * 1.1 * creekHalfWidth(s), x = cx - tz * a, z = cz + tx * a, r = .12 + .16 * br(); boulder(x, z, creekBedAt(s, a) - .04, r, r * (.8 + .4 * br()), r * (.8 + .3 * br()), -.09); streamStats.boulders++; }
       }
     }
-    buildStreamWater(streamNodes, streamLengths, streamLengths[streamLengths.length - 1], creekHalfWidth, creekWaterAt, creekBedAt, creekChuteAt);
-    buildStreamWater(riverNodes, riverLengths, riverLengths[riverLengths.length - 1], riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s), riverBedAt, (s) => .42 * riverRiffleAt(s));
-    const chuteMist = creekPools.filter((p) => p.drop > .6).map((p) => { const s = p.end + p.chute * .9, c = centreAt(streamNodes, streamLengths, s); return { x: c[0], z: c[1], y: creekWaterAt(s), drop: p.drop }; });
+    buildStreamWater(streamNodes, streamLengths, creekHalfWidth, creekWaterAt, creekBedAt, creekChuteAt, channelStations(creekTotalLength, .2, .08, nearCreekStep));
+    buildStreamWater(riverNodes, riverLengths, riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s), riverBedAt, (s) => .42 * riverRiffleAt(s), channelStations(riverLengths[riverLengths.length - 1], .2));
+    const chuteMist = creekPools.filter((p) => p.drop > .6).map((p) => { const s = p.end + p.chute * .9, c = centreAt(streamNodes, streamLengths, s); return { x: c[0] - c[3] * p.nc, z: c[1] + c[2] * p.nc, y: creekWaterAt(s, p.nc), drop: p.drop }; });
     // Grass candidates are generated once below, after the canopy density map
     // exists.  Only neighboring cells are uploaded while walking.
     let grassTufts=0;
@@ -3910,9 +4004,9 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       const fallS=-((x-WATERFALL_LIP[0])+(z-WATERFALL_LIP[1]))*.7071,fallK=((x-WATERFALL_LIP[0])-(z-WATERFALL_LIP[1]))*.7071,poolDistance=Math.hypot(x-WATERFALL_POOL[0],z-WATERFALL_POOL[2]);
       if(fallS>1.18&&fallS<3.7&&Math.abs(fallK)<2.55&&poolDistance<2.35)return WATERFALL_POOL[1];
       const creek=streamSample(x,z);
-      if(creek&&creek.d<creekHalfWidth(creek.s))return creekWaterAt(creek.s);
+      if(creek&&!creek.beyond&&creek.d<creekHalfWidth(creek.s))return creekWaterAt(creek.s,creek.a);
       const river=riverSample(x,z),width=river&&1.02+.63*river.q+.10*Math.sin(river.s*.39);
-      if(river&&river.q<.87&&river.d<width)return levelAt(riverLevels,riverLengths,river.s);
+      if(river&&!river.beyond&&river.q<.87&&river.d<width)return levelAt(riverLevels,riverLengths,river.s);
       return null;
     }
     function waterSurface(x, z, time = waterClock) {
@@ -4487,6 +4581,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       viewAt: (x, z, dist, az, pitch = 0) => { const ex = x + Math.cos(az) * dist, ez = z + Math.sin(az) * dist; player.x = ex; player.z = ez; setWalk(); player.yaw = Math.atan2(x - ex, -(z - ez)); player.pitch = pitch; },
       plantSamples: () => ({ ...plantSamples, palms: palmRoots.slice(0, 6) }),
       setTrees: (mode) => setTreeMode(mode),
+      streamBanks: () => { const out = {}; for (const [name, nodes, lengths, halfAt, waterAt] of [["creek", streamNodes, streamLengths, creekHalfWidth, creekWaterAt], ["river", riverNodes, riverLengths, riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s)]]) { const total = lengths[lengths.length - 1], rows = []; for (let s = 0; s <= total; s += 1) { const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), w = waterAt(s), side = (a) => { const px = cx - tz * a, pz = cz + tx * a, wl = name === "creek" ? creekWaterAt(s, Math.sign(a) * half) : w; return { nat: +(naturalGround(px, pz, true) - wl).toFixed(2), ter: +(gridHeight(px, pz) - wl).toFixed(2) }; }; rows.push({ s, w: +w.toFixed(2), half: +half.toFixed(2), L: side(half + .5), R: side(-half - .5), L2: side(half + 2), R2: side(-half - 2) }); } out[name] = rows; } return out; },
       canopyLoad: () => { const mods = canopyModules.map((m) => ({ tris: m.n / 3, instances: m.instanceCount })); return { mods, detailTris: mods.reduce((a, m) => a + m.tris * m.instances, 0), farCards: farInstanceCount }; },
       listTrees: (minH = 0) => treeRoots.map((r, i) => ({ i, x: +r.x.toFixed(1), z: +r.z.toFixed(1), y: +r.y.toFixed(1), h: +r.h.toFixed(2), kind: r.kind, sprays: r.sprays.length, n4: treeRoots.reduce((n, q) => n + (q !== r && Math.hypot(q.x - r.x, q.z - r.z) < 4 ? 1 : 0), 0) })).filter((t) => t.h >= minH),
       viewTree: (i, dist = 9, az = 0, pitch = .12) => { const r = treeRoots[i], ex = r.x + Math.cos(az) * dist, ez = r.z + Math.sin(az) * dist; player.x = ex; player.z = ez; setWalk(); player.yaw = Math.atan2(r.x - ex, -(r.z - ez)); player.pitch = pitch; },
