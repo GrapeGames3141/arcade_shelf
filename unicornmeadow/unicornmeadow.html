@@ -26,6 +26,12 @@
   #basket { left:50%; bottom:12px; transform:translateX(-50%); display:flex; gap:6px; }
   #basket .chip { font-size:16px; padding:4px 10px 4px 6px; }
   #basket .chip.bump { animation:bump .35s; }
+  .rbtn.nudge { animation:bump .5s 3; }
+  #seeds { position:fixed; z-index:4; display:flex; gap:8px; padding:10px; background:rgba(255,250,247,.97); border:4px solid #fff; border-radius:26px; box-shadow:0 8px 24px rgba(59,45,92,.25); }
+  #seeds::before { content:"🌱"; font-size:26px; align-self:center; }
+  #seeds button { width:58px; height:58px; border-radius:18px; border:3px solid var(--line); background:linear-gradient(#fff,#effbe8); font-size:32px; padding:0; }
+  #seeds button:active { transform:scale(.92); }
+  body.watering canvas#c { cursor:none; }
   @keyframes bump { 50% { transform:scale(1.25); } }
   #praise { left:50%; top:38%; transform:translate(-50%,-50%) scale(.6); font-size:clamp(30px,8vw,60px); font-weight:900; color:#fff; opacity:0; transition:opacity .2s, transform .35s cubic-bezier(.3,1.6,.5,1);
     text-shadow:0 4px 0 var(--grape), 0 0 24px rgba(154,107,255,.6); -webkit-text-stroke:2px var(--grape); white-space:nowrap; z-index:6; }
@@ -67,7 +73,7 @@
   .nm.on { border-color:var(--grape); background:#f4edff; }
   #nameIn { flex:none; width:150px; border:3px solid var(--line); border-radius:999px; padding:9px 12px; font:inherit; font-weight:800; font-size:17px; color:var(--ink); user-select:text; -webkit-user-select:text; }
   #tabs { display:flex; gap:6px; justify-content:center; flex-wrap:nowrap; overflow-x:auto; padding:2px; }
-  .tab { flex:none; width:clamp(48px,12.5vw,64px); height:clamp(48px,12.5vw,64px); border-radius:20px; border:3px solid #fff; background:linear-gradient(#fff,#f3e9ff); box-shadow:0 4px 0 rgba(59,45,92,.18); font-size:clamp(24px,6.5vw,32px); display:grid; place-items:center; padding:0; }
+  .tab { flex:none; width:clamp(42px,11vw,62px); height:clamp(42px,11vw,62px); border-radius:20px; border:3px solid #fff; background:linear-gradient(#fff,#f3e9ff); box-shadow:0 4px 0 rgba(59,45,92,.18); font-size:clamp(24px,6.5vw,32px); display:grid; place-items:center; padding:0; }
   .tab.on { background:linear-gradient(#ffd0e8,#ff9ccc); transform:translateY(-4px); box-shadow:0 8px 0 rgba(255,111,174,.35); }
   /* screens */
   .screen { position:fixed; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto; }
@@ -112,9 +118,10 @@
 <!-- farm HUD -->
 <div class="hud" id="top" hidden>
   <div class="l"><button class="rbtn" id="bHome" title="Home">🏠</button><div class="chip"><i>⭐</i><span id="hStars">0</span></div></div>
-  <div class="r"><button class="rbtn" id="bAdopt" title="Adopt a foal">🦄</button><button class="rbtn" id="bBuild" title="Build">🔨</button></div>
+  <div class="r"><button class="rbtn" id="bWater" title="Watering can">💧</button><button class="rbtn" id="bAdopt" title="Adopt a foal">🦄</button><button class="rbtn" id="bBuild" title="Build">🔨</button></div>
 </div>
 <div class="hud" id="basket" hidden></div>
+<div id="seeds" hidden></div>
 <div class="hud" id="build" hidden><div class="hint" id="bHint">Pick something to build</div><div id="shelf"></div></div>
 <button class="hud rbtn" id="trash" hidden title="Drop here to remove">🗑️</button>
 <!-- care HUD -->
@@ -176,17 +183,22 @@ const MANE_STYLES = ['flowy', 'curly', 'braid', 'pony', 'puff', 'spiky'];
 const TAIL_STYLES = ['flowy', 'curly', 'braid', 'puff'];
 const ACCS = { bow: { icon: '🎀' }, flowers: { icon: '🌸' }, tiara: { icon: '👑' }, stars: { icon: '⭐' }, glasses: { icon: '🕶️' }, scarf: { icon: '🧣' }, wings: { icon: '🪽', lvl: 4 } };
 const NAMES = ['Sparkle', 'Moonbeam', 'Clover', 'Twinkle', 'Daisy', 'Comet', 'Biscuit', 'Luna', 'Pip', 'Stardust', 'Honey', 'Bubbles', 'Marshmallow', 'Sunny', 'Willow', 'Peaches', 'Glimmer', 'Snowdrop', 'Pebble', 'Rosie', 'Jellybean', 'Cupcake', 'Misty', 'Dewdrop'];
-const FOODS = { apple: { icon: '🍎', food: 18, fun: 0 }, carrot: { icon: '🥕', food: 18, fun: 0 }, berry: { icon: '🫐', food: 12, fun: 6 }, cupcake: { icon: '🧁', food: 30, fun: 14 } };
-const FOOD_ORDER = ['apple', 'carrot', 'berry', 'cupcake'];
+const FOODS = { apple: { icon: '🍎', food: 18, fun: 0 }, carrot: { icon: '🥕', food: 18, fun: 0 }, strawberry: { icon: '🍓', food: 14, fun: 8 }, corn: { icon: '🌽', food: 24, fun: 2 },
+  pumpkin: { icon: '🎃', food: 34, fun: 6 }, berry: { icon: '🫐', food: 12, fun: 6 }, cupcake: { icon: '🧁', food: 30, fun: 14 } };
+const FOOD_ORDER = ['apple', 'carrot', 'strawberry', 'corn', 'pumpkin', 'berry', 'cupcake'];
+// Garden crops: plant a seed, water it, and it grows seed → sprout → leafy → ready. A bed only grows while it is wet.
+const CROPS = { carrot: { icon: '🥕', stage: 12, yield: 3, food: 'carrot' }, strawberry: { icon: '🍓', stage: 15, yield: 4, food: 'strawberry' },
+  corn: { icon: '🌽', stage: 18, yield: 3, food: 'corn' }, pumpkin: { icon: '🎃', stage: 24, yield: 2, food: 'pumpkin' } };
+const CROP_ORDER = ['carrot', 'strawberry', 'corn', 'pumpkin'];
 const ITEMS = {
   stable: { name: 'Stable', cost: 60, w: .2, h: .2 }, appleTree: { name: 'Apple tree', cost: 20, w: .12, h: .22, makes: 'apple', every: 25, max: 4 },
-  carrots: { name: 'Carrot patch', cost: 15, w: .14, h: .05, makes: 'carrot', every: 20, max: 4 }, berries: { name: 'Berry bush', cost: 25, w: .1, h: .08, makes: 'berry', every: 30, max: 5 },
+  garden: { name: 'Garden bed', cost: 10, w: .14, h: .05, garden: true }, shower: { name: 'Bubble shower', cost: 45, w: .1, h: .14, need: 'shine' }, berries: { name: 'Berry bush', cost: 25, w: .1, h: .08, makes: 'berry', every: 30, max: 5 },
   bakery: { name: 'Cupcake bakery', cost: 80, w: .15, h: .16, makes: 'cupcake', every: 55, max: 3 }, pond: { name: 'Sparkle pond', cost: 40, w: .2, h: .06, need: 'shine' },
   trampoline: { name: 'Trampoline', cost: 50, w: .13, h: .06, need: 'fun' }, fountain: { name: 'Fountain', cost: 70, w: .1, h: .12, need: 'shine' },
   arch: { name: 'Rainbow arch', cost: 60, w: .16, h: .16 }, flowers: { name: 'Flowers', cost: 5, w: .07, h: .03 }, fence: { name: 'Fence', cost: 3, w: .09, h: .05 },
   lantern: { name: 'Lantern', cost: 10, w: .03, h: .1 }, mushroom: { name: 'Mushroom house', cost: 25, w: .08, h: .09 }, crystal: { name: 'Crystal', cost: 35, w: .05, h: .08 },
 };
-const ITEM_ORDER = ['appleTree', 'carrots', 'berries', 'flowers', 'fence', 'lantern', 'pond', 'trampoline', 'mushroom', 'crystal', 'fountain', 'arch', 'bakery', 'stable'];
+const ITEM_ORDER = ['garden', 'appleTree', 'berries', 'shower', 'flowers', 'fence', 'lantern', 'pond', 'trampoline', 'mushroom', 'crystal', 'fountain', 'arch', 'bakery', 'stable'];
 const ADOPT_COST = n => [0, 40, 90, 150, 220, 300][n] ?? 400;
 const MAX_UNICORNS = 6;
 
@@ -197,28 +209,31 @@ let uid = 1;
 function newUnicorn(seed) {
   const r = seed ? mulberry(seed) : Math.random, p = a => a[Math.floor(r() * a.length)];
   return { id: uid++, name: p(NAMES), coat: p(Object.keys(COATS).slice(0, 8)), mane: p(Object.keys(MANES)), maneStyle: p(MANE_STYLES.slice(0, 5)), tailStyle: p(TAIL_STYLES), horn: p(Object.keys(HORNS)),
-    eyes: p(Object.keys(EYES)), hoof: p(Object.keys(HOOVES)), acc: [], food: 70, fun: 70, shine: 70, xp: 0, mud: [] };
+    eyes: p(Object.keys(EYES)), hoof: p(Object.keys(HOOVES)), acc: [], food: 70, fun: 70, shine: 70, xp: 0, mud: [], paint: [] };
 }
-const DEFAULT = () => ({ stars: 30, food: { apple: 3, carrot: 3, berry: 0, cupcake: 0 }, unicorns: [], items: [], adopted: 0, set: { sound: true, music: true, slow: false, lock: matchMedia('(pointer: coarse)').matches }, t: Date.now() });
+const DEFAULT = () => ({ stars: 30, food: { apple: 3, carrot: 3, strawberry: 0, corn: 0, pumpkin: 0, berry: 0, cupcake: 0 }, unicorns: [], items: [], adopted: 0, set: { sound: true, music: true, slow: false, lock: matchMedia('(pointer: coarse)').matches }, t: Date.now() });
 let S = DEFAULT();
 function starterFarm() {
   S = DEFAULT(); uid = 1;
   const u = newUnicorn(); u.name = 'Sparkle'; u.coat = 'snow'; u.mane = 'rainbow'; u.maneStyle = 'flowy'; u.tailStyle = 'flowy'; u.horn = 'gold'; u.eyes = 'violet'; u.hoof = 'gold';
   S.unicorns.push(u); S.adopted = 1;
-  S.items.push(mkItem('stable', .2, .22), mkItem('appleTree', .82, .12), mkItem('carrots', .62, .62), mkItem('flowers', .38, .82), mkItem('flowers', .9, .7), mkItem('fence', .08, .05), mkItem('fence', .17, .05), mkItem('pond', .45, .3));
+  S.items.push(mkItem('stable', .2, .22), mkItem('appleTree', .84, .12), mkItem('flowers', .38, .86), mkItem('flowers', .92, .72), mkItem('fence', .08, .05), mkItem('fence', .17, .05), mkItem('pond', .45, .28), mkItem('shower', .08, .5));
+  const g1 = mkItem('garden', .64, .56), g2 = mkItem('garden', .76, .76); g1.crop = 'carrot'; g1.stage = 3; g1.water = 0; S.items.push(g1, g2);
 }
-function mkItem(type, x, d) { return { id: uid++, type, x, d, stock: ITEMS[type].makes ? 1 : 0, grow: 0 }; }
+function mkItem(type, x, d) { return { id: uid++, type, x, d, stock: ITEMS[type].makes ? 1 : 0, grow: 0, crop: null, stage: 0, water: 0 }; }
 function load() {
   try {
     const raw = localStorage.getItem('unicornmeadow.save');
     if (!raw || TEST) { starterFarm(); return; }
     const d = JSON.parse(raw), b = DEFAULT(); S = Object.assign(b, d); S.set = Object.assign(DEFAULT().set, d.set || {}); S.food = Object.assign(DEFAULT().food, d.food || {});
     uid = 1 + Math.max(0, ...S.unicorns.map(u => u.id), ...S.items.map(i => i.id));
-    for (const u of S.unicorns) { u.mud = u.mud || []; u.acc = u.acc || []; }
+    for (const u of S.unicorns) { u.mud = u.mud || []; u.acc = u.acc || []; u.paint = u.paint || []; }
+    for (const it of S.items) if (it.type === 'carrots') { it.type = 'garden'; it.crop = it.stock ? 'carrot' : null; it.stage = it.stock ? 3 : 0; it.water = 0; } // old carrot patches become garden beds
     // time passes while away: needs dip (never below 25) and gardens grow
     const away = clamp((Date.now() - (S.t || Date.now())) / 1000, 0, 3600 * 8);
     for (const u of S.unicorns) for (const k of ['food', 'fun', 'shine']) u[k] = Math.max(Math.min(u[k], 25), u[k] - away / 40);
     for (const it of S.items) { const I = ITEMS[it.type]; if (I.makes) it.stock = Math.min(I.max, it.stock + Math.floor(away / I.every)); }
+    for (const it of S.items) if (it.type === 'garden' && it.crop && it.stage < 3 && it.water > 0) { const C = CROPS[it.crop], wet = it.water * C.stage * 1.6, t = Math.min(away, wet); it.grow += t; it.water = Math.max(0, it.water - t / (C.stage * 1.6)); while (it.grow >= C.stage && it.stage < 3) { it.grow -= C.stage; it.stage++; } }
     if (!S.unicorns.length) starterFarm();
   } catch (e) { starterFarm(); }
 }
@@ -270,6 +285,7 @@ function sfx(n, k = 0) {
     case 'nope': tone(300, .18, 'square', .05, 0, 220); break;
     case 'harvest': tone(660, .08, 'triangle', .12); tone(990, .12, 'triangle', .1, .07); break;
     case 'level': [0, 2, 4, 5, 4, 5].forEach((i, j) => tone(NOTES[i] * (j > 2 ? 2 : 1), .26, 'triangle', .13, j * .11)); break;
+    case 'pour': for (let i = 0; i < 6; i++) hiss(.18, .12, 900 + i * 260, i * .06); tone(520, .25, 'sine', .04, .1, 880); break;
     case 'giggle': for (let i = 0; i < 4; i++) tone(900 + rand(-60, 120), .07, 'triangle', .06, i * .08, 1200); break;
   }
 }
@@ -327,8 +343,8 @@ function hairCol(m, i, n) { const c = maneColors(m); if (c.length > 2 || m === '
 // ---------------------------------------------------------------------------
 function drawUnicorn(g, u, x, y, s, face, o) {
   const a = o.age ?? ageOf(u), t = o.t || 0, coat = COATS[u.coat] || COATS.snow, dark = u.coat === 'night' || u.coat === 'cocoa';
-  const line = shade(coat, dark ? -.3 : -.3), lineW = .016;
-  const legL = lerp(.27, .38, a), brx = lerp(.3, .38, a), bry = lerp(.21, .24, a), hs = lerp(1.32, 1, a);
+  const line = mix(coat, dark ? '#20184a' : '#8a6cc0', dark ? .5 : .55), lineW = .02;
+  const legL = lerp(.27, .33, a), brx = lerp(.3, .37, a), bry = lerp(.21, .25, a), hs = lerp(1.32, 1.14, a);
   const sleep = o.sleep || 0, jump = o.jump || 0;
   const by = -(legL * (1 - sleep * .8)) - bry * .55 - jump;
   const breathe = Math.sin(t * 2.2) * .005;
@@ -370,7 +386,12 @@ function drawUnicorn(g, u, x, y, s, face, o) {
   g.fillStyle = bodyGrad; g.strokeStyle = line; g.lineWidth = lineW;
   ell(g, 0, by + breathe, brx, bry + breathe); g.fill(); g.stroke();
   g.fillStyle = 'rgba(255,255,255,.4)'; ell(g, -brx * .2, by - bry * .5, brx * .5, bry * .22, -.08); g.fill();
-  for (const m of u.mud || []) { g.fillStyle = 'rgba(140,96,60,.78)'; ell(g, m[0] * brx * .9, by + m[1] * bry * .8, .05 * m[2], .034 * m[2], m[0]); g.fill(); g.fillStyle = 'rgba(110,72,40,.6)'; circle(g, m[0] * brx * .9 + .03, by + m[1] * bry * .8 + .02, .013 * m[2]); g.fill(); }
+  if (u.paint && u.paint.length) {
+    g.save(); g.beginPath(); g.ellipse(0, by + breathe, brx, bry + breathe, 0, 0, TAU);
+    for (const [lx] of legs) { g.rect(lx - .075, by, .15, -by); }
+    g.clip(); drawPaint(g, u.paint, brx, bry, by); g.restore();
+  }
+  for (const m of u.mud || []) { g.fillStyle = 'rgba(160,112,72,.7)'; ell(g, m[0] * brx * .9, by + m[1] * bry * .8, .05 * m[2], .034 * m[2], m[0]); g.fill(); g.fillStyle = 'rgba(110,72,40,.6)'; circle(g, m[0] * brx * .9 + .03, by + m[1] * bry * .8 + .02, .013 * m[2]); g.fill(); }
   if (u.acc.includes('wings')) drawWing(g, .0, by - bry * .78, a, t, 0, o);
   // neck + head group pivots near the shoulders
   const pivot = [brx * .5, by - bry * .5];
@@ -432,6 +453,23 @@ function drawUnicorn(g, u, x, y, s, face, o) {
   g.restore(); // neck group
   if (o.sparkle) for (let i = 0; i < 4; i++) { const ph = (t * .7 + i * .25) % 1; g.fillStyle = `rgba(255,255,255,${Math.sin(ph * Math.PI)})`; star5(g, Math.sin(i * 7.1) * brx * 1.1, by - bry * 1.8 + Math.cos(i * 3.3) * .2, .035 * Math.sin(ph * Math.PI), ph * 2, .4); g.fill(); }
   g.restore();
+}
+// Paint lives in body-relative units (x / body radius, (y - body centre) / body height) so it stays put as a foal grows.
+const RAINBOW = ['#ff5f8f', '#ffa94d', '#ffe066', '#69db7c', '#4dabf7', '#9775fa'];
+function bodyGeom(u) { const a = ageOf(u), legL = lerp(.27, .33, a), brx = lerp(.3, .37, a), bry = lerp(.21, .25, a); return { brx, bry, by: -legL - bry * .55 }; }
+function drawPaint(g, paint, brx, bry, by) {
+  const P = q => [q[0] * brx, by + q[1] * bry];
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const st of paint) {
+    if (st.s) { const [x, y] = P([st.x, st.y]), r = st.r; g.fillStyle = st.c === 'rainbow' ? RAINBOW[Math.abs(Math.round(st.x * 10)) % 6] : st.c;
+      if (st.s === 'heart') { heart(g, x, y, r); g.fill(); } else if (st.s === 'star') { star5(g, x, y, r, 0, .45); g.fill(); }
+      else if (st.s === 'flower') { for (let i = 0; i < 5; i++) { circle(g, x + Math.cos(i * 1.26) * r * .6, y + Math.sin(i * 1.26) * r * .6, r * .45); g.fill(); } g.fillStyle = '#ffd23f'; circle(g, x, y, r * .35); g.fill(); }
+      else { circle(g, x, y, r * .6); g.fill(); }
+      continue; }
+    g.lineWidth = st.w;
+    if (st.c === 'rainbow') { for (let i = 1; i < st.p.length; i++) { g.strokeStyle = RAINBOW[Math.floor(i / 2) % 6]; const a = P(st.p[i - 1]), b = P(st.p[i]); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); } }
+    else { g.strokeStyle = st.c; g.beginPath(); st.p.forEach((q, i) => { const [x, y] = P(q); i ? g.lineTo(x, y) : g.moveTo(x, y); }); if (st.p.length === 1) { const [x, y] = P(st.p[0]); g.lineTo(x + .001, y); } g.stroke(); }
+  }
 }
 function drawHorn(g, u, x, y, t) {
   const c = HORNS[u.horn] || HORNS.gold; g.save(); g.translate(x, y); g.rotate(.32);
@@ -642,6 +680,14 @@ function seedAmbient() {
 let dayT = .38;
 const sunH = () => -Math.cos(dayT * TAU) + .35;
 const nightAmt = () => clamp(-sunH() / .3, 0, 1);
+// sleepy or smiling faces for the sun and clouds
+function cuteFaceSky(g, x, y, s, sleepy) {
+  g.strokeStyle = 'rgba(80,60,120,.55)'; g.fillStyle = 'rgba(80,60,120,.55)'; g.lineWidth = Math.max(1.5, s * .12); g.lineCap = 'round';
+  if (sleepy) { for (const dx of [-.5, .5]) { g.beginPath(); g.arc(x + dx * s, y, s * .2, .2, Math.PI - .2); g.stroke(); } }
+  else { circle(g, x - .5 * s, y, s * .12); g.fill(); circle(g, x + .5 * s, y, s * .12); g.fill(); }
+  g.beginPath(); g.arc(x, y + s * .25, s * .22, .2, Math.PI - .2); g.stroke();
+  g.fillStyle = 'rgba(255,140,170,.45)'; ell(g, x - .85 * s, y + .3 * s, s * .22, s * .12); g.fill(); ell(g, x + .85 * s, y + .3 * s, s * .22, s * .12); g.fill();
+}
 function drawSky(g, t) {
   const n = nightAmt(), hz = HZ();
   const sg = g.createLinearGradient(0, 0, 0, hz + 30 * U);
@@ -651,14 +697,15 @@ function drawSky(g, t) {
   if (n > .05) { const r = mulberry(3); for (let i = 0; i < 70; i++) { const x = r() * W, y = r() * hz * .9, tw = .5 + .5 * Math.sin(t * 2 + i); g.fillStyle = `rgba(255,255,240,${n * tw})`; star5(g, x, y, (1 + r() * 2.2) * U, 0, .45); g.fill(); } }
   // sun and moon travel across the sky
   const sunA = dayT * TAU, sx = W * (.5 - Math.sin(sunA) * .42), sy = hz - sunH() / 1.35 * hz * .8;
-  if (n < .95) { const sr = 34 * U, gl = g.createRadialGradient(sx, sy, sr * .3, sx, sy, sr * 3); gl.addColorStop(0, 'rgba(255,240,170,.9)'); gl.addColorStop(1, 'rgba(255,240,170,0)'); g.fillStyle = gl; circle(g, sx, sy, sr * 3); g.fill(); g.fillStyle = '#fff3b0'; circle(g, sx, sy, sr); g.fill(); }
+  if (n < .95) { const sr = 34 * U, gl = g.createRadialGradient(sx, sy, sr * .3, sx, sy, sr * 3); gl.addColorStop(0, 'rgba(255,240,170,.9)'); gl.addColorStop(1, 'rgba(255,240,170,0)'); g.fillStyle = gl; circle(g, sx, sy, sr * 3); g.fill(); g.fillStyle = '#fff3b0'; circle(g, sx, sy, sr); g.fill(); cuteFaceSky(g, sx, sy, sr * .45, false); }
   if (n > .05) { const mx = W * (.5 + Math.sin(sunA) * .42), my = hz - (-sunH() + .7) / 1.35 * hz * .8 + 20 * U; g.fillStyle = `rgba(255,250,230,${n})`; circle(g, mx, my, 26 * U); g.fill(); g.fillStyle = mix('#5a4a9a', '#1d1f5c', .5); circle(g, mx + 10 * U, my - 6 * U, 22 * U); g.globalAlpha = n; g.fill(); g.globalAlpha = 1; }
   // rainbow
   const ra = (1 - n) * .55; if (ra > .02) { const cols = ['#ff6b9d', '#ffa94d', '#ffe066', '#69db7c', '#4dabf7', '#9775fa']; g.lineWidth = 9 * U;
     cols.forEach((c, i) => { g.strokeStyle = c; g.globalAlpha = ra * .7; g.beginPath(); g.arc(W * .78, hz + 30 * U, W * .22 - i * 9 * U, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); }); g.globalAlpha = 1; }
   // clouds
   for (const c of amb.clouds) { const x = ((c.x + t * c.v) % 1.3 - .15) * W, y = c.y * hz, s = c.s * 50 * U; g.fillStyle = mix('#ffffff', '#8a7cc0', n * .8);
-    for (const [dx, dy, r] of [[-1, .2, .6], [-.4, -.2, .8], [.3, -.1, .75], [.9, .2, .55], [0, .3, .7]]) { circle(g, x + dx * s, y + dy * s, r * s); g.fill(); } }
+    for (const [dx, dy, r] of [[-1, .2, .6], [-.4, -.2, .8], [.3, -.1, .75], [.9, .2, .55], [0, .3, .7]]) { circle(g, x + dx * s, y + dy * s, r * s); g.fill(); }
+    if (c.s > .9) cuteFaceSky(g, x, y + .15 * s, .22 * s, nightAmt() > .5); }
 }
 // ---------------------------------------------------------------------------
 // Farm buildings and gardens. Each draws centered at its ground point (x, y) with scale s (pixels per unit).
@@ -671,21 +718,55 @@ function drawItem(g, it, x, y, s, t, ghost) {
   switch (it.type) {
     case 'appleTree': {
       sh(70, 16);
-      const tg = g.createLinearGradient(-12, 0, 12, 0); tg.addColorStop(0, '#9b6a45'); tg.addColorStop(1, '#6e4628');
-      g.fillStyle = tg; g.beginPath(); g.moveTo(-12, 0); g.quadraticCurveTo(-8, -60, -14, -110); g.lineTo(14, -110); g.quadraticCurveTo(8, -60, 12, 0); g.closePath(); g.fill();
+      const tg = g.createLinearGradient(-12, 0, 12, 0); tg.addColorStop(0, '#b07a50'); tg.addColorStop(1, '#7a5030');
+      g.fillStyle = tg; g.strokeStyle = '#5e3c22'; g.lineWidth = 5; g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(-9, -60, -15, -110); g.lineTo(15, -110); g.quadraticCurveTo(9, -60, 14, 0); g.closePath(); g.fill(); g.stroke();
       const sway = Math.sin(t * 1.2 + it.id) * 2;
       const blobs = [[0, -175, 62], [-48, -140, 46], [48, -140, 46], [-30, -205, 42], [32, -205, 40], [0, -120, 44]];
-      for (const [bx, by, r] of blobs) { const lg = g.createRadialGradient(bx - r * .3 + sway, by - r * .4, r * .2, bx + sway, by, r); lg.addColorStop(0, '#9be36f'); lg.addColorStop(1, '#45a84a'); g.fillStyle = lg; circle(g, bx + sway, by, r); g.fill(); }
+      g.strokeStyle = '#2f8a48'; g.lineWidth = 8; for (const [bx, by, r] of blobs) { circle(g, bx + sway, by, r); g.stroke(); }
+      for (const [bx, by, r] of blobs) { const lg = g.createRadialGradient(bx - r * .3 + sway, by - r * .4, r * .2, bx + sway, by, r); lg.addColorStop(0, '#a6ea78'); lg.addColorStop(1, '#4fb552'); g.fillStyle = lg; circle(g, bx + sway, by, r); g.fill(); }
+      g.fillStyle = 'rgba(255,255,255,.3)'; for (const [bx, by, r] of blobs.slice(0, 3)) { ell(g, bx - r * .35 + sway, by - r * .45, r * .3, r * .16, -.4); g.fill(); }
+      cuteFace(g, sway, -150, 26);
       const spots = [[-30, -150], [26, -170], [-6, -200], [40, -130], [-44, -120]];
       for (let i = 0; i < Math.min(it.stock, 5); i++) { const [ax, ay] = spots[i]; g.fillStyle = '#ff4d5e'; circle(g, ax + sway, ay, 11); g.fill(); g.fillStyle = 'rgba(255,255,255,.6)'; circle(g, ax - 4 + sway, ay - 4, 3.5); g.fill(); g.strokeStyle = '#6e4628'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(ax + sway, ay - 10); g.lineTo(ax + 2 + sway, ay - 16); g.stroke(); }
       break;
     }
-    case 'carrots': {
-      sh(80, 18); g.fillStyle = '#8b5e3c'; rrect(g, -78, -22, 156, 34, 16); g.fill(); g.fillStyle = '#a5714a';
-      for (let i = 0; i < 3; i++) { rrect(g, -72, -18 + i * 10, 144, 6, 3); g.fill(); }
-      for (let i = 0; i < 4; i++) { const cx = -54 + i * 36, ready = i < it.stock;
-        if (ready) { g.fillStyle = '#ff9a3c'; g.beginPath(); g.moveTo(cx - 8, -10); g.lineTo(cx + 8, -10); g.lineTo(cx, 4); g.closePath(); g.fill(); }
-        g.fillStyle = ready ? '#4cc35c' : '#8fd37a'; const hgt = ready ? 26 : 12; for (let k = -1; k <= 1; k++) { g.beginPath(); g.ellipse(cx + k * 6, -12 - hgt / 2, 4, hgt / 2, k * .3 + Math.sin(t * 2 + i) * .05, 0, TAU); g.fill(); } }
+    case 'garden': {
+      // a rounded raised bed with plank sides; the soil darkens when watered
+      sh(92, 20);
+      const wet = it.water > 0, soil = wet ? '#6b4430' : '#a87a55', OL = '#6e4a32';
+      g.lineWidth = 4; g.strokeStyle = OL;
+      g.fillStyle = '#e9b886'; rrect(g, -88, -30, 176, 40, 18); g.fill(); g.stroke();
+      g.fillStyle = '#d99f6b'; rrect(g, -88, -6, 176, 16, [0, 0, 18, 18]); g.fill();
+      g.strokeStyle = 'rgba(110,74,50,.35)'; g.lineWidth = 2; for (const px of [-30, 30]) { g.beginPath(); g.moveTo(px, -4); g.lineTo(px, 9); g.stroke(); }
+      g.fillStyle = soil; rrect(g, -78, -26, 156, 22, 11); g.fill();
+      if (wet) { g.fillStyle = 'rgba(160,210,255,.35)'; ell(g, -40, -15, 18, 4); g.fill(); ell(g, 36, -18, 14, 3); g.fill(); }
+      else { g.strokeStyle = 'rgba(110,74,50,.45)'; g.lineWidth = 1.6; for (const [cx, cy] of [[-50, -16], [10, -20], [48, -12]]) { g.beginPath(); g.moveTo(cx - 6, cy); g.lineTo(cx, cy + 3); g.lineTo(cx + 5, cy - 2); g.stroke(); } }
+      g.fillStyle = 'rgba(255,255,255,.35)'; rrect(g, -80, -29, 120, 5, 3); g.fill();
+      if (it.crop) for (let i = 0; i < 3; i++) { g.save(); g.translate(-52 + i * 52, -16); g.scale(1.35, 1.35); drawCrop(g, it.crop, it.stage, 0, 0, t + i * .7 + it.id, it.grow / CROPS[it.crop].stage); g.restore(); }
+      else { // a little seed-packet sign says "plant me"
+        g.fillStyle = '#fff6ee'; g.strokeStyle = OL; g.lineWidth = 3; rrect(g, 58, -64, 34, 40, 6); g.fill(); g.stroke();
+        g.fillStyle = '#7fd07a'; g.beginPath(); g.ellipse(70, -48, 6, 10, -.5, 0, TAU); g.fill(); g.beginPath(); g.ellipse(80, -48, 6, 10, .5, 0, TAU); g.fill();
+        g.strokeStyle = '#4caf50'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(75, -32); g.lineTo(75, -44); g.stroke();
+        g.fillStyle = OL; g.fillRect(73, -24, 4, 24);
+      }
+      break;
+    }
+    case 'shower': {
+      // a pastel tub with a curly pipe, a shower head and a rubber duck; it pours when a unicorn is underneath
+      sh(70, 16); const busy = it.busy > 0, OL = '#7a62b0';
+      g.lineWidth = 4; g.strokeStyle = OL;
+      g.fillStyle = '#bfe7ff'; rrect(g, -66, -40, 132, 40, [14, 14, 22, 22]); g.fill(); g.stroke();
+      g.fillStyle = '#ffffff'; rrect(g, -66, -44, 132, 12, 6); g.fill(); g.stroke();
+      g.fillStyle = '#ffd6ec'; for (const fx of [-50, 50]) { circle(g, fx, 2, 7); g.fill(); g.stroke(); }
+      // pipe and head
+      g.strokeStyle = '#b9a6e8'; g.lineWidth = 9; g.lineCap = 'round'; g.beginPath(); g.moveTo(58, -44); g.lineTo(58, -150); g.quadraticCurveTo(58, -176, 30, -176); g.lineTo(10, -176); g.stroke();
+      g.strokeStyle = OL; g.lineWidth = 3; g.fillStyle = '#ffd23f'; g.beginPath(); g.moveTo(-14, -168); g.lineTo(24, -168); g.lineTo(32, -156); g.lineTo(-22, -156); g.closePath(); g.fill(); g.stroke();
+      if (busy) { g.strokeStyle = 'rgba(140,200,255,.8)'; g.lineWidth = 3; for (let i = 0; i < 7; i++) { const x0 = -18 + i * 7, ph = (t * 3 + i * .37) % 1; g.beginPath(); g.moveTo(x0, -152 + ph * 30); g.lineTo(x0 - 3 + i * .8, -120 + ph * 70); g.stroke(); } }
+      // bubbles on top of the water
+      for (let i = 0; i < 6; i++) { const bx = -50 + i * 20, by = -46 - Math.abs(Math.sin(t * 1.5 + i)) * (busy ? 14 : 5); g.fillStyle = 'rgba(255,255,255,.9)'; g.strokeStyle = 'rgba(122,98,176,.4)'; g.lineWidth = 2; circle(g, bx, by, 9 - (i % 3) * 2); g.fill(); g.stroke(); }
+      // rubber duck
+      g.save(); g.translate(-30, -54 + Math.sin(t * 2) * 2); g.fillStyle = '#ffd23f'; g.strokeStyle = '#d99a00'; g.lineWidth = 2.5; ell(g, 0, 0, 14, 9); g.fill(); g.stroke(); circle(g, 9, -9, 7); g.fill(); g.stroke();
+      g.fillStyle = '#ff8a3c'; g.beginPath(); g.moveTo(15, -9); g.lineTo(22, -7); g.lineTo(15, -5); g.fill(); g.fillStyle = '#3b2d5c'; circle(g, 11, -11, 1.6); g.fill(); g.restore();
       break;
     }
     case 'berries': {
@@ -713,15 +794,16 @@ function drawItem(g, it, x, y, s, t, ghost) {
     case 'stable': {
       sh(115, 24);
       const wall = g.createLinearGradient(0, -150, 0, 0); wall.addColorStop(0, '#fff6fb'); wall.addColorStop(1, '#ffe3f0');
-      g.fillStyle = wall; g.strokeStyle = '#e5b8cf'; g.lineWidth = 3; rrect(g, -100, -140, 200, 140, 8); g.fill(); g.stroke();
-      g.fillStyle = '#b48cff'; g.beginPath(); g.moveTo(-118, -128); g.lineTo(0, -225); g.lineTo(118, -128); g.closePath(); g.fill();
+      g.fillStyle = wall; g.strokeStyle = '#a77bd6'; g.lineWidth = 6; rrect(g, -100, -140, 200, 140, 16); g.fill(); g.stroke();
+      g.fillStyle = '#b48cff'; g.strokeStyle = '#7e56c9'; g.lineWidth = 6; g.lineJoin = 'round'; g.beginPath(); g.moveTo(-122, -126); g.lineTo(0, -228); g.lineTo(122, -126); g.closePath(); g.fill(); g.stroke();
       g.fillStyle = '#9a6bff'; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(-108 + i * 18, -136 - i * 15); g.lineTo(108 - i * 18, -136 - i * 15); g.lineWidth = 4; g.strokeStyle = '#9a6bff'; g.stroke(); }
       g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-100, -135); g.lineTo(0, -215); g.lineTo(100, -135); g.lineTo(100, -128); g.lineTo(0, -205); g.lineTo(-100, -128); g.fill();
       g.fillStyle = '#ff6fae'; heart(g, 0, -165, 22); g.fill(); g.fillStyle = n > .3 ? '#ffe9a8' : '#fff'; heart(g, 0, -167, 13); g.fill();
       // big doors
       g.fillStyle = '#c792ff'; rrect(g, -50, -95, 100, 95, [50, 50, 0, 0]); g.fill();
       g.strokeStyle = '#fff'; g.lineWidth = 5; g.beginPath(); g.moveTo(-50, -45); g.lineTo(50, -45); g.moveTo(0, -95); g.lineTo(0, 0); g.moveTo(-44, -6); g.lineTo(-6, -84); g.moveTo(44, -6); g.lineTo(6, -84); g.stroke();
-      g.fillStyle = '#ffe680'; for (const sx of [-80, 80]) { rrect(g, sx - 14, -110, 28, 28, 6); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke(); }
+      g.fillStyle = '#ffe680'; for (const sx of [-80, 80]) { rrect(g, sx - 14, -110, 28, 28, 8); g.fill(); g.strokeStyle = '#a77bd6'; g.lineWidth = 4; g.stroke();
+        g.fillStyle = '#ffb3d6'; rrect(g, sx - 18, -82, 36, 9, 4); g.fill(); for (let k = 0; k < 3; k++) { g.fillStyle = ['#ff6fae', '#ffd23f', '#fff'][k]; circle(g, sx - 10 + k * 10, -85, 5); g.fill(); } g.fillStyle = '#ffe680'; }
       // hay
       g.fillStyle = '#ffd36b'; ell(g, 75, -8, 26, 14); g.fill(); g.strokeStyle = '#e6a92e'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(55 + i * 8, -14); g.lineTo(58 + i * 8, -2); g.stroke(); }
       break;
@@ -795,11 +877,45 @@ function drawItem(g, it, x, y, s, t, ghost) {
   }
   g.restore();
 }
-const SIZE = { stable: [240, 230], bakery: [180, 190], appleTree: [150, 250], arch: [210, 120], pond: [240, 40], carrots: [160, 40], trampoline: [160, 50], fountain: [140, 140], berries: [120, 70], flowers: [80, 30], fence: [100, 52], mushroom: [100, 105], crystal: [60, 80], lantern: [40, 95] };
+const SIZE = { stable: [240, 230], bakery: [180, 190], appleTree: [150, 250], arch: [210, 120], pond: [240, 40], garden: [180, 60], shower: [140, 180], trampoline: [160, 50], fountain: [140, 140], berries: [120, 70], flowers: [80, 30], fence: [100, 52], mushroom: [100, 105], crystal: [60, 80], lantern: [40, 95] };
+// Garden crops at each stage, centered on a soil spot. Ripe veggies get a tiny happy face.
+function cuteFace(g, x, y, s) { g.fillStyle = '#3b2d5c'; circle(g, x - s * .35, y, s * .12); g.fill(); circle(g, x + s * .35, y, s * .12); g.fill();
+  g.strokeStyle = '#3b2d5c'; g.lineWidth = s * .09; g.beginPath(); g.arc(x, y + s * .1, s * .18, .3, Math.PI - .3); g.stroke();
+  g.fillStyle = 'rgba(255,120,150,.55)'; ell(g, x - s * .55, y + s * .18, s * .14, s * .08); g.fill(); ell(g, x + s * .55, y + s * .18, s * .14, s * .08); g.fill(); }
+function leaf(g, x, y, len, w, ang, col) { g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = col; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(w, -len * .5, 0, -len); g.quadraticCurveTo(-w, -len * .5, 0, 0); g.fill(); g.strokeStyle = 'rgba(30,90,40,.35)'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(0, -2); g.lineTo(0, -len * .85); g.stroke(); g.restore(); }
+function drawCrop(g, crop, stage, x, y, t, prog) {
+  const sw = Math.sin(t * 2) * .06, G1 = '#5cc95a', G2 = '#3fae4c';
+  if (stage === 0) { // seed mound with a tiny peeking seed
+    g.fillStyle = '#5a3825'; ell(g, x, y + 1, 12, 5); g.fill(); g.fillStyle = '#e9d08a'; ell(g, x + 2, y - 1, 4, 3, .4); g.fill();
+    if (prog > .5) { g.strokeStyle = G1; g.lineWidth = 2.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - 5); g.stroke(); }
+    return;
+  }
+  if (stage === 1) { g.strokeStyle = G2; g.lineWidth = 3; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - 12); g.stroke(); leaf(g, x, y - 10, 13, 6, -1 + sw, G1); leaf(g, x, y - 10, 13, 6, 1 + sw, G1); return; }
+  const grown = stage === 3;
+  if (crop === 'carrot') {
+    for (let k = -2; k <= 2; k++) leaf(g, x + k * 2, y - 2, grown ? 30 : 22, 5, k * .28 + sw, k % 2 ? G1 : G2);
+    if (grown) { g.fillStyle = '#ff9a3c'; g.strokeStyle = '#d96b14'; g.lineWidth = 2; g.beginPath(); g.moveTo(x - 11, y - 4); g.quadraticCurveTo(x, y - 9, x + 11, y - 4); g.lineTo(x + 6, y + 8); g.lineTo(x - 6, y + 8); g.closePath(); g.fill(); g.stroke(); cuteFace(g, x, y + 1, 9); }
+  } else if (crop === 'strawberry') {
+    for (let k = 0; k < 5; k++) leaf(g, x, y, 18, 9, -1.2 + k * .6 + sw, k % 2 ? G1 : G2);
+    if (grown) for (const [dx, dy] of [[-10, -6], [9, -4]]) { g.fillStyle = '#ff4d6d'; g.strokeStyle = '#c92a4b'; g.lineWidth = 1.8; g.beginPath(); g.moveTo(x + dx - 7, y + dy - 4); g.quadraticCurveTo(x + dx, y + dy - 8, x + dx + 7, y + dy - 4); g.quadraticCurveTo(x + dx + 5, y + dy + 8, x + dx, y + dy + 10); g.quadraticCurveTo(x + dx - 5, y + dy + 8, x + dx - 7, y + dy - 4); g.fill(); g.stroke();
+      g.fillStyle = '#ffe9a8'; for (const [sx, sy] of [[-3, 0], [3, 1], [0, 5], [-2, -3]]) { circle(g, x + dx + sx, y + dy + sy, .9); g.fill(); } g.fillStyle = G1; star5(g, x + dx, y + dy - 6, 5, 0, .4); g.fill(); cuteFace(g, x + dx, y + dy + 1, 6); }
+    else { g.fillStyle = '#fff'; for (const [dx, dy] of [[-8, -12], [8, -10]]) { for (let p = 0; p < 5; p++) { circle(g, x + dx + Math.cos(p * 1.26) * 3, y + dy + Math.sin(p * 1.26) * 3, 2.6); g.fill(); } g.fillStyle = '#ffd23f'; circle(g, x + dx, y + dy, 1.8); g.fill(); g.fillStyle = '#fff'; } }
+  } else if (crop === 'corn') {
+    const h = grown ? 58 : 36; g.strokeStyle = G2; g.lineWidth = 5; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 2 + sw * 10, y - h * .5, x + sw * 20, y - h); g.stroke();
+    for (const [k, dy] of [[-1, .3], [1, .5], [-1, .7]]) leaf(g, x + sw * 10 * dy, y - h * dy, 22, 6, k * 1.1 + sw, G1);
+    if (grown) { g.save(); g.translate(x + 7, y - h * .55); g.rotate(.35); g.fillStyle = '#ffd23f'; g.strokeStyle = '#d9a400'; g.lineWidth = 1.8; ell(g, 0, 0, 6, 13); g.fill(); g.stroke();
+      g.fillStyle = '#ffe680'; for (let r2 = -9; r2 < 10; r2 += 4) for (const c2 of [-2.5, 2.5]) { circle(g, c2, r2, 1.4); g.fill(); } leaf(g, -2, 12, 18, 5, -.3, G1); leaf(g, 2, 12, 18, 5, .3, G2); cuteFace(g, 0, -1, 7); g.restore(); }
+  } else if (crop === 'pumpkin') {
+    g.strokeStyle = G2; g.lineWidth = 3; g.beginPath(); g.moveTo(x - 18, y - 2); g.quadraticCurveTo(x - 4, y - 16, x + 16, y - 4); g.stroke();
+    for (const lx of [-14, 2, 14]) leaf(g, x + lx, y - 6, 15, 9, (lx / 14) * .9 + sw, G1);
+    if (grown) { g.fillStyle = '#ff9a3c'; g.strokeStyle = '#d96b14'; g.lineWidth = 2; for (const ox of [-8, 8, 0]) { ell(g, x + ox, y - 2, ox ? 9 : 10, 11); g.fill(); g.stroke(); }
+      g.fillStyle = '#6a8f3a'; rrect(g, x - 2, y - 18, 4, 7, 2); g.fill(); cuteFace(g, x, y - 2, 9); }
+  }
+}
 function itemIcon(type, w = 144, h = 120) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
   const I = ITEMS[type], [wide, tall] = SIZE[type];
-  const s = Math.min((h - 12) / tall, (w - 10) / wide); drawItem(g, { type, id: 1, stock: I.max || 0 }, w / 2, h - 6 - (type === 'pond' || type === 'carrots' ? 14 : 0) * s, s, 1);
+  const s = Math.min((h - 12) / tall, (w - 10) / wide); drawItem(g, { type, id: 1, stock: I.max || 0, crop: type === 'garden' ? 'strawberry' : null, stage: 3, water: 1, grow: 0 }, w / 2, h - 6 - (type === 'pond' || type === 'garden' || type === 'carrots' ? 14 : 0) * s, s, 1);
   return c;
 }
 
@@ -845,6 +961,17 @@ function updFarm(dt) {
   dayT = (dayT + dt / 360) % 1;
   const night = nightAmt() > .75, stable = S.items.find(i => i.type === 'stable');
   for (const it of S.items) { const I = ITEMS[it.type]; if (!I.makes || it.stock >= I.max) continue; it.grow += dt; if (it.grow >= I.every) { it.grow = 0; it.stock++; } }
+  // gardens grow only while wet; one watering lasts a little over a stage
+  for (const it of S.items) {
+    if (it.type === 'shower') it.busy = Math.max(0, (it.busy || 0) - dt);
+    if (it.type !== 'garden' || !it.crop || it.stage >= 3) continue;
+    const C = CROPS[it.crop]; if (G.rain > 0) it.water = 1;
+    if (it.water > 0) { it.grow += dt; it.water = Math.max(0, it.water - dt / (C.stage * 1.6)); if (it.grow >= C.stage) { it.grow = 0; it.stage++; if (it.stage === 3 && G.mode === 'farm') { const [x, y] = itemAt(it); burst(x, y - 30 * U, 'sparkle', 10); sfx('sparkle'); } } }
+  }
+  // now and then a friendly rain cloud waters everything
+  G.rainIn = (G.rainIn ?? rand(120, 200)) - dt;
+  if (G.rainIn < 0 && nightAmt() < .5) { G.rain = 14; G.rainIn = rand(150, 260); if (G.mode === 'farm') say('Rain! 🌧️'); }
+  G.rain = Math.max(0, (G.rain || 0) - dt);
   for (const u of S.unicorns) {
     const r = rt(u);
     r.blink -= dt; if (r.blink < -.12) { r.nextBlink -= dt; if (r.nextBlink < 0) { r.blink = .14; r.nextBlink = rand(2, 5); } }
@@ -862,11 +989,14 @@ function updFarm(dt) {
       else if (r.act === 'bounce') { r.jump = Math.abs(Math.sin(G.t * 5)) * .35; u.fun = Math.min(100, u.fun + dt * 3); if (r.wait < 0) { r.act = null; r.jump = 0; } }
       else if (r.act === 'splash') { u.shine = Math.min(100, u.shine + dt * 2); if (u.shine > 60) u.mud = []; r.head = .6; if (r.wait < 0) { r.act = null; r.head = 0; } }
       else if (r.act === 'eat') { r.head = Math.min(1, r.head + dt * 2); if (r.wait < 0) r.act = null; }
+      else if (r.act === 'shower') { const sh = S.items.find(i => i.id === r.at); if (sh) sh.busy = .5; u.shine = Math.min(100, u.shine + dt * 9); if (u.shine > 50) u.mud = []; if (Math.random() < dt * 4) G.fx.push({ x: groundX(r.x) + rand(-30, 30) * U, y: groundY(r.d) - rand(40, 110) * U, vx: 0, vy: -20 * U, life: 1.2, age: 0, kind: 'bubble', r: rand(5, 10) * U, float: true }); if (r.wait < 0 || u.shine >= 100) { r.act = null; r.wait = 1; G.fx.push({ x: groundX(r.x), y: groundY(r.d) - 80 * U, vx: 0, vy: -50 * U, life: 1.2, age: 0, kind: 'sparkle', r: 12 * U, float: true }); } }
       else { r.head = Math.max(0, r.head - dt * 2); }
       if (r.wait < 0 && r.act !== 'sleep') {
         // choose: go play on something it needs, graze, or wander
         const funSpot = u.fun < 55 && S.items.find(i => i.type === 'trampoline'), wash = u.shine < 50 && S.items.find(i => i.type === 'pond' || i.type === 'fountain');
-        if (funSpot && Math.random() < .6) { r.act = 'bounce'; r.tx = funSpot.x; r.td = clamp(funSpot.d + .01, 0, 1); r.wait = 6; }
+        const shower = u.shine < 45 && S.items.find(i => i.type === 'shower' && !S.unicorns.some(o => o !== u && rt(o).act === 'shower' && rt(o).at === i.id));
+        if (shower && Math.random() < .75) { r.act = 'shower'; r.at = shower.id; r.tx = shower.x; r.td = clamp(shower.d + .02, 0, 1); r.wait = 7; }
+        else if (funSpot && Math.random() < .6) { r.act = 'bounce'; r.tx = funSpot.x; r.td = clamp(funSpot.d + .01, 0, 1); r.wait = 6; }
         else if (wash && Math.random() < .6) { r.act = 'splash'; r.tx = clamp(wash.x + rand(-.05, .05), 0, 1); r.td = clamp(wash.d + .04, 0, 1); r.wait = 5; }
         else if (Math.random() < .35) { r.act = 'eat'; r.wait = rand(2, 4); }
         else { r.tx = clamp(r.x + rand(-.3, .3), .05, .95); r.td = clamp(r.d + rand(-.25, .25), .15, .95); r.wait = rand(2, 5); }
@@ -878,6 +1008,15 @@ function updFarm(dt) {
   }
   for (const s of G.dropped) s.t += dt;
   G.dropped = G.dropped.filter(s => s.t < 60);
+}
+function drawCan(g, x, y, s, tilt) {
+  g.save(); g.translate(x, y); g.scale(s, s); g.rotate(-.6 * tilt);
+  g.lineWidth = 3; g.strokeStyle = '#3a7fc2'; g.fillStyle = '#7fd0ff';
+  rrect(g, -18, -14, 34, 28, 8); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(14, -4); g.lineTo(34, -18); g.lineTo(38, -14); g.lineTo(16, 4); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#ffd23f'; ell(g, 37, -17, 5, 7, -.6); g.fill(); g.stroke();
+  g.strokeStyle = '#3a7fc2'; g.lineWidth = 4; g.beginPath(); g.arc(-2, -14, 13, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+  g.fillStyle = '#ff9ccc'; heart(g, -1, 2, 8); g.fill(); g.restore();
 }
 function drawFarm(g, t) {
   drawSky(g, t);
@@ -898,6 +1037,18 @@ function drawFarm(g, t) {
     const gl = g.createRadialGradient(x, y, 2, x, y, r * 2.4); gl.addColorStop(0, 'rgba(255,240,150,.8)'); gl.addColorStop(1, 'rgba(255,240,150,0)'); g.fillStyle = gl; circle(g, x, y, r * 2.4); g.fill();
     g.fillStyle = '#ffd23f'; g.strokeStyle = '#f0a500'; g.lineWidth = 2.5 * U; star5(g, x, y, r * pop, Math.sin(s.t * 2) * .3); g.fill(); g.stroke(); g.fillStyle = 'rgba(255,255,255,.7)'; circle(g, x - r * .25, y - r * .25, r * .2); g.fill(); } });
   list.sort((a, b) => a.d - b.d); for (const o of list) o.f();
+  // gardens that need water or are ready say so
+  for (const it of S.items) { if (it.type !== 'garden' || !it.crop) continue; const [x, y, s] = itemAt(it), k = s * ITEM_K, bob = Math.sin(t * 3 + it.id) * 3 * U;
+    if (it.stage < 3 && it.water <= 0) { const bx = x + 40 * k, by = y - 90 * k + bob; g.fillStyle = 'rgba(255,255,255,.95)'; g.strokeStyle = 'rgba(88,183,255,.6)'; g.lineWidth = 2; circle(g, bx, by, 16 * U); g.fill(); g.stroke(); circle(g, bx - 10 * U, by + 17 * U, 4 * U); g.fill();
+      g.fillStyle = '#58b7ff'; g.beginPath(); g.moveTo(bx, by - 10 * U); g.quadraticCurveTo(bx + 9 * U, by + 2 * U, bx, by + 8 * U); g.quadraticCurveTo(bx - 9 * U, by + 2 * U, bx, by - 10 * U); g.fill(); }
+    if (it.stage === 3) for (let i = 0; i < 3; i++) { const ph = (t * .8 + i / 3) % 1; g.fillStyle = `rgba(255,240,150,${Math.sin(ph * Math.PI)})`; star5(g, x + (-50 + i * 50) * k, y - (40 + ph * 30) * k, 7 * U, ph * 3); g.fill(); } }
+  // rain
+  if (G.rain > 0) { const a = Math.min(1, G.rain / 2, (14 - G.rain) / 1.5); g.fillStyle = `rgba(90,110,170,${.12 * a})`; g.fillRect(0, 0, W, H);
+    g.strokeStyle = `rgba(200,225,255,${.7 * a})`; g.lineWidth = 2 * U; g.beginPath(); for (let i = 0; i < 90; i++) { const x = ((i * 97.3 + t * 40) % 1) * W, y = ((i * 61.7 + t * 1.4) % 1) * H; g.moveTo(x, y); g.lineTo(x - 4 * U, y + 14 * U); } g.stroke();
+    for (const c of [[.25, .1], [.6, .06], [.85, .12]]) { const cx = c[0] * W + Math.sin(t * .3) * 20 * U, cy = c[1] * H + 30 * U, s2 = 48 * U; g.globalAlpha = a; g.fillStyle = '#c9cfe8'; for (const [dx, dy, r] of [[-1, .2, .6], [-.4, -.2, .8], [.3, -.1, .75], [.9, .2, .55], [0, .3, .7]]) { circle(g, cx + dx * s2, cy + dy * s2, r * s2); g.fill(); } cuteFaceSky(g, cx, cy + 6 * U, 16 * U, true); g.globalAlpha = 1; } }
+  // watering can cursor and pouring
+  if (G.water && G.pointer) drawCan(g, G.pointer[0] + 26 * U, G.pointer[1] - 26 * U, U, G.pour && G.pour.t < .8 ? Math.sin(Math.min(1, G.pour.t * 4) * Math.PI / 2) : 0);
+  if (G.pour) { G.pour.t += lastDt; if (G.pour.t > 1) G.pour = null; }
   // dragged item and placement ghost
   if (G.drag) { const it = G.drag.it, s = depthScale(it.d); drawItem(g, it, groundX(it.x), groundY(it.d), s * ITEM_K, t, true); }
   if (G.ghost) { const s = depthScale(G.ghost.d); drawItem(g, { type: G.buildType, id: 0, stock: 0 }, groundX(G.ghost.x), groundY(G.ghost.d), s * ITEM_K, t, true); }
@@ -922,20 +1073,51 @@ function collectStar(s, px, py) {
   G.dropped = G.dropped.filter(o => o !== s); S.stars += s.v; sfx('star', ri(0, 4)); burst(px, py, 'star', 8); flyTo(px, py, '⭐', $('hStars')); updWallet(); save();
 }
 function harvest(it, px, py) {
+  if (it.type === 'garden') return tapGarden(it, px, py);
   const I = ITEMS[it.type]; if (!I.makes) return false;
   if (!it.stock) { say('Not ready yet!', true); return true; }
   const n = it.stock; it.stock = 0; it.grow = 0; S.food[I.makes] += n; sfx('harvest'); burst(px, py, 'leaf', 10);
   for (let i = 0; i < n; i++) setTimeout(() => flyTo(px + rand(-20, 20), py + rand(-20, 0), FOODS[I.makes].icon, $('basket')), i * 90);
   updBasket(I.makes); save(); return true;
 }
+function tapGarden(it, px, py) {
+  if (!it.crop) { openSeeds(it, px, py); return true; }
+  if (it.stage < 3) { if (it.water <= 0) { say('Water me! 💧', true); pulseWater(); } else say('Growing…'); return true; }
+  const C = CROPS[it.crop], n = C.yield; S.food[C.food] += n; it.crop = null; it.stage = 0; it.grow = 0; it.water = 0;
+  sfx('harvest'); burst(px, py, 'leaf', 12);
+  for (let i = 0; i < n; i++) setTimeout(() => flyTo(px + rand(-20, 20), py + rand(-20, 0), FOODS[C.food].icon, $('basket')), i * 90);
+  updBasket(C.food); save(); return true;
+}
+function waterAt(it, px, py) {
+  G.pour = { x: px, y: py, t: 0 }; sfx('pour');
+  for (let i = 0; i < 14; i++) G.fx.push({ x: px + rand(-24, 24) * U, y: py - rand(10, 40) * U, vx: rand(-20, 20) * U, vy: rand(40, 120) * U, life: .7, age: 0, kind: 'drop', r: rand(3, 5) * U });
+  if (it && it.type === 'garden') { if (it.crop && it.stage < 3) { it.water = 1; say(it.water ? 'Yum! 💧' : ''); } else if (!it.crop) say('Plant a seed first!', true); save(); return; }
+  if (it && (it.type === 'flowers' || it.type === 'appleTree' || it.type === 'berries')) { burst(px, py, 'sparkle', 8); if (ITEMS[it.type].makes && Math.random() < .5 && it.stock < ITEMS[it.type].max) it.stock++; }
+}
+function pulseWater() { const b = $('bWater'); b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge'); }
+let seedBed = null;
+function openSeeds(it, px, py) {
+  seedBed = it; const el = $('seeds'); sfx('click');
+  el.innerHTML = CROP_ORDER.map(c => `<button data-seed="${c}" title="${c}">${CROPS[c].icon}</button>`).join('');
+  el.hidden = false; const w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = clamp(px - w / 2, 8, W - w - 8) + 'px'; el.style.top = clamp(py - h - 30, 60, H - h - 8) + 'px';
+  el.querySelectorAll('[data-seed]').forEach(b => b.onclick = e => { e.stopPropagation(); plant(seedBed, b.dataset.seed); });
+}
+function closeSeeds() { $('seeds').hidden = true; seedBed = null; }
+function plant(it, crop) {
+  if (!it) return; it.crop = crop; it.stage = 0; it.grow = 0; it.water = 0; closeSeeds(); sfx('build');
+  const [x, y] = itemAt(it); burst(x, y - 20 * U, 'leaf', 8); say('Now water it! 💧'); pulseWater(); save();
+}
 function flyTo(x, y, icon, el) { const r = el.getBoundingClientRect(); G.flyers.push({ x, y, tx: r.left + r.width / 2, ty: r.top + r.height / 2, icon, t: 0 }); }
 
 // ---------------------------------------------------------------------------
 // Care: one unicorn up close
 // ---------------------------------------------------------------------------
-const TABS = [['feed', '🍎'], ['play', '🎈'], ['groom', '🪮'], ['hair', '💇'], ['dress', '👑'], ['color', '🎨'], ['name', '🏷️']];
+const TABS = [['feed', '🍎'], ['play', '🎈'], ['groom', '🛁'], ['paint', '🖌️'], ['hair', '💇'], ['dress', '👑'], ['color', '🎨'], ['name', '🏷️']];
+const PAINTS = ['#ff5fa8', '#ff9a3c', '#ffd23f', '#4cd07d', '#4aa8ff', '#9a6bff', '#ffffff', '#3b2d5c', 'rainbow'];
 function careBox() { const s = W < H ? clamp(Math.min(W * .78, H * .34), 120, 420) : clamp(Math.min(W * .5, H * .4), 120, 360); return { x: W / 2 - s * .15, y: H * (W < H ? .7 : .72), s }; }
 function openCare(u) {
+  setWater(false); closeSeeds();
   G.care = { u, look: 0, chew: 0, happy: 0, nod: 0, blink: 0, nextBlink: 2, petT: 0, jump: 0, fly: 0 }; G.mode = 'care'; G.tab = 'feed'; G.tool = null; G.play = null;
   sfx('neigh'); show(null); hud(); buildTabs(); buildOpts(); updMeters();
 }
@@ -946,13 +1128,15 @@ function updMeters() {
   $('meters').innerHTML = [['🍎', u.food], ['⚽', u.fun], ['✨', u.shine]].map(([i, v]) => `<div class="meter${v < 30 ? ' low' : ''}"><i>${i}</i><div class="bar"><b style="width:${Math.round(v)}%"></b></div></div>`).join('');
 }
 function buildTabs() { $('tabs').innerHTML = TABS.map(([id, ic]) => `<button class="tab${G.tab === id ? ' on' : ''}" data-tab="${id}">${ic}</button>`).join('');
-  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { sfx('click'); G.tab = b.dataset.tab; G.tool = null; G.play = null; buildTabs(); buildOpts(); }); }
+  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => { sfx('click'); G.tab = b.dataset.tab; G.tool = null; G.play = null; if (G.tab === 'paint') { G.tool = 'paint'; G.pcol = G.pcol || '#ff5fa8'; if (!G.stamp) say('Paint your unicorn! 🖌️'); } buildTabs(); buildOpts(); }); }
 const swatch = (col, on, data) => `<button class="sw${on ? ' on' : ''}" style="background:${col}" ${data}></button>`;
 function buildOpts() {
   const u = G.care.u, el = $('opts'); let h = '';
   if (G.tab === 'feed') h = FOOD_ORDER.map(f => `<button class="opt${S.food[f] ? '' : ' empty'}" data-food="${f}">${FOODS[f].icon}<span class="n">${S.food[f]}</span></button>`).join('');
   if (G.tab === 'play') h = [['balloons', '🎈'], ['ball', '⚽'], ['bubbles', '🫧'], ['fly', '🌈']].map(([k, i]) => `<button class="opt${G.play && G.play.kind === k ? ' on' : ''}${k === 'fly' && !u.acc.includes('wings') ? ' lockd' : ''}" data-play="${k}">${i}</button>`).join('');
-  if (G.tab === 'groom') h = [['brush', '🪮'], ['soap', '🧼'], ['glitter', '✨']].map(([k, i]) => `<button class="opt${G.tool === k ? ' on' : ''}" data-tool="${k}">${i}</button>`).join('');
+  if (G.tab === 'paint') h = PAINTS.map(c => swatch(c === 'rainbow' ? `linear-gradient(135deg,${RAINBOW.join(',')})` : c, !G.stamp && G.pcol === c, `data-pc="${c}"`)).join('')
+    + [['heart', '❤️'], ['star', '⭐'], ['flower', '🌸'], ['dot', '⚪']].map(([k, i]) => `<button class="opt${G.stamp === k ? ' on' : ''}" data-stamp="${k}">${i}</button>`).join('') + `<button class="opt" data-wash="1" title="Wash it all off">🚿</button>`;
+  if (G.tab === 'groom') h = [['shower', '🚿'], ['soap', '🧼'], ['brush', '🪮'], ['glitter', '✨']].map(([k, i]) => `<button class="opt${G.tool === k ? ' on' : ''}" data-tool="${k}">${i}</button>`).join('');
   if (G.tab === 'hair') h = `<span class="sec">mane</span>` + MANE_STYLES.map(st => `<button class="opt${u.maneStyle === st ? ' on' : ''}" data-mane="${st}"><canvas width="104" height="104" data-icon="mane:${st}"></canvas></button>`).join('')
     + `<span class="sec">tail</span>` + TAIL_STYLES.map(st => `<button class="opt${u.tailStyle === st ? ' on' : ''}" data-tail="${st}"><canvas width="104" height="104" data-icon="tail:${st}"></canvas></button>`).join('')
     + `<span class="sec">color</span>` + Object.entries(MANES).map(([k, c]) => swatch(c.length > 2 ? `linear-gradient(135deg,${c.join(',')})` : `linear-gradient(135deg,${c[0]},${c[1]})`, u.mane === k, `data-hcol="${k}"`)).join('');
@@ -966,7 +1150,10 @@ function buildOpts() {
   el.querySelectorAll('canvas[data-icon]').forEach(c => { const [kind, st] = c.dataset.icon.split(':'); const tu = Object.assign({}, u, kind === 'mane' ? { maneStyle: st } : { tailStyle: st }); hairIcon(c, tu, kind); });
   el.querySelectorAll('[data-food]').forEach(b => b.onclick = () => feed(b.dataset.food, b));
   el.querySelectorAll('[data-play]').forEach(b => b.onclick = () => startPlay(b.dataset.play));
-  el.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { sfx('click'); G.tool = G.tool === b.dataset.tool ? null : b.dataset.tool; buildOpts(); if (G.tool) say(G.tool === 'glitter' ? 'Tap to sprinkle!' : 'Rub the unicorn!'); });
+  el.querySelectorAll('[data-pc]').forEach(b => b.onclick = () => { G.pcol = b.dataset.pc; G.stamp = null; G.tool = 'paint'; sfx('click'); buildOpts(); });
+  el.querySelectorAll('[data-stamp]').forEach(b => b.onclick = () => { G.stamp = b.dataset.stamp; G.tool = 'paint'; sfx('click'); buildOpts(); });
+  el.querySelectorAll('[data-wash]').forEach(b => b.onclick = () => { if (!u.paint.length) { say('Nothing to wash!', true); return; } G.tab = 'groom'; G.tool = 'shower'; buildTabs(); buildOpts(); say('Shower it off! 🚿'); });
+  el.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { sfx('click'); G.tool = G.tool === b.dataset.tool ? null : b.dataset.tool; buildOpts(); if (G.tool) say(G.tool === 'glitter' ? 'Tap to sprinkle!' : G.tool === 'shower' ? 'Shower your unicorn!' : 'Rub the unicorn!'); });
   const style = (attr, key, fx = 'sparkle') => el.querySelectorAll(`[data-${attr}]`).forEach(b => b.onclick = () => { u[key] = b.dataset[attr]; sfx(fx); G.care.happy = 1.2; burst(W / 2, H * .45, 'sparkle', 12); addXp(u, 1); save(); buildOpts(); });
   style('mane', 'maneStyle'); style('tail', 'tailStyle'); style('hcol', 'mane'); style('coat', 'coat'); style('horn', 'horn'); style('eyes', 'eyes'); style('hoof', 'hoof');
   el.querySelectorAll('[data-acc]').forEach(b => b.onclick = () => { const k = b.dataset.acc, A = ACCS[k];
@@ -1033,13 +1220,42 @@ function careDown(px, py) {
     if (o) { P.objs = P.objs.filter(q => q !== o); sfx('pop'); burst(o.x, o.y, P.kind === 'bubbles' ? 'bubble' : 'confetti', 12); u.fun = Math.min(100, u.fun + (P.kind === 'bubbles' ? 2 : 4)); G.care.happy = .8; addXp(u, 1); P.score++; if (P.score % 4 === 0) { S.stars++; updWallet(); floatUp(o.x, o.y, 'star'); } updMeters(); return true; } }
   if (P && P.kind === 'ball') { const B = P.ball; if (Math.hypot(B.x - px, B.y - py) < B.r * 1.6) { B.vx = -rand(300, 480) * U; B.vy = -rand(500, 700) * U; sfx('boing'); return true; } }
   if (G.tool === 'glitter') { sprinkle(px, py); return true; }
+  if (G.tool === 'paint' && onUnicorn(px, py)) { paintAt(px, py, true); return true; }
+  if (G.tool === 'shower') { showerAt(px, py); return true; }
   return false;
+}
+function toBody(px, py) { const b = careBox(), u = G.care.u, B = bodyGeom(u); return [+(((px - b.x) / b.s) / B.brx).toFixed(3), +((((py - b.y) / b.s) - B.by) / B.bry).toFixed(3)]; }
+let curStroke = null;
+function paintAt(px, py, start) {
+  const u = G.care.u, q = toBody(px, py);
+  if (G.stamp) { if (!start) return; u.paint.push({ s: G.stamp, c: G.pcol === '#ffffff' && G.stamp === 'dot' ? '#fff' : (G.pcol || '#ff5fa8'), x: q[0], y: q[1], r: .055 }); sfx('pop'); burst(px, py, 'sparkle', 5); }
+  else if (start || !curStroke) { curStroke = { c: G.pcol || '#ff5fa8', w: .05, p: [q] }; u.paint.push(curStroke); sfx('brush'); }
+  else { const l = curStroke.p[curStroke.p.length - 1]; if (Math.hypot(l[0] - q[0], l[1] - q[1]) > .04) curStroke.p.push(q); }
+  // keep saves small: about 700 paint points at most
+  let n = u.paint.reduce((a, st) => a + (st.p ? st.p.length : 1), 0); while (n > 700 && u.paint.length > 1) { const o = u.paint.shift(); n -= o.p ? o.p.length : 1; }
+  G.care.happy = .6; G.care.painted = (G.care.painted || 0) + 1; if (G.care.painted % 25 === 0) { addXp(u, 1); u.fun = Math.min(100, u.fun + 2); updMeters(); }
+}
+function showerAt(px, py) {
+  const u = G.care.u;
+  for (let i = 0; i < 3; i++) G.fx.push({ x: px + rand(-22, 22) * U, y: py - rand(30, 70) * U, vx: rand(-15, 15) * U, vy: rand(260, 360) * U, life: .45, age: 0, kind: 'drop', r: rand(3, 5) * U });
+  if (!onUnicorn(px, py)) return;
+  const q = toBody(px, py), R = .32; let washed = false;
+  for (const st of u.paint) { if (st.s) { if (Math.hypot(st.x - q[0], st.y - q[1]) < R) { st.gone = true; washed = true; } } else { const before = st.p.length; st.p = st.p.filter(p => Math.hypot(p[0] - q[0], p[1] - q[1]) > R); if (st.p.length < before) washed = true; if (!st.p.length) st.gone = true; } }
+  u.paint = u.paint.filter(st => !st.gone);
+  if (Math.random() < .3 && u.mud.length) { u.mud.pop(); addXp(u, 1); }
+  u.shine = Math.min(100, u.shine + .6); G.care.happy = .5; G.care.wet = 1.5;
+  if (washed && Math.random() < .3) burst(px, py, 'bubble', 2);
+  G.care.showerT = (G.care.showerT || 0) - 1; if (G.care.showerT < 0) { G.care.showerT = 8; hiss(.25, .07, 1800); updMeters(); }
+  if (!u.paint.length && !u.mud.length && u.shine >= 99 && !G.care.sparkled) { G.care.sparkled = true; say('Squeaky clean!'); sfx('sparkle'); }
 }
 function onUnicorn(px, py) { const b = careBox(); return Math.abs(px - (b.x + b.s * .1)) < b.s * .75 && py < b.y && py > b.y - b.s * 1.75; }
 let lastRub = null;
 function careMove(px, py, down) {
   if (!down || !G.care) { lastRub = null; return; }
-  const u = G.care.u; if (!onUnicorn(px, py)) { lastRub = null; return; }
+  const u = G.care.u;
+  if (G.tool === 'shower') { showerAt(px, py); return; }
+  if (G.tool === 'paint') { if (onUnicorn(px, py) && !G.stamp) paintAt(px, py, false); else curStroke = null; return; }
+  if (!onUnicorn(px, py)) { lastRub = null; return; }
   const moved = lastRub ? Math.hypot(px - lastRub[0], py - lastRub[1]) : 0; lastRub = [px, py]; if (moved < 3) return;
   const b = careBox(); G.care.rubD = (G.care.rubD || 0) + moved;
   if (G.tool === 'brush') {
@@ -1081,7 +1297,7 @@ function drawCare(g, t) {
   const C = G.care, u = C.u, flyY = C.fly > 0 ? Math.sin(Math.min(1, (4 - C.fly) / .6) * Math.PI / 2) * Math.min(1, C.fly / .6) * b.s * .5 : 0;
   if (C.fly > 0) { const cols = ['#ff6b9d', '#ffa94d', '#ffe066', '#69db7c', '#4dabf7', '#9775fa']; g.lineWidth = 7 * U; cols.forEach((c, i) => { g.strokeStyle = c; g.globalAlpha = .7; g.beginPath(); g.moveTo(-20, b.y - flyY - b.s * .6 + i * 7 * U); g.quadraticCurveTo(b.x * .6, b.y - flyY - b.s * .4 + i * 7 * U, b.x - b.s * .4, b.y - flyY - b.s * .62 + i * 7 * U); g.stroke(); }); g.globalAlpha = 1; }
   drawUnicorn(g, u, b.x, b.y - flyY, b.s, 1, { t, blink: C.blink > 0, chew: C.chew > 0, happy: C.happy > 0, nod: C.nod, look: C.look, sparkle: u.shine > 85, jump: C.happy > 1 ? Math.abs(Math.sin(t * 8)) * .05 : 0, fly: C.fly > 0, moving: C.fly > 0, walk: t * 8 });
-  if (G.tool) { const p = G.pointer; if (p) { g.font = `${40 * U}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText({ brush: '🪮', soap: '🧽', glitter: '🪄' }[G.tool], p[0] + 20 * U, p[1] - 20 * U); } }
+  if (G.tool) { const p = G.pointer; if (p) { g.font = `${40 * U}px sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText({ brush: '🪮', soap: '🧽', glitter: '🪄', shower: '🚿', paint: G.stamp ? { heart: '❤️', star: '⭐', flower: '🌸', dot: '⚪' }[G.stamp] : '🖌️' }[G.tool], p[0] + 20 * U, p[1] - (G.tool === 'shower' ? 70 : 20) * U); } }
   drawPlay(g, t);
 }
 
@@ -1104,6 +1320,7 @@ function drawFx(g) {
     else if (p.kind === 'confetti') { g.fillStyle = p.col; g.save(); g.translate(p.x, p.y); g.rotate(k * 10); g.fillRect(-p.r * .5, -p.r * .25, p.r, p.r * .5); g.restore(); }
     else if (p.kind === 'bubble' || p.kind === 'foam') { g.strokeStyle = 'rgba(255,255,255,.9)'; g.fillStyle = 'rgba(220,240,255,.45)'; g.lineWidth = 2; circle(g, p.x, p.y, p.r * (p.kind === 'foam' ? 1 : (1 - k * .5))); g.fill(); g.stroke(); }
     else if (p.kind === 'mud') { g.fillStyle = '#9a6b45'; circle(g, p.x, p.y, p.r * .6); g.fill(); }
+    else if (p.kind === 'drop') { g.fillStyle = '#7fd0ff'; g.beginPath(); g.moveTo(p.x, p.y - p.r * 1.6); g.quadraticCurveTo(p.x + p.r, p.y, p.x, p.y + p.r); g.quadraticCurveTo(p.x - p.r, p.y, p.x, p.y - p.r * 1.6); g.fill(); }
     else if (p.kind === 'leaf') { g.fillStyle = '#6fcf5a'; ell(g, p.x, p.y, p.r * .7, p.r * .35, k * 6); g.fill(); }
     g.globalAlpha = 1;
   }
@@ -1160,7 +1377,7 @@ function hud() {
   $('bBuild').textContent = G.mode === 'build' ? '✓' : '🔨'; updWallet(); updBasket();
 }
 function updWallet() { $('hStars').textContent = Math.floor(S.stars); }
-function updBasket(bump) { $('basket').innerHTML = FOOD_ORDER.map(f => `<div class="chip${bump === f ? ' bump' : ''}"><i>${FOODS[f].icon}</i>${S.food[f]}</div>`).join(''); }
+function updBasket(bump) { $('basket').innerHTML = FOOD_ORDER.filter(f => S.food[f] > 0 || f === 'apple' || f === 'carrot').map(f => `<div class="chip${bump === f ? ' bump' : ''}"><i>${FOODS[f].icon}</i>${S.food[f]}</div>`).join(''); }
 function buildSettings() {
   for (const [id, key] of [['tSound', 'sound'], ['tMusic', 'music'], ['tSlow', 'slow'], ['tLock', 'lock']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]);
     t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); if (key === 'lock') { if (S.set.lock) kidLock(); else kidUnlock(); } }; }
@@ -1170,9 +1387,11 @@ $('bPlay').onclick = () => { audioInit(); sfx('neigh'); G.mode = 'farm'; show(nu
 $('bSettings').onclick = () => { audioInit(); sfx('click'); buildSettings(); show('sSettings'); };
 $('bSetDone').onclick = () => { sfx('click'); show('sTitle'); };
 $('bReset').onclick = () => { if (!confirm('Start a brand new farm? Your unicorns and meadow will be cleared.')) return; UNI.clear(); starterFarm(); save(); sfx('click'); show('sTitle'); };
-$('bHome').onclick = () => { sfx('click'); setBuild(false); G.mode = 'title'; save(); show('sTitle'); };
-$('bBuild').onclick = () => { sfx('click'); setBuild(G.mode !== 'build'); };
-$('bAdopt').onclick = () => { sfx('click'); setBuild(false); buildAdopt(); show('sAdopt'); };
+$('bHome').onclick = () => { sfx('click'); setBuild(false); setWater(false); closeSeeds(); G.mode = 'title'; save(); show('sTitle'); };
+$('bBuild').onclick = () => { sfx('click'); setWater(false); setBuild(G.mode !== 'build'); };
+$('bWater').onclick = () => { sfx('click'); setBuild(false); setWater(!G.water); if (G.water) say('Tap the gardens! 💧'); };
+function setWater(on) { G.water = on; $('bWater').classList.toggle('on', on); document.body.classList.toggle('watering', on); }
+$('bAdopt').onclick = () => { sfx('click'); setBuild(false); setWater(false); buildAdopt(); show('sAdopt'); };
 $('bAdoptBack').onclick = () => { sfx('click'); show(null); G.mode = 'farm'; hud(); };
 $('bBack').onclick = () => { sfx('click'); closeCare(); };
 
@@ -1182,6 +1401,13 @@ $('bBack').onclick = () => { sfx('click'); closeCare(); };
 let downAt = null;
 cv.addEventListener('pointerdown', e => {
   e.preventDefault(); audioInit(); const px = e.clientX, py = e.clientY; G.pointer = [px, py]; downAt = [px, py, performance.now()];
+  if (!$('seeds').hidden) { closeSeeds(); return; }
+  if (G.mode === 'farm' && G.water) {
+    const h = farmHit(px, py);
+    if (h && h.star) { collectStar(h.star, px, py); return; }
+    if (h && h.u) { const u = h.u; u.shine = Math.min(100, u.shine + 6); u.fun = Math.min(100, u.fun + 3); sfx('giggle'); rt(u).happy = 1; }
+    waterAt(h && h.it, px, py); return;
+  }
   if (G.mode === 'farm') {
     const h = farmHit(px, py); if (!h) return;
     if (h.star) collectStar(h.star, px, py);
@@ -1207,7 +1433,7 @@ window.addEventListener('pointerup', e => {
       else { S.items = S.items.filter(i => i !== it); S.stars += Math.floor(ITEMS[it.type].cost / 2); sfx('pop'); burst(px, py, 'sparkle', 10); updWallet(); }
     } else sfx('build');
     $('trash').classList.remove('hot'); G.drag = null; save(); buildShelf(); }
-  lastRub = null; if (e.pointerType !== 'mouse') G.pointer = null;
+  lastRub = null; curStroke = null; if (G.care) G.care.sparkled = false; if (e.pointerType !== 'mouse') G.pointer = null;
 });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -1241,9 +1467,9 @@ window.addEventListener('keydown', e => { if (e.key === 'Escape' && G.mode === '
 // ---------------------------------------------------------------------------
 // Main loop
 // ---------------------------------------------------------------------------
-let last = performance.now(), saveT = 0, meterT = 0;
+let last = performance.now(), saveT = 0, meterT = 0, lastDt = 1 / 60;
 function update(dt) {
-  G.t += dt;
+  G.t += dt; lastDt = dt;
   if (G.mode !== 'title') tickNeeds(dt);
   updFarm(dt);
   if (G.mode === 'care') { updCare(dt); meterT -= dt; if (meterT < 0) { meterT = 1; updMeters(); } }
