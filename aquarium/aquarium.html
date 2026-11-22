@@ -1916,9 +1916,17 @@ function axComputeSpine(){const pts=[AX.head,...AX.trail];const cum=[0];for(let 
       for(let k=0;k<AXK-1;k++){const dx=B[k+1][0]-B[k][0],dz=B[k+1][2]-B[k][2],l=Math.hypot(dx,dz)||1;B[k+1]=[B[k][0]+dx/l*seg,B[k+1][1],B[k][2]+dz/l*seg];}
       for(let k=1;k<AXK;k++)pushOut(B[k],axR(k*seg),1);}
     AX.trail=B.slice(1).map(p=>p.slice());}
+  // the body follows the trail with a little inertia: when the head swings round (turning to dive after a gulp of air) the old chain swung the
+  // whole body like a stiff rod in one frame. Ease each point toward its new place (the trail itself is untouched); a teleport resets this.
+  {const now=NOW(),dt=clamp(now-(AX.baseT||now),0,0.1);AX.baseT=now;const P=AX.baseSpine;
+    if(P&&P.length===AXK&&V.dist(P[0],B[0])<5&&dt>0){const a=1-Math.exp(-dt*11);for(let k=1;k<AXK;k++)B[k]=V.lerp(P[k],B[k],a);}
+    AX.baseSpine=B.map(p=>p.slice());}
   const tang=k=>{const a=B[Math.max(0,k-1)],b=B[Math.min(AXK-1,k+1)];return V.norm(V.sub(a,b));};
   const gait=AX.gait*TAU,walkA=AX.ground&&AX.speed>0.05?0.55:0;
-  for(let k=0;k<AXK;k++){const s=k*AXL/(AXK-1);const T0=tang(k);let R=V.cross(T0,[0,1,0]);if(V.len(R)<1e-3)R=[1,0,0];R=V.norm(R);
+  // side direction for the waves: world up flips it when the body points straight up (gulping air), so lean on last frame's head up there
+  const sideOf=T0=>{const r1=V.cross(T0,[0,1,0]),l1=V.len(r1),r2=V.cross(T0,AX.headUp||[1,0,0]),l2=V.len(r2)||1;const w=sstep(0.15,0.4,l1);
+    const r=l1>1e-4?V.lerp(V.mul(r2,1/l2),V.mul(r1,1/l1),w):V.mul(r2,1/l2);return V.norm(V.len(r)<1e-4?[1,0,0]:r);};
+  for(let k=0;k<AXK;k++){const s=k*AXL/(AXK-1);const T0=tang(k);const R=sideOf(T0);
     let off=AX.swimA*1.0*(0.08+0.92*Math.pow(sstep(3,22,s),1.3))*Math.sin(AX.swimPh-TAU*s/15);
     off+=(1-AX.swimA)*walkA*Math.sin(gait)*Math.sin(PI*(s/AXL)*1.7-0.25)*(s<16?1:0.6);
     off+=(1-AX.swimA)*(0.22*Math.sin(t*0.37+s*0.2)*sstep(12,22,s)+AX.curl*Math.pow(s/AXL,2)*3.2);
@@ -1927,9 +1935,51 @@ function axComputeSpine(){const pts=[AX.head,...AX.trail];const cum=[0];for(let 
     const g=groundAt(B[k][0],B[k][2])+axRY(s)*0.86+0.05;
     if(AX.ground)B[k][1]=g+(s<7?AX.raise*Math.pow(1-s/7,2)*1.6:0);else B[k][1]=Math.max(B[k][1],topH(B[k][0],B[k][2])+axRY(s)*0.86+0.1);
     B[k][0]=clamp(B[k][0],TK.x0+0.8,TK.x1-0.8);B[k][2]=clamp(B[k][2],TK.z0+0.8,TK.z1-0.8);B[k][1]=Math.min(B[k][1],TK.wl-0.4);}
+  // Keep the body its real length. Everything above (waves, pushing out of rocks, ground height, glass clamps) moves points one at a time,
+  // which stretched segments up to 9x and folded the body back on itself. Re-lay the chain from the head toward those targets with exact
+  // segment lengths and a bend limit, then only lift points that would sink into the ground.
+  {const seg=AXL/(AXK-1),T=B.map(p=>p.slice());let prev=null;
+    // ground height under the body averaged over its width, so a thin branch or stone edge under one point does not hoist the body into a peak
+    const gAvg=(x,z,r)=>(groundAt(x,z)*2+groundAt(x+r,z)+groundAt(x-r,z)+groundAt(x,z+r)+groundAt(x,z-r))/6;
+    const tAvg=(x,z,r)=>(topH(x,z)*2+topH(x+r,z)+topH(x-r,z)+topH(x,z+r)+topH(x,z-r))/6;
+    const floorAt=(p,s)=>(AX.ground?gAvg(p[0],p[2],axRX(s)*0.55)+0.05:tAvg(p[0],p[2],axRX(s)*0.55)+0.1)+axRY(s)*0.86;
+    const keepIn=p=>{p[0]=clamp(p[0],TK.x0+0.8,TK.x1-0.8);p[2]=clamp(p[2],TK.z0+0.8,TK.z1-0.8);p[1]=Math.min(p[1],TK.wl-0.4);};
+    // on the ground the body bridges small steps: smooth the target heights (never below the floor) before laying the chain
+    if(AX.ground)for(let pass=0;pass<2;pass++){const y=T.map(p=>p[1]);for(let k=1;k<AXK-1;k++)T[k][1]=Math.max(floorAt(T[k],k*seg),(y[k-1]+2*y[k]+y[k+1])/4);}
+    for(let k=0;k<AXK-1;k++){let d=V.sub(T[k+1],B[k]);const l=V.len(d);d=l<1e-5?(prev||[-Math.cos(AX.yaw),0,-Math.sin(AX.yaw)]):V.mul(d,1/l);
+      if(prev){const lim=k<=1?0.5:0.36,hl=Math.hypot(d[0],d[2]),pl=Math.hypot(prev[0],prev[2]);
+        if(AX.ground&&hl>0.3&&pl>0.3){ // walking: limit only the turn, and let the body follow the ground up and down
+          const a0=Math.atan2(prev[2],prev[0]);let a1=Math.atan2(d[2],d[0]),da=Math.atan2(Math.sin(a1-a0),Math.cos(a1-a0));
+          if(Math.abs(da)>lim){a1=a0+Math.sign(da)*lim;d=V.norm([Math.cos(a1)*hl,d[1],Math.sin(a1)*hl]);}}
+        else{const ang=Math.acos(clamp(V.dot(d,prev),-1,1));if(ang>lim){let ax=V.cross(prev,d);const al=V.len(ax);ax=al<1e-6?[0,1,0]:V.mul(ax,1/al);d=V.rot(prev,ax,lim);}}}
+      // lay the next point, lift it out of the ground or a rock and keep it inside the glass, then put it back at exactly one segment from the last:
+      // a rock edge makes the body drape over it instead of kinking one point up
+      for(let it=0;it<2;it++){const P=V.madd(B[k],d,seg),s=(k+1)*seg,fl=floorAt(P,s);if(P[1]<fl)P[1]=fl;keepIn(P);const dd=V.sub(P,B[k]),dl=V.len(dd);if(dl>1e-5)d=V.mul(dd,1/dl);}
+      B[k+1]=V.madd(B[k],d,seg);prev=d;}
+    // where draping over a rock still left a sharp kink, relax it toward a smooth arc (lifting only), then restore exact lengths
+    for(let it=0;it<3;it++){let any=false;
+      for(let k=1;k<AXK-1;k++){const a=V.norm(V.sub(B[k],B[k-1])),b=V.norm(V.sub(B[k+1],B[k])),ang=Math.acos(clamp(V.dot(a,b),-1,1));
+        if(ang>0.55){any=true;B[k]=V.lerp(B[k],V.lerp(B[k-1],B[k+1],0.5),clamp((ang-0.55)/1.2,0,1)*0.65);const fl=floorAt(B[k],k*seg);if(B[k][1]<fl)B[k][1]=fl;keepIn(B[k]);}}
+      if(!any)break;
+      for(let k=0;k<AXK-1;k++){const d=V.sub(B[k+1],B[k]),l=V.len(d)||1;B[k+1]=V.madd(B[k],d,seg/l);}}}
   AX.spine=B;
-  for(let k=0;k<AXK;k++){const T0=tang(k);let U0=V.sub([0,1,0],V.mul(T0,T0[1]));if(V.len(U0)<1e-3)U0=[1,0,0];U0=V.norm(U0);
-    AX.SP.set(B[k],k*3);AX.ST.set(T0,k*3);AX.SU.set(U0,k*3);}}
+  // up vectors: world up projected off the tangent where that is well defined (belly down), carried along the body from the point before
+  // where it is not (body pointing up or down), and the head's carried over from last frame, so the frame never flips
+  // (body points only take world up where the body is fairly level and agrees with what is carried; the head turns toward it at a limited rate,
+  // so a body hanging tail-down or arching over never flips its belly round)
+  let U=null;const now=NOW(),fdt=clamp(now-(AX.spineT||now),0,0.1);AX.spineT=now;
+  // carrying rotates the up vector by the same turn the tangent makes (parallel transport); projecting it instead broke down at sharp turns
+  const turn=(v,a,b)=>{const ax=V.cross(a,b),sl=V.len(ax),c=clamp(V.dot(a,b),-1,1);if(sl<1e-6)return v;return V.rot(v,V.mul(ax,1/sl),Math.atan2(sl,c));};
+  let Tp=null;
+  for(let k=0;k<AXK;k++){const T0=tang(k),w=V.sub([0,1,0],V.mul(T0,T0[1])),wl=V.len(w),wn=wl>1e-4?V.mul(w,1/wl):null;
+    let carry=k===0?(AX.headUp&&AX.headT?turn(AX.headUp,AX.headT,T0):[0,1,0]):turn(U,Tp,T0);carry=V.sub(carry,V.mul(T0,V.dot(carry,T0)));const cl=V.len(carry);
+    if(cl<1e-4)carry=V.perp(T0);else carry=V.mul(carry,1/cl);Tp=T0;if(k===0)AX.headT=T0.slice();
+    if(!wn)U=carry;
+    else if(k===0){const ang=Math.acos(clamp(V.dot(carry,wn),-1,1)),step=Math.min(ang,(fdt>0?fdt:1)*4*sstep(0.3,0.8,wl));
+      if(ang<1e-4||step<=0)U=carry;else{let ax=V.cross(carry,wn);const al=V.len(ax);ax=al<1e-6?T0:V.mul(ax,1/al);U=V.norm(V.rot(carry,ax,step));}}
+    else U=V.norm(V.lerp(carry,wn,sstep(0.55,0.9,wl)*sstep(-0.1,0.6,V.dot(carry,wn))));
+    if(k===0)AX.headUp=U.slice();
+    AX.SP.set(B[k],k*3);AX.ST.set(T0,k*3);AX.SU.set(U,k*3);}}
 function axLegs(dt){const swim=AX.swimA,sink=AX.mode==='sink'?1:0,walk=AX.ground&&AX.speed>0.05?1:0;const offs=[0,0.5,0.5,0];
   for(let i=0;i<4;i++){const L=AX_LEGS[i],lp=AX.legP[i],gp=(AX.gait+offs[i])*TAU;
     // at rest the elbows splay out and the hands lie flat beside the body, as in photos of resting axolotls
@@ -1991,7 +2041,7 @@ function fishUpdate(dt){const t=NOW();const axH=AX.head;const night=LIGHT.night;
       else if(!f.hunt&&f.huntCool<=0){let best=null,bd=30;for(const sn of snails){const d=V.dist(sn.p,f.p);if(d<bd){bd=d;best=sn;}}if(best){f.hunt=best;f.huntT=16;f.aim=0;}else f.huntCool=12;}
       if(f.hunt){const sn=f.hunt;f.huntT-=dt;
         if(!snails.includes(sn)||f.huntT<=0){f.hunt=null;f.huntCool=25+Math.random()*40;}
-        else{const nrm=sn.surf==='front'?[0,0,-1]:sn.surf==='back'?[0,0,1]:topNormal(sn.p[0],sn.p[2]),hov=V.madd(sn.p,nrm,1.9),d=V.sub(hov,f.p),dd=V.len(d),at=V.norm(V.sub(sn.p,f.p));
+        else{const nrm=sn.surf==='floor'?topNormal(sn.p[0],sn.p[2]):PANES[sn.surf].n,hov=V.madd(sn.p,nrm,1.9),d=V.sub(hov,f.p),dd=V.len(d),at=V.norm(V.sub(sn.p,f.p));
           acc=V.madd(acc,d,2.4);acc=V.madd(acc,f.v,-1.4);maxs=dd>4?S.cruise[1]*1.3:1;
           if(dd<1){f.aim+=dt;f.v=V.madd(V.mul(f.v,Math.exp(-dt*4)),at,dt*1.5);f.beating=true;
             if(f.aim>1+f.var){f.v=V.madd(f.v,at,6);sn.stop=3+Math.random()*3;f.hunt=null;f.huntCool=35+Math.random()*60;}}}}
@@ -2043,17 +2093,36 @@ function shrimpUpdate(dt){for(const s of shrimp){s.t-=dt;const g=topH(s.p[0],s.p
     else{s.vy-=dt*9;s.p[1]+=s.vy*dt;s.p[0]+=Math.cos(s.yaw)*dt*(s.curl>0.3?-6:0.8);s.p[2]+=Math.sin(s.yaw)*dt*(s.curl>0.3?-6:0.8);s.swim+=dt*TAU*3;s.curl=lerp(s.curl,0,dt*2);
       s.p[0]=clamp(s.p[0],TK.x0+1,TK.x1-1);s.p[2]=clamp(s.p[2],TK.z0+1,TK.z1-1);s.p[1]=Math.min(s.p[1],TK.wl-1);
       if(s.p[1]<=topH(s.p[0],s.p[2])&&s.vy<0){s.p[1]=topH(s.p[0],s.p[2]);s.state='graze';s.t=2+Math.random()*4;}}}}
-function addSnail(sp,n){for(let i=0;i<n;i++){const x=lerp(-40,40,Math.random());snails.push({sp,surf:'front',p:[x,lerp(8,30,Math.random()),TK.z1-0.05],h:Math.random()*TAU,var:Math.random(),size:SNAILSP[sp].L*(0.9+Math.random()*0.2)});}}
+// Snail surfaces: the floor and the four glass panes. On a pane, 'a' is the along-glass coordinate (x on front/back, z on the side panes) and
+// the heading h is in that pane's plane (cos h along it, sin h up). Snails start on a random surface and move between panes round the corners,
+// down onto the sand and back up the nearest wall.
+const PANES={front:{ax:0,fix:2,v:()=>TK.z1-0.05,n:[0,0,-1]},back:{ax:0,fix:2,v:()=>TK.z0+0.05,n:[0,0,1]},left:{ax:2,fix:0,v:()=>TK.x0+0.05,n:[1,0,0]},right:{ax:2,fix:0,v:()=>TK.x1-0.05,n:[-1,0,0]}};
+function snailOnPane(s,pane,a,y){const P=PANES[pane];s.surf=pane;s.p=[0,0,0];s.p[P.ax]=a;s.p[P.fix]=P.v();s.p[1]=y;}
+function addSnail(sp,n){for(let i=0;i<n;i++){const s={sp,surf:'floor',p:[0,0,0],h:Math.random()*TAU,var:Math.random(),size:SNAILSP[sp].L*(0.9+Math.random()*0.2)};
+    const r=Math.random(),pane=r<0.24?'front':r<0.48?'back':r<0.64?'left':r<0.8?'right':null;
+    if(pane){const P=PANES[pane],lo=P.ax===0?TK.x0+2:TK.z0+2,hi=P.ax===0?TK.x1-2:TK.z1-2,a=lerp(lo,hi,Math.random());const fl=P.ax===0?sandH(a,P.v()):sandH(P.v(),a);
+      snailOnPane(s,pane,a,lerp(fl+1.5,TK.wl-3,Math.random()));}
+    else{let x=0,z=0;for(let t=0;t<6;t++){x=lerp(TK.x0+4,TK.x1-4,Math.random());z=lerp(TK.z0+4,TK.z1-4,Math.random());if(topH(x,z)-sandH(x,z)<0.5)break;}s.p=[x,topH(x,z),z];}
+    snails.push(s);}}
 function setSnailCount(sp,n){const cur=snails.filter(s=>s.sp===sp);if(cur.length<n)addSnail(sp,n-cur.length);else if(cur.length>n){let k=cur.length-n;snails=snails.filter(s=>!(s.sp===sp&&k-->0));}}
 function snailUpdate(dt){for(const s of snails){s.tuck=lerp(s.tuck||0,s.stop>0?1:0,Math.min(1,dt*(s.stop>0?8:1.5)));if(s.stop>0){s.stop-=dt;continue;} // clamped down after a puffer's strike
-    s.h+=(noise3(NOW()*0.05,s.var*20,0))*dt*0.6;const sp=0.18*dt;
+    s.h+=(noise3(NOW()*0.05,s.var*20,0))*dt*0.35;const sp=0.18*dt; // fairly straight paths, so snails actually travel between panes
     if(s.surf==='floor'){s.p[0]+=Math.cos(s.h)*sp;s.p[2]+=Math.sin(s.h)*sp;s.p[1]=topH(s.p[0],s.p[2]);
-      if(s.p[2]>TK.z1-0.8){s.surf='front';s.p[2]=TK.z1-0.05;s.h=PI/2;}else if(s.p[2]<TK.z0+0.8){s.surf='back';s.p[2]=TK.z0+0.05;s.h=PI/2;}
-      s.p[0]=clamp(s.p[0],TK.x0+1,TK.x1-1);}
-    else{const dir=s.surf==='front'?1:-1;s.p[0]+=Math.cos(s.h)*sp;s.p[1]+=Math.sin(s.h)*sp;
-      const fl=sandH(s.p[0],s.p[2])+0.5;if(s.p[1]<fl){if(Math.random()<0.5){s.surf='floor';s.p[2]-=dir*1.2;s.h=dir>0?-PI/2:PI/2;}else{s.h=PI/2+(Math.random()-0.5);s.p[1]=fl;}}
-      if(s.p[1]>TK.wl-1.5){s.h=-PI/2+(Math.random()-0.5);s.p[1]=TK.wl-1.5;}if(s.p[0]<TK.x0+1||s.p[0]>TK.x1-1){s.h=PI-s.h;s.p[0]=clamp(s.p[0],TK.x0+1,TK.x1-1);}}}}
-
+      // reaching any wall: climb it
+      const m=0.8;let pane=null;if(s.p[2]>TK.z1-m)pane='front';else if(s.p[2]<TK.z0+m)pane='back';else if(s.p[0]<TK.x0+m)pane='left';else if(s.p[0]>TK.x1-m)pane='right';
+      if(pane){const P=PANES[pane];snailOnPane(s,pane,clamp(s.p[P.ax],(P.ax===0?TK.x0:TK.z0)+1,(P.ax===0?TK.x1:TK.z1)-1),s.p[1]+0.3);s.h=PI/2+(Math.random()-0.5)*0.6;}}
+    else{const P=PANES[s.surf];s.p[P.ax]+=Math.cos(s.h)*sp;s.p[1]+=Math.sin(s.h)*sp;s.p[P.fix]=P.v();
+      const fl=sandH(s.p[0],s.p[2])+0.5;
+      if(s.p[1]<fl){if(Math.random()<0.5){const n=P.n;s.surf='floor';s.p=[s.p[0]+n[0]*1.2,0,s.p[2]+n[2]*1.2];s.p[1]=topH(s.p[0],s.p[2]);s.h=Math.atan2(n[2],n[0])+(Math.random()-0.5)*1.2;}
+        else{s.h=PI/2+(Math.random()-0.5);s.p[1]=fl;}}
+      if(s.p[1]>TK.wl-1.5){s.h=-PI/2+(Math.random()-0.5);s.p[1]=TK.wl-1.5;}
+      // reaching a corner: carry on round it onto the neighbouring pane
+      const lo=(P.ax===0?TK.x0:TK.z0)+0.6,hi=(P.ax===0?TK.x1:TK.z1)-0.6,a=s.p[P.ax];
+      if(a<lo||a>hi){const atHi=a>hi;let next,na;
+        if(P.ax===0){next=atHi?'right':'left';na=s.surf==='front'?TK.z1-1:TK.z0+1;}else{next=atHi?'front':'back';na=s.surf==='right'?TK.x1-1:TK.x0+1;}
+        // keep crawling the same way: moving toward the corner along this pane becomes moving away from it along the next
+        const goingUp=Math.sin(s.h),Q=PANES[next],dirNext=(Q.ax===0?(na>0?-1:1):(na>0?-1:1));const y=s.p[1];snailOnPane(s,next,na,y);
+        s.h=Math.atan2(goingUp,dirNext*Math.max(0.3,Math.abs(Math.cos(s.h))));}}}}
 // ---------- food ----------
 let foods=[];
 function dropFood(type,x,z){const F=FOODS[type];const n=F.n;const sx=clamp(x,TK.x0+3,TK.x1-3),sz=clamp(z,TK.z0+3,TK.z1-3);
@@ -2313,7 +2382,7 @@ function fillInstances(){
     setInst(sm,sm.n++,M4.basis(V.madd(s.p,up,0.05),fw,up,sd,s.size),[s.walk,s.swim,s.curl,s.var*9+code*20],[c[0],c[1],c[2],(S.amano?1:0)+s.var*0.9]);}
   const sn=MESH.snail;sn.n=0;
   for(const s of snails){let up,fw;if(s.surf==='floor'){up=topNormal(s.p[0],s.p[2]);fw=[Math.cos(s.h),0,Math.sin(s.h)];fw=V.norm(V.sub(fw,V.mul(up,V.dot(fw,up))));}
-    else{up=s.surf==='front'?[0,0,-1]:[0,0,1];fw=[Math.cos(s.h),Math.sin(s.h),0];}
+    else{const P=PANES[s.surf];up=P.n;fw=P.ax===0?[Math.cos(s.h),Math.sin(s.h),0]:[0,Math.sin(s.h),Math.cos(s.h)];}
     setInst(sn,sn.n++,M4.basis(s.p,fw,up,V.cross(fw,up),s.size),[s.var*9,s.tuck||0,0,0],[0,0,0,SNAILSP[s.sp].pat]);}
   for(const k in MESH.food)MESH.food[k].n=0;
   for(const f of foods){const F=FOODS[f.type],m=MESH.food[F.kind];if(m.n>=m.maxN)continue;
