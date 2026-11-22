@@ -30,14 +30,18 @@ class PagesTests(unittest.TestCase):
         opus.mkdir(parents=True, exist_ok=True)
         (opus / 'opus.html').write_text('<!doctype html><title>Not promoted</title>', encoding='utf-8')
     def tearDown(self): self.temp.cleanup()
-    def test_kids_games_skip_quick_hide(self):
+    def test_pages_do_not_inject_quick_hide(self):
         game = self.root / 'littles'
         game.mkdir()
         (game / 'littles.html').write_text('<!doctype html><html><head><title>Littles</title></head><body></body></html>', encoding='utf-8')
         (game / 'game.json').write_text(json.dumps({'category': 'Kids'}), encoding='utf-8')
-        builder.build(self.root)
-        self.assertNotIn('arcade-quick-hide-injected', (self.root / 'work/pages/littles/littles.html').read_text(encoding='utf-8'))
-        self.assertIn('arcade-quick-hide-injected', (self.root / 'work/pages/splat/splat.html').read_text(encoding='utf-8'))
+        out = builder.build(self.root)
+        pages = [out / 'index.html', out / 'littles/littles.html']
+        pages += [out / name / (name + '.html') for name in builder.CURATED]
+        pages += [out / destination for destination in builder.PROMOTED_EXPERIMENTS]
+        pages += [out / 'splat/index.html']
+        for page in pages:
+            self.assertNotIn('arcade-quick-hide-injected', page.read_text(encoding='utf-8'))
     def test_discovery_metadata_assets_and_rebuild(self):
         game = self.root / 'future fields'
         (game / 'nested').mkdir(parents=True)
@@ -83,20 +87,23 @@ class PagesTests(unittest.TestCase):
         self.assertFalse((out / 'experiments/Astra-demo/evidence').exists())
         self.assertFalse((out / 'experiments/procedural-demo/evidence').exists())
         self.assertFalse((out / 'experiments/opus').exists())
-        self.assertTrue((out / 'assets/arcade/quick-hide.js').exists())
-        for page in [out / 'index.html', out / 'future fields/launch.html'] + [out / name / (name + '.html') for name in builder.CURATED]:
+        self.assertFalse((out / 'assets/arcade/quick-hide.js').exists())
+        for page in [out / 'index.html', out / 'future fields/launch.html'] + [out / name / (name + '.html') for name in builder.CURATED] + [out / destination for destination in builder.PROMOTED_EXPERIMENTS]:
             html = page.read_text(encoding='utf-8')
-            self.assertEqual(html.count('id="arcade-quick-hide-injected"'), 1)
-            self.assertLess(html.index('id="arcade-quick-hide-injected"'), html.lower().index('<title'))
-            self.assertLess(html.lower().index('<meta charset="utf-8">'), html.index('id="arcade-quick-hide-injected"'))
+            self.assertNotIn('arcade-quick-hide-injected', html)
         future_html = (out / 'future fields/launch.html').read_text(encoding='utf-8')
-        self.assertLess(future_html.index('id="arcade-quick-hide-injected"'), future_html.index('src="nested/game.js"'))
-        self.assertIn('window.__arcadeQuickHideGame="future fields"', (out / 'future fields/launch.html').read_text(encoding='utf-8'))
+        self.assertIn('src="nested/game.js"', future_html)
         self.assertTrue((out / 'splat/index.html').exists())
         shutil.rmtree(game)
         builder.build(self.root)
         self.assertFalse((out / 'future fields').exists())
         self.assertIn('SHOWING ALL 12 GAMES', (out / 'index.html').read_text(encoding='utf-8'))
+
+    def test_repository_castle_output_has_no_keytrain(self):
+        out = builder.build(ROOT)
+        castle = (out / 'castle-defense/castle-defense.html').read_text(encoding='utf-8').lower()
+        self.assertNotIn('keytrain', castle)
+        self.assertNotIn('workplacereader', castle)
     def test_gold_entry_and_new_curated_card(self):
         game = self.root / 'gold-rush'
         game.mkdir()

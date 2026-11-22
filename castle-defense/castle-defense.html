@@ -77,17 +77,6 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
   and schema bounds validation so corrupted data never prevents loading.
 * Automatically saves on unit deployments, wave completions, and when pausing.
 
-6. QUICK-PAUSE WORKPLACE READER & KEYTRAINSECURE.COM PORTAL
-===========================================================
-* Instant Triggers: Press [P], [Escape], Backtick [`], click the top-right "PAUSE / TECH BRIEF"
-  button, or perform a 2-finger tap anywhere on mobile.
-* Behavior: Freezes simulation, silences Web Audio synthesis, saves state to `localStorage`,
-  updates `document.title` to "KeyTrain - Enterprise Cybersecurity & Threat Intelligence Briefs",
-  and displays an ad-free professional reader featuring cybersecurity briefs on KeyTrain LLC's
-  ecosystem (Halo, RailNet, HOOKeD, CompTIA Security+ SY0-701), direct links and an optional
-  instant-redirect toggle to https://keytrainsecure.com, an interactive Concept Art reference
-  canvas, and this complete copyable AI Specification.
-============================================================================================
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -373,13 +362,12 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
                         class="hud-pill px-2.5 py-1.5 text-rose-300 hover:text-white active:translate-y-0.5 text-xs sm:text-sm font-cartoon-sm">
                     <span class="lbl-full">RESET</span><span class="lbl-short">&#8634;</span>
                 </button>
-
-                <!-- Quick-Pause / Workplace Tech Reader Trigger -->
-                <button onclick="openWorkplaceReader()" title="Quick Pause & Open KeyTrainSecure.com Tech Briefs (P / Esc / `)"
+                <!-- Native pause toggle -->
+                <button id="pauseBtn" onclick="togglePause()" title="Pause or resume the battle [P / Escape]"
                         class="hud-pill px-2.5 sm:px-3 py-1.5 bg-sky-900 border-sky-400 text-sky-200 hover:text-white active:translate-y-0.5 flex items-center gap-1 text-xs sm:text-sm font-cartoon-sm">
-                    <span class="lbl-full">PAUSE [P]</span><span class="lbl-short">&#10074;&#10074;</span>
+                    <span id="pauseLabel" class="lbl-full">PAUSE [P]</span><span class="lbl-short">&#10074;&#10074;</span>
                 </button>
-            </div>
+</div>
         </div>
 
         <div id="waveChip" class="font-cartoon-sm">
@@ -546,265 +534,6 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
     </div>
 
     <!-- ==================================================================================== -->
-    <!-- QUICK-PAUSE WORKPLACE READER & KEYTRAINSECURE.COM PORTAL OVERLAY                     -->
-    <!-- ==================================================================================== -->
-    <div id="workplaceReaderOverlay"
-         class="fixed inset-0 z-50 hidden flex-col bg-slate-950 text-slate-100 reader-scroll overflow-y-auto">
-
-        <!-- Professional Top Navigation Bar -->
-        <header class="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 sm:px-6 py-3">
-            <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center font-bold text-white shadow">
-                        KT
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-white text-base sm:text-lg tracking-tight">KeyTrain Secure</span>
-                            <span class="text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-semibold">
-                                Ad-Free Enterprise Briefs
-                            </span>
-                        </div>
-                        <p class="text-xs text-slate-400">
-                            Applied Cybersecurity, Threat Intelligence &amp; Workforce Readiness Portal
-                        </p>
-                    </div>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2">
-                    <label class="flex items-center gap-1.5 text-xs text-slate-300 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 cursor-pointer">
-                        <input type="checkbox" id="instantRedirectCheckbox" onchange="toggleInstantRedirectSetting(this.checked)"
-                               class="rounded text-sky-500 focus:ring-0">
-                        <span>Instant Redirect to KeyTrainSecure.com on Pause</span>
-                    </label>
-
-                    <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                       class="bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg transition">
-                        Open KeyTrainSecure.com ↗
-                    </a>
-
-                    <button onclick="redirectDirectlyToKeyTrain()"
-                            class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-lg transition">
-                        Go Straight There Now →
-                    </button>
-
-                    <button onclick="closeWorkplaceReader()"
-                            class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold px-4 py-2 rounded-lg shadow transition">
-                        Resume Defense [P / Esc]
-                    </button>
-                </div>
-            </div>
-
-            <!-- Reader Section Tabs -->
-            <div class="max-w-6xl mx-auto mt-3 flex flex-wrap gap-2 border-t border-slate-800/80 pt-2.5">
-                <button onclick="switchReaderTab('articles')" id="readerTabBtn-articles"
-                        class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-sky-600 text-white">
-                    Cybersecurity Executive Briefs
-                </button>
-                <button onclick="switchReaderTab('portal')" id="readerTabBtn-portal"
-                        class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">
-                    KeyTrainSecure.com Live Portal
-                </button>
-                <button onclick="switchReaderTab('blueprint')" id="readerTabBtn-blueprint"
-                        class="px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700">
-                    Concept Art &amp; AI Game Specification
-                </button>
-            </div>
-        </header>
-
-        <!-- Main Reader Content Container -->
-        <main class="max-w-6xl w-full mx-auto p-4 sm:p-6 flex-1">
-
-            <!-- TAB 1: AD-FREE CYBERSECURITY ARTICLES -->
-            <section id="readerSection-articles" class="space-y-6">
-                <div class="bg-gradient-to-r from-sky-950/80 via-slate-900 to-indigo-950/80 border border-sky-500/30 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div>
-                        <div class="text-xs font-bold uppercase tracking-wider text-sky-400 mb-1">
-                            KeyTrain LLC • Defense-in-Depth Architecture
-                        </div>
-                        <h1 class="text-xl sm:text-2xl font-bold text-white mb-1">
-                            Modernizing Organizational Resilience Across Endpoints, Networks &amp; Personnel
-                        </h1>
-                        <p class="text-xs sm:text-sm text-slate-300 max-w-3xl">
-                            Just as a multi-lane bastion requires coordinated perimeter visibility and rapid incident response, enterprise security relies on unified telemetry, federated threat intelligence, and continuous human-factor training.
-                        </p>
-                    </div>
-                    <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                       class="flex-shrink-0 bg-white text-slate-950 hover:bg-sky-100 font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow">
-                        Visit KeyTrainSecure.com →
-                    </a>
-                </div>
-
-                <!-- 4 Pillar Articles Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <article class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                        <div>
-                            <div class="flex items-center justify-between text-xs text-sky-400 font-semibold mb-2">
-                                <span>ENDPOINT &amp; TELEMETRY DEFENSE</span>
-                                <span>5 min read</span>
-                            </div>
-                            <h2 class="text-lg font-bold text-white mb-2">
-                                Halo: Unified Endpoint Visibility &amp; Zero-Trust Micro-Segmentation
-                            </h2>
-                            <p class="text-sm text-slate-300 leading-relaxed mb-3">
-                                Perimeter-only security leaves internal lanes vulnerable once a single credential is compromised. <strong>Halo</strong> provides continuous endpoint posture verification, behavioral anomaly detection, and least-privilege enforcement so lateral movement is stopped at the bridge before critical assets are reached.
-                            </p>
-                            <ul class="text-xs text-slate-400 space-y-1.5 list-disc list-inside mb-4">
-                                <li>Real-time process &amp; kernel-level telemetry correlation</li>
-                                <li>Automated containment of unauthorized lateral privilege escalation</li>
-                                <li>Zero-Trust verification for hybrid and remote workforces</li>
-                            </ul>
-                        </div>
-                        <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                           class="text-xs font-semibold text-sky-400 hover:text-sky-300">
-                            Explore Halo Architecture on KeyTrainSecure.com →
-                        </a>
-                    </article>
-
-                    <article class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                        <div>
-                            <div class="flex items-center justify-between text-xs text-amber-400 font-semibold mb-2">
-                                <span>FEDERATED THREAT INTELLIGENCE</span>
-                                <span>6 min read</span>
-                            </div>
-                            <h2 class="text-lg font-bold text-white mb-2">
-                                RailNet: High-Speed Collective Threat Telemetry Across Sectors
-                            </h2>
-                            <p class="text-sm text-slate-300 leading-relaxed mb-3">
-                                Attackers reuse infrastructure across multiple targets simultaneously. <strong>RailNet</strong> synchronizes anonymized Indicators of Compromise (IOCs) and Tactics, Techniques, and Procedures (TTPs) across participating organizations in real time—turning an attack against one node into proactive immunity for all connected defenders.
-                            </p>
-                            <ul class="text-xs text-slate-400 space-y-1.5 list-disc list-inside mb-4">
-                                <li>Automated STIX/TAXII threat feed ingestion and enrichment</li>
-                                <li>Sub-second blocklist propagation across perimeter firewalls</li>
-                                <li>MITRE ATT&amp;CK mapped adversary campaign tracking</li>
-                            </ul>
-                        </div>
-                        <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                           class="text-xs font-semibold text-amber-400 hover:text-amber-300">
-                            Learn About RailNet Intelligence Sharing →
-                        </a>
-                    </article>
-
-                    <article class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                        <div>
-                            <div class="flex items-center justify-between text-xs text-emerald-400 font-semibold mb-2">
-                                <span>HUMAN RISK MANAGEMENT</span>
-                                <span>4 min read</span>
-                            </div>
-                            <h2 class="text-lg font-bold text-white mb-2">
-                                HOOKeD: Adaptive Phishing Simulation &amp; Social Engineering Defense
-                            </h2>
-                            <p class="text-sm text-slate-300 leading-relaxed mb-3">
-                                Over 80% of modern intrusions begin with social engineering, spear-phishing, or MFA fatigue. <strong>HOOKeD</strong> transforms employees from targets into active sensors through realistic, role-tailored phishing simulations paired with immediate, constructive micro-coaching at the moment of interaction.
-                            </p>
-                            <ul class="text-xs text-slate-400 space-y-1.5 list-disc list-inside mb-4">
-                                <li>Context-aware phishing templates aligned with current threat actors</li>
-                                <li>One-click employee reporting workflows and mean-time-to-report metrics</li>
-                                <li>Positive-reinforcement micro-learning without punitive friction</li>
-                            </ul>
-                        </div>
-                        <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                           class="text-xs font-semibold text-emerald-400 hover:text-emerald-300">
-                            View HOOKeD Training Programs →
-                        </a>
-                    </article>
-
-                    <article class="bg-slate-900 border border-slate-800 rounded-xl p-5 flex flex-col justify-between">
-                        <div>
-                            <div class="flex items-center justify-between text-xs text-purple-400 font-semibold mb-2">
-                                <span>WORKFORCE CERTIFICATION &amp; LABS</span>
-                                <span>7 min read</span>
-                            </div>
-                            <h2 class="text-lg font-bold text-white mb-2">
-                                KeyTrain Learning: CompTIA Security+ (SY0-701) &amp; Hands-On Cyber Ranges
-                            </h2>
-                            <p class="text-sm text-slate-300 leading-relaxed mb-3">
-                                Building a resilient security operations center starts with certified, battle-tested practitioners. <strong>KeyTrain Learning</strong> delivers structured preparation for CompTIA Security+ (SY0-701), DoD 8140/8570 compliance, and interactive incident-response labs.
-                            </p>
-                            <ul class="text-xs text-slate-400 space-y-1.5 list-disc list-inside mb-4">
-                                <li>Domains 1–5 mastery: Cryptography, IAM, Cloud &amp; Zero-Trust</li>
-                                <li>Guided packet analysis, SIEM log triage, and vulnerability management</li>
-                                <li>Self-paced enterprise cohorts with measurable readiness dashboards</li>
-                            </ul>
-                        </div>
-                        <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                           class="text-xs font-semibold text-purple-400 hover:text-purple-300">
-                            Start CompTIA Security+ Prep at KeyTrainSecure.com →
-                        </a>
-                    </article>
-                </div>
-            </section>
-
-            <!-- TAB 2: LIVE KEYTRAINSECURE.COM PORTAL -->
-            <section id="readerSection-portal" class="hidden space-y-4">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h3 class="font-bold text-white text-base">KeyTrainSecure.com Direct Portal</h3>
-                        <p class="text-xs text-slate-400">
-                            If your organization's X-Frame-Options policy blocks embedded previews, use the direct launch button on the right.
-                        </p>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="https://keytrainsecure.com" target="_blank" rel="noopener noreferrer"
-                           class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-4 py-2 rounded-lg">
-                            Launch KeyTrainSecure.com in New Tab ↗
-                        </a>
-                        <button onclick="redirectDirectlyToKeyTrain()"
-                                class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2 rounded-lg">
-                            Navigate Current Tab to KeyTrainSecure.com →
-                        </button>
-                    </div>
-                </div>
-                <div class="w-full h-[540px] bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                    <iframe src="https://keytrainsecure.com" title="KeyTrainSecure.com Portal"
-                            class="w-full h-full border-0 bg-slate-950" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
-                </div>
-            </section>
-
-            <!-- TAB 3: CONCEPT ART SNAPSHOT & COMPLETE AI BLUEPRINT -->
-            <section id="readerSection-blueprint" class="hidden space-y-6">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <div>
-                            <h3 class="font-bold text-white text-base">
-                                Original 2.5D Isometric Battlefield Concept Art (Self-Contained Procedural Snapshot)
-                            </h3>
-                            <p class="text-xs text-slate-400">
-                                Central Castle Keep + Circular Water Moat + 4 Arched Bridges in an X-Cross + Lane-Locked Corner Towers &amp; Holographic Deployment Timers
-                            </p>
-                        </div>
-                        <button onclick="renderConceptArtSnapshot()"
-                                class="bg-slate-800 hover:bg-slate-700 text-sky-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700">
-                            Redraw Concept Art Snapshot
-                        </button>
-                    </div>
-                    <div class="w-full rounded-xl overflow-hidden border-2 border-slate-950 bg-slate-950 flex justify-center">
-                        <canvas id="conceptArtCanvas" width="900" height="450" class="w-full max-w-[900px] h-auto block"></canvas>
-                    </div>
-                </div>
-
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <div>
-                            <h3 class="font-bold text-white text-base">
-                                Complete AI Specification &amp; Rebuild Prompt
-                            </h3>
-                            <p class="text-xs text-slate-400">
-                                Copy this specification to give any AI model everything needed to reconstruct the game and workplace reader.
-                            </p>
-                        </div>
-                        <button onclick="copyAiSpecToClipboard()" id="copySpecBtn"
-                                class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-lg">
-                            Copy AI Specification
-                        </button>
-                    </div>
-                    <pre id="aiSpecPre" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-[420px] overflow-y-auto"></pre>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- ==================================================================================== -->
     <!-- COMPLETE GAME ENGINE, 2.5D ISOMETRIC RENDERER, AUDIO & PERSISTENCE                   -->
     <!-- ==================================================================================== -->
     <script>
@@ -814,9 +543,6 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
         // 1. CONSTANTS, UNIT CONFIGURATIONS & STORAGE KEYS
         // ------------------------------------------------------------------------------------
         const STORAGE_KEY = 'bastion_four_roads_save_v2';
-        const REDIRECT_PREF_KEY = 'bastion_keytrain_instant_redirect_v2';
-        const ORIGINAL_TITLE = 'Bastion of the Four Roads';
-        const READER_TITLE = 'KeyTrain — Enterprise Cybersecurity & Threat Intelligence Briefs';
 
         const LANE_META = [
             { id: 0, code: 'NW', name: 'Lane 1 (NW)', dirX: -1, dirY: -1 },
@@ -1075,8 +801,7 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
             gameOver: false,
             victory: false,
             totalKills: 0,
-            animTime: 0,
-            instantRedirectOnPause: false
+            animTime: 0
         };
 
         // Helper for cross-browser rounded rectangles on canvas
@@ -1620,10 +1345,6 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
 
         function loadPersistedStateOnce() {
             try {
-                const redirPref = localStorage.getItem(REDIRECT_PREF_KEY);
-                game.instantRedirectOnPause = (redirPref === 'true');
-                const cb = document.getElementById('instantRedirectCheckbox');
-                if (cb) cb.checked = game.instantRedirectOnPause;
 
                 const raw = localStorage.getItem(STORAGE_KEY);
                 if (!raw) return false;
@@ -1742,6 +1463,7 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
                     game.perkChoices = data.perkChoices.slice(0, 3);
                     showPerkModal();
                 }
+                syncPauseLabel();
                 updateHudDom();
                 return true;
             } catch (err) {
@@ -4223,23 +3945,12 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
             handleCanvasPointerDown(e.clientX, e.clientY);
         });
 
-        // Two-finger mobile tap anywhere immediately triggers Quick-Pause Workplace Reader
-        window.addEventListener('touchstart', (e) => {
-            if (e.touches && e.touches.length >= 2) {
-                e.preventDefault();
-                if (!game.paused) openWorkplaceReader();
-            }
-        }, { passive: false });
-
         window.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
-            if (key === 'p' || key === 'escape' || key === '`') {
+
+            if (key === 'p' || key === 'escape') {
                 e.preventDefault();
-                if (game.paused) {
-                    closeWorkplaceReader();
-                } else {
-                    openWorkplaceReader();
-                }
+                if (!e.repeat) togglePause();
                 return;
             }
             if (game.paused || game.gameOver || game.victory) return;
@@ -4264,124 +3975,19 @@ single self-contained HTML5 file for mobile touchscreens and desktop browsers.
             }
         });
 
-        // ------------------------------------------------------------------------------------
-        // 14. QUICK-PAUSE WORKPLACE READER & KEYTRAINSECURE.COM PORTAL FUNCTIONS
-        // ------------------------------------------------------------------------------------
-        function openWorkplaceReader() {
-            game.paused = true;
-            saveGameState();
-            document.title = READER_TITLE;
-
-            if (game.instantRedirectOnPause) {
-                redirectDirectlyToKeyTrain();
-                return;
-            }
-
-            const overlay = document.getElementById('workplaceReaderOverlay');
-            if (overlay) {
-                overlay.classList.remove('hidden');
-                overlay.classList.add('flex');
-            }
-            populateAiSpecificationText();
-            renderConceptArtSnapshot();
+        // Native game pause; P or Escape toggles without leaving the game.
+        function syncPauseLabel() {
+            const label = document.getElementById('pauseLabel');
+            if (label) label.textContent = game.paused ? 'RESUME [P]' : 'PAUSE [P]';
         }
 
-        function closeWorkplaceReader() {
-            game.paused = false;
-            document.title = ORIGINAL_TITLE;
-            const overlay = document.getElementById('workplaceReaderOverlay');
-            if (overlay) {
-                overlay.classList.add('hidden');
-                overlay.classList.remove('flex');
-            }
+        function togglePause() {
+            if (game.gameOver || game.victory) return;
+            game.paused = !game.paused;
+            if (game.paused) saveGameState();
+            syncPauseLabel();
         }
 
-        function switchReaderTab(tabId) {
-            const tabs = ['articles', 'portal', 'blueprint'];
-            for (let i = 0; i < tabs.length; i++) {
-                const t = tabs[i];
-                const sec = document.getElementById(`readerSection-${t}`);
-                const btn = document.getElementById(`readerTabBtn-${t}`);
-                if (sec) sec.classList.toggle('hidden', t !== tabId);
-                if (btn) {
-                    btn.className = (t === tabId)
-                        ? 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-sky-600 text-white'
-                        : 'px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700';
-                }
-            }
-            if (tabId === 'blueprint') {
-                renderConceptArtSnapshot();
-                populateAiSpecificationText();
-            }
-        }
-
-        function toggleInstantRedirectSetting(checked) {
-            game.instantRedirectOnPause = Boolean(checked);
-            try {
-                localStorage.setItem(REDIRECT_PREF_KEY, game.instantRedirectOnPause ? 'true' : 'false');
-            } catch (e) {}
-        }
-
-        function redirectDirectlyToKeyTrain() {
-            saveGameState();
-            try {
-                window.location.assign('https://keytrainsecure.com');
-            } catch (e) {
-                window.open('https://keytrainsecure.com', '_blank', 'noopener,noreferrer');
-            }
-        }
-
-        function renderConceptArtSnapshot() {
-            const snapCanvas = document.getElementById('conceptArtCanvas');
-            if (!snapCanvas) return;
-            const sCtx = snapCanvas.getContext('2d');
-            renderBattlefield(sCtx, snapCanvas.width, snapCanvas.height, true);
-            const snapGeom = computeBattlefieldGeometry(snapCanvas.width, snapCanvas.height);
-            drawHolographicDeploymentGhost(sCtx, snapGeom, {
-                type: 'archer',
-                lane: 0,
-                remaining: 1.5,
-                total: 1.5
-            });
-            drawHolographicDeploymentGhost(sCtx, snapGeom, {
-                type: 'swordsman',
-                lane: 3,
-                remaining: 3.0,
-                total: 3.0
-            });
-        }
-
-        function populateAiSpecificationText() {
-            const pre = document.getElementById('aiSpecPre');
-            if (!pre || pre.textContent.trim().length > 0) return;
-            const firstNode = document.firstChild;
-            if (firstNode && firstNode.nodeType === Node.COMMENT_NODE) {
-                pre.textContent = firstNode.nodeValue.trim();
-            } else {
-                pre.textContent = 'Bastion of the Four Roads - Complete AI Specification loaded.';
-            }
-        }
-
-        function copyAiSpecToClipboard() {
-            populateAiSpecificationText();
-            const pre = document.getElementById('aiSpecPre');
-            const btn = document.getElementById('copySpecBtn');
-            if (!pre) return;
-
-            const textarea = document.createElement('textarea');
-            textarea.value = pre.textContent;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                if (btn) {
-                    const old = btn.textContent;
-                    btn.textContent = 'Copied to Clipboard!';
-                    setTimeout(() => { btn.textContent = old; }, 1800);
-                }
-            } catch (e) {}
-            document.body.removeChild(textarea);
-        }
 
         // ------------------------------------------------------------------------------------
         // 15. RESIZE HANDLER & MAIN ANIMATION LOOP BOOTSTRAP

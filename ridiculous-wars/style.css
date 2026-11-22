@@ -218,6 +218,3 @@ h4 { margin: calc(var(--u)*0.6) 0; font-size: calc(var(--u)*3); color: var(--gol
 .fbox.done { background: #c8ffc8; text-decoration: line-through; }
 .ftimer { position: absolute; left: calc(var(--u)*2); right: calc(var(--u)*2); bottom: calc(var(--u)*1.2); height: calc(var(--u)*1.8); background: #ddd; border: 2px solid #1a1a1a; }
 .ftimer i { display: block; height: 100%; background: linear-gradient(90deg, #ff3a3a, #ffb020); width: 100%; }
-
-/* Keep the battle controls clear of the arcade Quick hide button. */
-body:has(#arcade-quick-hide) .hud-top { padding-right: max(104px, calc(env(safe-area-inset-right) + 96px)); }
