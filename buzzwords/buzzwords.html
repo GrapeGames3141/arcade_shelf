@@ -151,6 +151,13 @@
   .rbk .ricon { font-size:36px; line-height:1; } .rbk b.t { color:var(--grape); font-size:18px; } .rbk p { margin:3px 0 6px; font-size:14.5px; } .rbk p b { color:var(--pink); }
 
   @media (pointer:fine) { #tiles { margin-top:clamp(18px,5vh,60px); } }
+/* Kid lock: no pull-to-refresh, no long-press selection; Grown-ups buttons fill a bar while held */
+html,body{overscroll-behavior:none}
+body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.hold{position:relative;overflow:hidden}
+.hold::after{content:'';position:absolute;left:0;bottom:0;height:5px;width:0;background:rgba(255,255,255,.95);border-radius:3px}
+.hold.holding::after{width:100%;transition:width 1.4s linear}
+.locknote{font-size:13px;opacity:.75;margin:2px 4px 0;line-height:1.35}
 </style>
 </head>
 <body>
@@ -202,6 +209,8 @@
       <label><button class="tog" id="tVoice"></button> Voice</label>
       <label><button class="tog" id="tSound"></button> Sound</label>
       <label><button class="tog" id="tMusic"></button> Music</label>
+      <label><button class="tog" id="tLock"></button> Kid lock (full screen)</label>
+      <p class="locknote">With Kid lock on, press and hold ⚙️ Grown-ups to open this page. For a complete lock on Android, also turn on App pinning (Settings → Security → App pinning).</p>
       <span>Voice speed <span class="seg" id="segR"><button data-r="0">Slow</button><button data-r="1">Normal</button></span></span>
     </div>
     <div class="row"><button class="pill sun" id="bTestVoice">🔊 Test the voice</button></div>
@@ -351,7 +360,7 @@ function rulesFor(P, lv) {
 // Save data
 // ---------------------------------------------------------------------------
 const DEFAULT = () => ({ stars: 0, gems: 0, owned: { buddy: { bee: 1 }, garden: { garden: 1 }, tiles: { honey: 1 } }, equip: { buddy: 'bee', garden: 'garden', tiles: 'honey' },
-  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0 }, stickers: {}, rounds: 0, words: 0, seen: {} });
+  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0, lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, words: 0, seen: {} });
 let S = DEFAULT();
 function load() {
   if (TEST) return;
@@ -886,7 +895,8 @@ function buildSettings() {
   });
   const seg = (id, attr, key, num = true) => $(id).querySelectorAll('button').forEach(b => { const v = num ? +b.dataset[attr] : b.dataset[attr]; b.classList.toggle('on', v === S.set[key]); b.onclick = () => { S.set[key] = v; sfx('click'); save(); buildSettings(); }; });
   seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segR', 'r', 'rate');
-  for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
+  for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music'], ['tLock', 'lock']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
+  const tl = $('tLock'), flip = tl.onclick; tl.onclick = () => { flip(); if (S.set.lock) kidLock(); else kidUnlock(); };
   $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak(TEST_LINE); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? 'The voice is working.' : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 3000); };
   $('voiceNote').textContent = SPEECH ? 'Kids hear the word, see the picture and spell it from the ABC. Hints teach the rule behind each tricky letter.' : 'This browser can\'t speak, so words are shown with their picture only.';
 }
@@ -949,6 +959,34 @@ $('bHint').onclick = () => { if (G.mode === 'play' && !G.busy) { const part = G.
 $('bRules').onclick = () => { audioInit(); sfx('click'); buildRules(); show('sRules'); };
 $('bRulesDone').onclick = () => { sfx('click'); show('sTitle'); };
 $('bRuleNext').onclick = () => { const f = ruleNext; ruleNext = null; hideRule(); if (f) f(); };
+// Kid lock (on by default on phones and tablets; Grown-ups can turn it off): the first tap goes full screen and
+// locks the rotation, Back and pull-to-refresh stay in the game, long-press menus are off, and the Grown-ups buttons
+// need a press and hold so a small child can't wander into settings.
+const lockOn = () => !TEST && S.set.lock;
+function kidLock() {
+  if (!lockOn()) return;
+  const d = document.documentElement;
+  if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(() => { const o = screen.orientation; if (o && o.lock) o.lock(o.type.split('-')[0]).catch(() => {}); }).catch(() => {});
+  if (!(history.state && history.state.kidLock)) history.pushState({ kidLock: true }, '');
+}
+function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+document.addEventListener('click', kidLock, true);
+window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
+window.addEventListener('beforeunload', e => { if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('contextmenu', e => { if (lockOn()) e.preventDefault(); });
+for (const id of ['bSettings', 'bPauseSet']) {
+  const b = $(id); let t = 0, held = false, swallow = false;
+  b.classList.add('hold');
+  const stop = () => { clearTimeout(t); t = 0; b.classList.remove('holding'); };
+  b.addEventListener('pointerdown', () => { swallow = false; if (!lockOn()) return; stop(); void b.offsetWidth; b.classList.add('holding'); t = setTimeout(() => { stop(); swallow = true; held = true; b.click(); held = false; }, 1400); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('click', e => {
+    if (held || !lockOn()) return;
+    e.stopImmediatePropagation();
+    if (swallow) { swallow = false; return; }
+    say('Grown-ups: press and hold', true);
+  }, true);
+}
 window.addEventListener('keydown', e => {
   if (G.mode !== 'play' || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();

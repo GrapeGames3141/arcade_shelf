@@ -101,6 +101,13 @@
   .note { color:var(--soft); font-size:14px; margin-top:10px; }
   .x { position:absolute; }
   @media (max-width:520px) { .card { padding:14px 12px 16px; border-radius:26px; } .big { font-size:24px; padding:14px 30px; } .chip { font-size:15px; padding:4px 10px 4px 6px; } .rbtn { width:42px; height:42px; } }
+/* Kid lock: no pull-to-refresh, no long-press selection; Grown-ups buttons fill a bar while held */
+html,body{overscroll-behavior:none}
+body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.hold{position:relative;overflow:hidden}
+.hold::after{content:'';position:absolute;left:0;bottom:0;height:5px;width:0;background:rgba(255,255,255,.95);border-radius:3px}
+.hold.holding::after{width:100%;transition:width 1.4s linear}
+.locknote{font-size:13px;opacity:.75;margin:2px 4px 0;line-height:1.35}
 </style>
 </head>
 <body>
@@ -143,6 +150,8 @@
       <label><button class="tog" id="tSound"></button> Sound</label>
       <label><button class="tog" id="tMusic"></button> Music</label>
       <label><button class="tog" id="tHelp"></button> Show the answer after 2 misses</label>
+      <label><button class="tog" id="tLock"></button> Kid lock (full screen)</label>
+      <p class="locknote">With Kid lock on, press and hold ⚙️ Grown-ups to open this page. For a complete lock on Android, also turn on App pinning (Settings → Security → App pinning).</p>
     </div>
     <div class="row"><button class="big" id="bSetDone">✓ Done</button></div>
     <div class="note">Turn on any mix. Each problem is picked from what's on.</div>
@@ -209,7 +218,7 @@ const OPS = {
 const DEFAULT = () => ({ stars: 0, gems: 0, owned: { blaster: { dart: 1 }, buddy: { frog: 1 }, world: { meadow: 1 }, effect: { confetti: 1 } },
   equip: { blaster: 'dart', buddy: 'frog', world: 'meadow', effect: 'confetti' }, power: { slow: 0, big: 0, speed: 0, hint: 0, boost: 0 },
   set: { ops: { add: { on: true, lv: [true, false, false] }, sub: { on: false, lv: [true, false, false] }, mul: { on: false, lv: [true, false, false] }, div: { on: false, lv: [true, false, false] } },
-    per: 10, spd: 1, sound: true, music: true, help: true }, stickers: {}, rounds: 0, best: 0, level: 1 });
+    per: 10, spd: 1, sound: true, music: true, help: true, lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, best: 0, level: 1 });
 let S = DEFAULT();
 function load() {
   if (TEST) return;
@@ -862,7 +871,8 @@ function buildSettings() {
   }
   const seg = (id, attr, key) => $(id).querySelectorAll('button').forEach(b => { b.classList.toggle('on', +b.dataset[attr] === S.set[key]); b.onclick = () => { S.set[key] = +b.dataset[attr]; sfx('click'); save(); buildSettings(); }; });
   seg('segN', 'n', 'per'); seg('segSpd', 's', 'spd');
-  for (const [id, key] of [['tSound', 'sound'], ['tMusic', 'music'], ['tHelp', 'help']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
+  for (const [id, key] of [['tSound', 'sound'], ['tMusic', 'music'], ['tLock', 'lock'], ['tHelp', 'help']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
+  const tl = $('tLock'), flip = tl.onclick; tl.onclick = () => { flip(); if (S.set.lock) kidLock(); else kidUnlock(); };
 }
 // shop -----------------------------------------------------------------------
 let shopTab = 'blaster';
@@ -947,6 +957,34 @@ $('bRHome').onclick = () => { sfx('click'); show('sTitle'); };
 cv.addEventListener('pointerdown', e => { e.preventDefault(); audioInit(); if (G.mode === 'play') shoot(e.clientX, e.clientY); });
 cv.addEventListener('pointermove', e => { if (G.mode !== 'play' || e.pointerType !== 'mouse') return; const bp = buddyPos(); G.aimTo = clamp(Math.atan2(e.clientY - bp.sy, e.clientX - bp.sx), -Math.PI + .12, -.12); });
 cv.addEventListener('contextmenu', e => e.preventDefault());
+// Kid lock (on by default on phones and tablets; Grown-ups can turn it off): the first tap goes full screen and
+// locks the rotation, Back and pull-to-refresh stay in the game, long-press menus are off, and the Grown-ups buttons
+// need a press and hold so a small child can't wander into settings.
+const lockOn = () => !TEST && S.set.lock;
+function kidLock() {
+  if (!lockOn()) return;
+  const d = document.documentElement;
+  if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(() => { const o = screen.orientation; if (o && o.lock) o.lock(o.type.split('-')[0]).catch(() => {}); }).catch(() => {});
+  if (!(history.state && history.state.kidLock)) history.pushState({ kidLock: true }, '');
+}
+function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
+document.addEventListener('click', kidLock, true);
+window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
+window.addEventListener('beforeunload', e => { if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('contextmenu', e => { if (lockOn()) e.preventDefault(); });
+for (const id of ['bSettings', 'bPauseSet']) {
+  const b = $(id); let t = 0, held = false, swallow = false;
+  b.classList.add('hold');
+  const stop = () => { clearTimeout(t); t = 0; b.classList.remove('holding'); };
+  b.addEventListener('pointerdown', () => { swallow = false; if (!lockOn()) return; stop(); void b.offsetWidth; b.classList.add('holding'); t = setTimeout(() => { stop(); swallow = true; held = true; b.click(); held = false; }, 1400); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('click', e => {
+    if (held || !lockOn()) return;
+    e.stopImmediatePropagation();
+    if (swallow) { swallow = false; return; }
+    say('Grown-ups: press and hold', true);
+  }, true);
+}
 window.addEventListener('keydown', e => {
   if (G.mode !== 'play') return;
   // number keys: type the answer to pop the matching bubble
