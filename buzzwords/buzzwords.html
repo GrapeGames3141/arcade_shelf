@@ -203,7 +203,7 @@ body.caps .slot, body.caps .slot *, body.caps .key, body.caps .tile, body.caps .
       <span>Letters to pick from <span class="seg" id="segK"><button data-k="abc">Whole ABC</button><button data-k="few">Just a few</button></span></span>
     </div>
     <div class="opts">
-      <label><button class="tog" id="tSounds"></button> Say it slowly, then fast</label>
+      <label><button class="tog" id="tSounds"></button> Sound out each word</label>
       <label><button class="tog" id="tBoxes"></button> Sound boxes</label>
       <label><button class="tog" id="tRules"></button> Teach the spelling rules</label>
     </div>
@@ -421,7 +421,7 @@ function stopVoice() {
   if (SPEECH && (SPEECH.speaking || SPEECH.pending)) try { SPEECH.cancel(); } catch (e) { /* ignore */ }
   $('say').classList.remove('talk');
 }
-const isToken = t => /^\{[slw]:[a-zA-Z]+\}$/.test(t);
+const isToken = t => /^\{[sl]:[a-zA-Z]+\}$/.test(t);
 function speak(line, { onend } = {}) {
   const parts = asParts(line); window.VOICE_LOG.push(parts.join(' | '));
   if (!S.set.voice || !parts.length) { if (onend) setTimeout(onend, 10); return; }
@@ -434,7 +434,7 @@ function speak(line, { onend } = {}) {
       const rate = S.set.rate ? 1.12 : 1; let t = AC.currentTime + .03;
       bufs.forEach((buf, i) => {
         const src = AC.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate; src.connect(VG); src.start(t);
-        t += buf.duration / rate + (isToken(parts[i]) || isToken(parts[i + 1] || '') ? .45 : .12);
+        t += buf.duration / rate + (isToken(parts[i]) || isToken(parts[i + 1] || '') ? .22 : .1);
         VSRCS.push(src);
         if (i === bufs.length - 1) src.onended = () => { if (tok !== voiceToken) return; VSRCS = []; say.classList.remove('talk'); if (onend) onend(); };
       });
@@ -445,7 +445,7 @@ function speak(line, { onend } = {}) {
   ttsSpeak(plainText(parts), { onend });
 }
 // For the browser's own speech, swap the exact-sound tokens for everyday spellings
-const plainText = parts => parts.map(t => t.replace(/\{w:([a-zA-Z]+)\}/g, (m, k) => k.split('').join('-')).replace(/\{s:([a-zA-Z]+)\}/g, (m, k) => SOUNDS[k] || k).replace(/\{l:([a-z])\}/g, (m, k) => LETTER_NAMES[k] || k)).join('. ').replace(/([.!?:,])\. /g, '$1 ');
+const plainText = parts => parts.map(t => t.replace(/\{s:([a-zA-Z]+)\}/g, (m, k) => SOUNDS[k] || k).replace(/\{l:([a-z])\}/g, (m, k) => LETTER_NAMES[k] || k)).join('. ').replace(/([.!?:,])\. /g, '$1 ');
 function speakSeq(list, onend) { const next = i => i >= list.length ? onend && onend() : speak(list[i], { onend: () => next(i + 1) }); next(0); }
 // Fallback: the browser's own speech, for any line without a recording
 function ttsSpeak(text, { onend } = {}) {
@@ -715,12 +715,9 @@ const TEST_LINE = ["Hello! Let's spell", 'cat', '{s:k}', '{s:a}', '{s:t}', 'cat'
 const END_LINES = ['Perfect round! Amazing spelling!', 'Round complete! Great job!'];
 const SPOKEN_PRAISE = ['Great job!', 'Well done!', 'You did it!', 'Super!'];
 const stretchOf = P => P.filter(p => p.s !== '_').map(soundText);
-// The "say it slowly, say it fast" routine from direct-instruction reading lessons: the slow word is one unbroken stream
-// with every vowel and continuous sound held (mmmaaat), then the word at normal speed.
-const slowOf = w => `{w:${w}}`;
-const introText = (w, P, snd) => snd ? [w, 'Say it slowly:', slowOf(w), 'Say it fast:', w, `Can you spell ${w}?`] : [w, `Can you spell ${w}?`];
-const repeatText = (w, P, snd) => snd ? [w, 'Say it slowly:', slowOf(w), 'Say it fast:', w] : [w];
-const spelledText = w => [slowOf(w), w];
+const introText = (w, P, snd) => snd ? [w, 'Listen to the sounds:', ...stretchOf(P), `Can you spell ${w}?`] : [w, `Can you spell ${w}?`];
+const repeatText = (w, P, snd) => snd ? [w, 'Listen to the sounds:', ...stretchOf(P), w] : [w];
+const spelledText = w => [...w.split('').map(l => `{l:${l}}`), w];
 const revealText = l => ['This one is', `{l:${l}}`];
 const stretched = () => G.parts.filter(p => p.s !== '_').map(soundText).join('... ');
 function sayPart(i) { const p = G.parts[i]; if (p) speak(p.s === '_' ? 'quiet {l:e}' : soundText(p)); }
