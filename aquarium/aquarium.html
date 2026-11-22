@@ -696,14 +696,16 @@ void main(){vec3 N=normalize(vN);bool back=!gl_FrontFacing;if(back)N=-N;vec3 V=n
     alb=mix(alb,uC2,spots);
     if(part==0){float belly=smoothstep(.2,.04,abs(u-.75));alb=mix(alb,alb*1.1+.035,belly*.55);
       float side=smoothstep(.3,.75,abs(cos(u*TAU)));
-      float cg=smoothstep(4.8,5.6,s)*smoothstep(11.9,11.1,s)*(1.-smoothstep(0.,.17,abs(fract((s-5.)/.58)-.5)));
-      h=-.05*cg*side;alb*=1.-cg*side*.16;
+      // costal grooves: real ones are soft creases you mostly notice when the body bends
+      float cg=smoothstep(4.8,5.6,s)*smoothstep(11.9,11.1,s)*(1.-smoothstep(0.,.12,abs(fract((s-5.)/.6)-.5)));
+      h=-.022*cg*side;alb*=1.-cg*side*.06;
       // fine freckles on leucistics (a few dark specks, as in close photos)
       float fz=1.-smoothstep(.2,.6,length(fwidth(vec2(s*9.,(vL.x+vL.y)*9.))));
       vec2 fq=vec2(s*9.,(vL.x+vL.y)*9.);float frk=step(.982,hash12(floor(fq)))*(1.-smoothstep(.18,.32,length(fract(fq)-.5)))*(1.-step(.5,uSpots))*fz;alb=mix(alb,alb*vec3(.5,.45,.45),frk*.5);
+      // the lip runs right round the front of the snout (the axolotl's 'smile')
       // closed mouth: a thin lip line along the smooth mouth curve (vCol.w = height above it); open mouth: the stretched triangles at the jaw seam show the red inside
-      float jw=vCol.y,sr=smoothstep(3.,2.3,s)*smoothstep(.1,.6,s);float ml=uJaw>.05?smoothstep(.3,.5,jw)*smoothstep(.7,.5,jw)*sr:smoothstep(.05,.012,abs(vCol.w))*sr;
-      alb=mix(alb,uJaw>.05?vec3(.5,.17,.19):alb*vec3(.74,.62,.62),ml*(uJaw>.05?1.:.6));
+      float jw=vCol.y,sr=smoothstep(3.,2.3,s)*smoothstep(-.05,.12,s);float ml=uJaw>.05?smoothstep(.3,.5,jw)*smoothstep(.7,.5,jw)*sr:smoothstep(.075,.02,abs(vCol.w))*sr;
+      alb=mix(alb,uJaw>.05?vec3(.5,.17,.19):alb*vec3(.6,.47,.47),ml*(uJaw>.05?1.:.85));
       float blush=smoothstep(2.4,3.8,s)*smoothstep(5.6,4.2,s)*.5+belly*.35+smoothstep(.0,.3,abs(cos(u*TAU))-.6)*.15;alb=mix(alb,alb*vec3(1.04,.82,.82),blush*uSpots*0.+blush*(1.-step(.3,uSpots))*.8);}
     float fl=step(.968,hash13(floor(vec3(vL.xy*8.,s*8.))));spec+=fl*uIrid*3.;
     alb*=.95+.08*vnoise(vec3(vL.xy*12.,s*12.));}
@@ -711,7 +713,7 @@ void main(){vec3 N=normalize(vN);bool back=!gl_FrontFacing;if(back)N=-N;vec3 V=n
   else if(part==1){alb=mix(uC1*1.05+.03,uC1*1.25+.08,vExt.y);trans=.85;rough=.42;
     float ray=sin(s*14.)*.5+.5;alb*=.94+.06*ray;alb=mix(alb,uC2,smoothstep(.6,.7,fbm(vec3(vL.xy*2.,s*1.5)+3.))*uSpots*.6);}
   else if(part==2){float r=length(vUV-vec2(.5));alb=mix(uEye,uIris,smoothstep(.12,.2,r)*smoothstep(.36,.27,r));rough=.06;spec=1.6;trans=0.;}
-  else if(part==3||part==4){vec3 stalk=mix(uC3,uC1*vec3(1.,.82,.82),.55);alb=part==3?stalk:uC3*(.75+.45*vExt.y);if(part==4)alb=mix(alb,stalk,(1.-vExt.y)*.45);trans=.95;rough=.42;spec=.35;}
+  else if(part==3||part==4){vec3 stalk=mix(uC3,uC1*vec3(1.,.82,.82),.55);alb=part==3?stalk:mix(uC3*.85,uC3*1.25+vec3(.07,.03,.035),vExt.y);if(part==4)alb=mix(alb,stalk,(1.-vExt.y)*.45);trans=.95;rough=.42;spec=.35;}
   if(back&&part==0){alb=vec3(.42,.15,.17);spec=.1;trans=0.;}
   if(h!=0.)N=perturb(N,vW,h);
   vec3 col=lighting(vW,N,V,alb,rough,spec,trans,ao);
@@ -758,7 +760,7 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
   else if(eye){ // glassy eye: black pupil, metallic iris, clear cornea
     vec2 eu=vUV;if(uSp==6){float tt=uTime*.75+vI.x*7.+vExt.z*1.7,k=floor(tt);vec2 la=vec2(hash12(vec2(k,vExt.z)),hash12(vec2(k,vExt.z+5.)))-.5,lb=vec2(hash12(vec2(k+1.,vExt.z)),hash12(vec2(k+1.,vExt.z+5.)))-.5;
       eu-=mix(la,lb,smoothstep(.0,.12,fract(tt)))*vec2(.42,.26);} // pea puffers swivel each eye on its own, in quick darts
-    float r=length(eu),rs=length(vUV);vec3 irisC=uSp==1?vec3(.62,.66,.68):uSp==4?vec3(.6,.16,.1):uSp==0?vec3(.62,.52,.3):uSp==5?vec3(.42,.34,.2):uSp==6?vec3(.95,.7,.12):vec3(.66,.62,.5);
+    float r=length(eu),rs=length(vUV);vec3 irisC=uSp==1?vec3(.62,.66,.68):uSp==4?vec3(.6,.16,.1):uSp==0?vec3(.62,.52,.3):uSp==5?vec3(.42,.34,.2):uSp==6?vec3(.95,.7,.12):uSp==7?vec3(.8,.6,.22):uSp==8?vec3(.85,.3,.1):vec3(.66,.62,.5);
     if(uSp==1)irisC=mix(irisC,vec3(.2,.55,.75),smoothstep(.2,.8,vUV.y)*.6);if(uSp==6)irisC=mix(vec3(.03,.32,.3),vec3(.9,.66,.1),smoothstep(.62,.8,r)); // pea puffer: iridescent teal iris inside a gold ring
     if(uSp==4)irisC=mix(irisC*.5,irisC,smoothstep(-.2,.6,vUV.y));
     float pu=uSp==6?smoothstep(.47,.41,r):smoothstep(.6,.54,r);alb=mix(irisC*.55*(.85+.15*sin(atan(eu.y,eu.x)*9.)),vec3(.01),pu);alb*=mix(.25,1.,smoothstep(1.,.78,max(r,rs)));
@@ -780,7 +782,8 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
     else if(uSp==0){ // white cloud mountain minnow
       alb=mix(vec3(.30,.25,.15),vec3(.66,.58,.46),belly);silv=belly*.5;
       float gl=band(y,.17,.035,.025)*smoothstep(.85,.78,x)*smoothstep(.16,.26,x),dk=band(y,.03,.06,.04)*smoothstep(.86,.8,x)*smoothstep(.16,.24,x);
-      alb=mix(alb,vec3(.12,.1,.07),dk*.85);alb=mix(alb,vec3(.75,.6,.38),gl);ir=gl*1.2;irc=vec3(1.,.55,.65);
+      // photos: an iridescent gold-green line from eye to tail over a dark band
+      alb=mix(alb,vec3(.07,.06,.045),dk*.9);alb=mix(alb,vec3(.9,.7,.26),gl);silv*=1.-gl;ir=gl*.9;irc=vec3(.45,1.,.55);
       float tb=smoothstep(.3,.2,x);alb=mix(alb,vec3(.7,.12,.06),tb*.8);alb=mix(alb,vec3(.03),smoothstep(1.15,.75,length(vec2((x-.215)/.017,y/.42))));}
     else if(uSp==2){ // zebra danio: blue and gold stripes
       float st=0.;for(int k=0;k<4;k++){float c=.56-.37*float(k);st=max(st,band(y,c,.075,.035));}st*=smoothstep(.83,.76,x);
@@ -806,6 +809,12 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
         vec3 Tx=normalize(cross(N,vec3(0.,1.,0.))+1e-4),Ty=cross(Tx,N);N=normalize(N+(Tx*fs.x+Ty*fs.y)*smoothstep(.32,.0,dd)*kk*.9);alb*=1.-.2*smoothstep(.2,.0,dd)*kk;}
       alb=mix(alb,vec3(.2,.19,.14),vI.z*(1.-vI.y)*smoothstep(-.25,-.6,y)*.6); // after a fright the belly goes dusky for half a minute (stress colour)
       ir=.08*side*(1.-bl);irc=vec3(.3,.75,.6);silv=0.;rim=0.;pbl=bl;}
+    else if(uSp==7){ // harlequin rasbora: copper-pink silver with a black wedge from below the dorsal fin to the tail base
+      alb=mix(vec3(.6,.3,.13),vec3(.92,.58,.42),belly);alb=mix(alb,alb*vec3(1.15,.8,.6),smoothstep(-.5,.45,y)*.6);silv=.12+belly*.22;
+      float wt=clamp((.62-x)/.4,0.,1.),hh=mix(.52,.1,wt),yc=mix(.06,0.,wt);float wedge=smoothstep(.63,.6,x)*smoothstep(.2,.24,x)*smoothstep(hh+.05,hh-.03,abs(y-yc));
+      alb=mix(alb,vec3(.025,.02,.02),wedge*.95);silv*=1.-wedge*.85;ir=(1.-wedge)*.15;irc=vec3(1.,.5,.35);}
+    else if(uSp==8){ // ember tetra: glowing orange, a little translucent
+      alb=mix(vec3(.78,.13,.02),vec3(1.,.38,.1),belly*.6+.15);alb=mix(alb,vec3(.95,.26,.04),smoothstep(-.3,.5,y)*.45);silv=belly*.25;trans=.35;ir=.1;irc=vec3(1.,.6,.3);rim=0.;}
     else{ // panda cory: beige armour plates, black mask, tail spot
       alb=mix(vec3(.56,.48,.42),vec3(.8,.73,.67),belly);alb=mix(alb,alb*vec3(1.,.86,.8),.55);alb*=.92+.12*fbm(vec3(x*14.,y*4.,vI.x*7.));silv=.12+belly*.12;
       float pl=band(fract(x*30.+abs(y-.05)*2.2),.5,.025,.05)*smoothstep(.82,.76,x)*smoothstep(.16,.24,x);alb*=1.-pl*.13;alb*=1.-band(y,.05,.012,.02)*smoothstep(.82,.76,x)*smoothstep(.16,.24,x)*.12;
@@ -814,7 +823,7 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
     alb*=1.-rim*.16;alb=mix(alb,alb*vec3(1.,.55,.5),oper*.6);alb=mix(alb,alb*.8,lat*.35);
     // countershading: the back carries dark melanophores and little guanine, so it stays dark and matte from above
     float dors=smoothstep(.3,.88,y)*(uSp==5?.18:uSp==6?.06:1.);alb=mix(alb,alb*vec3(.13,.125,.1)+vec3(.022,.02,.012),dors*.94);silv*=1.-smoothstep(.35,.85,y);ir*=1.-smoothstep(.75,1.,y)*.7;
-    rough=mix(.38,.14,silv);spec=mix(.45,1.,silv)*(1.-dors*.4);trans=.18;if(uSp==6){rough=.46+pbl*.2;spec*=.7*(1.-pbl*.5);}}
+    rough=mix(.38,.14,silv);spec=mix(.45,1.,silv)*(1.-dors*.4);trans=uSp==8?.35:.18;if(uSp==6){rough=.46+pbl*.2;spec*=.7*(1.-pbl*.5);}}
   else{ // fins: thin, rayed, mostly clear
     float ray=fid<.5?abs(vUV.y):vUV.x;float rays=smoothstep(.5,1.,abs(sin(ray*(fid<.5?30.:22.))));trans=.85;rough=.35;spec=.5;
     alb=vec3(.82,.84,.82);alpha=.16+rays*.08;
@@ -826,6 +835,8 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
       alb=mix(c1,c2*.6,sp2*.6);alb=mix(alb,vec3(.03),step(.8,vnoise(vec3(vUV*vec2(26.,10.),vI.x*3.)))*.7);alb*=.75+.35*smoothstep(.2,1.,edge);alpha=(fid<.5?.5:fid<1.5?.5:.3)*(.75+.35*rays);}
     else if(uSp==4){alb=mix(vec3(.75,.12,.08),vec3(.55,.06,.05),edge*.5);alpha=.5;if(fid>.5&&fid<1.5)alb=mix(alb,vec3(.08),band(edge,.35,.12,.08));}
     else if(uSp==6){if(fid>.5&&fid<2.5){alb=vec3(.98,.8,.06);alpha=.62;}else if(fid<.5){alb=mix(vec3(.95,.78,.12),vec3(.12,.1,.04),rays*smoothstep(.55,.15,edge)*.8);alpha=.32+rays*.18*smoothstep(.6,.1,edge);}else{alb=vec3(.9,.86,.6);alpha=.13;}}
+    else if(uSp==7){alb=fid<.5?mix(vec3(.92,.42,.14),vec3(.95,.9,.85),smoothstep(.75,1.,edge)):mix(vec3(.9,.45,.2),vec3(.95,.9,.85),smoothstep(.6,1.,edge));alpha=fid<.5?.36+rays*.1:.28;}
+    else if(uSp==8){alb=vec3(.95,.36,.1);alpha=(fid<.5?.42:.34)+rays*.08;if(fid>.5&&fid<1.5)alb=mix(alb,vec3(.06),smoothstep(.3,.1,vUV.x)*.6);}
     else{alb=vec3(.86,.84,.8);alpha=.24;if(fid>.5&&fid<1.5){float bl=smoothstep(.15,.45,vExt.w);alb=mix(alb,vec3(.02),bl);alpha=max(alpha,bl*.92);}if(fid<.5)alpha=.22+rays*.08;}
     if(fid>4.5){alpha*=smoothstep(0.,.3,vUV.y)*smoothstep(1.,.7,vUV.y)*smoothstep(1.,.55,vUV.x)*1.3;}
     alpha*=mix(1.,.6,smoothstep(.7,1.,edge));}
@@ -836,6 +847,8 @@ void main(){float part=vExt.x;bool fin=part>.5&&part<2.5,eye=part>2.5&&part<3.5,
     // iridescent platelets (thin film T10): hue slides with the viewing angle
     if(ir>0.){vec3 tf=film(nv,.19+.03*sin(x*14.+vI.x*6.),1.62);col+=ir*mix(irc,tf*1.6,uSp==2?.2:.55)*(Lc*sh*(.12+.7*pow(max(dot(R,uLdir),0.),4.))+uFogC*2.5+uAmb*.25);}}
   col=applyWater(col,vW);
+  // the fin pass writes depth (so depth of field keeps fins sharp); the faintest fringes stay out of it
+  if(uFinPass==1&&alpha<.07)discard;
   oC=uFinPass==1?vec4(col*alpha,alpha):vec4(col,1.);}`;
 
 // ---------- critters: shrimp, snails, food (instanced) ----------
@@ -1165,18 +1178,45 @@ function genJavaFern(seed){const r=rng(seed),mb=new MB();
 function genAnubias(seed){const r=rng(seed),mb=new MB();
   const rp=[];for(let i=0;i<=6;i++)rp.push([lerp(-2.2,2.2,i/6),0.35,Math.sin(i+seed)*0.3]);
   tube(mb,rp,0.42,7,{cap:true,cap0:true,col:()=>[0.2,0.22,0.1,0],ext:()=>[0,SPC.stem,0.6,0]});
-  const n=6+Math.floor(r()*5);
-  for(let k=0;k<n;k++){const bp=rp[1+Math.floor(r()*5)],a=r()*TAU,tilt=0.35+r()*0.75,g=0.75+r()*0.4;
+  // nana: a dense clump of small, dark, glossy leaves (photos show 12 to 20 per clump)
+  const n=13+Math.floor(r()*7);
+  for(let k=0;k<n;k++){const bp=rp[1+Math.floor(r()*5)],a=r()*TAU,tilt=0.3+r()*0.85,g=0.7+r()*0.45;
     leaf(mb,{base:bp,dir:[Math.cos(a)*Math.sin(tilt),Math.cos(tilt),Math.sin(a)*Math.sin(tilt)],side:[-Math.sin(a),0,Math.cos(a)],
-      len:5+r()*3.5,width:2.3+r()*1.2,prof:t=>t<0.33?0.1:0.1+0.9*Math.pow(Math.sin(PI*(t-0.33)/0.67),0.55),droop:0.3+r()*0.4,segs:10,
-      col:()=>gcol([0.05,0.16,0.05],g),flex:p=>clamp(p[1]/10,0,1)*0.35,phase:r()*TAU,sp:SPC.anubias,ao:t=>0.5+0.5*Math.min(1,t*3),fold:0.13});}
+      len:3.6+r()*2.8,width:1.9+r()*0.9,prof:t=>t<0.36?0.09:0.09+0.91*Math.pow(Math.sin(PI*(t-0.36)/0.64),0.55),droop:0.25+r()*0.4,segs:10,
+      col:()=>gcol([0.035,0.12,0.04],g),flex:p=>clamp(p[1]/10,0,1)*0.35,phase:r()*TAU,sp:SPC.anubias,ao:t=>0.5+0.5*Math.min(1,t*3),fold:0.13});}
   return mb.normals();}
-function genHairgrass(seed){const r=rng(seed),mb=new MB();const tufts=[];for(let i=0;i<16;i++)tufts.push([(r()*2-1)*5.5,(r()*2-1)*3.5]);
-  for(let k=0;k<320;k++){const tf=tufts[k%16],x=tf[0]+(r()+r()-1)*0.8,z=tf[1]+(r()+r()-1)*0.8,a=r()*TAU,tilt=r()*0.45,g=0.7+r()*0.5,ph=r()*TAU;
+function genHairgrass(seed){const r=rng(seed),mb=new MB();const tufts=[];for(let i=0;i<22;i++)tufts.push([(r()*2-1)*5.5,(r()*2-1)*3.5]); // dense tufts, as in photos of a grown-in lawn
+  for(let k=0;k<880;k++){const tf=tufts[k%22],x=tf[0]+(r()+r()-1)*0.6,z=tf[1]+(r()+r()-1)*0.6,a=r()*TAU,tilt=r()*0.45,g=0.7+r()*0.5,ph=r()*TAU;
     leaf(mb,{base:[x,0,z],dir:[Math.cos(a)*Math.sin(tilt),Math.cos(tilt),Math.sin(a)*Math.sin(tilt)],side:[-Math.sin(a),0,Math.cos(a)],
       len:2.5+r()*4.5,width:0.055+r()*0.035,prof:t=>1-t*0.8,droop:0.2+r()*0.5,segs:4,col:t=>gcol([0.22,0.46,0.12],g*(0.8+0.4*t)),
       flex:p=>clamp(p[1]/6,0,1)*0.45,phase:ph,sp:SPC.hairgrass,ao:t=>0.35+0.65*t});}
   return mb.normals();}
+// java moss: a loose, springy mound of fine strands (photos show a bright green fuzz)
+function genMoss(seed){const r=rng(seed),mb=new MB();const R=4.2,H=2.3;
+  // branched shoots pointing every which way (side branchlets give the feathery look), darker deep inside the mound
+  for(let k=0;k<1300;k++){const a=r()*TAU,rr=Math.sqrt(r())*R,x=Math.cos(a)*rr*1.1,z=Math.sin(a)*rr*0.8,hb=H*Math.pow(Math.max(0,1-(rr/R)**2),0.6),hy=hb*Math.sqrt(r());
+    const b=Math.cos(a)*(rr/R)*0.7,c=Math.sin(a)*(rr/R)*0.7,dir=V.norm([b+(r()-0.5)*1.8,-0.25+r()*0.85,c+(r()-0.5)*1.8]),side=V.norm(V.cross(dir,[0.01,1,0.02]));
+    const g=0.7+r()*0.5,ph=r()*TAU,deep=1-hy/(H+0.01),L=0.7+r()*0.8,base=[x,hy,z];
+    const col=t=>gcol([0.1,0.27,0.05],g*(0.7+0.5*t)*(1-deep*0.35));
+    leaf(mb,{base,dir,side,len:L,width:0.045+r()*0.02,prof:t=>1-t*0.3,droop:(r()-0.4)*1.2,segs:3,col,flex:p=>0.12,phase:ph,sp:SPC.hairgrass,ao:t=>0.45+0.55*t});
+    for(let q=0;q<3;q++){const f=0.3+q*0.22,bp=V.madd(base,dir,L*f),ax=V.norm([r()-0.5,r()-0.5,r()-0.5]),bd=V.norm(V.rot(dir,ax,(r()<0.5?-1:1)*(0.7+r()*0.4)));
+      leaf(mb,{base:bp,dir:bd,side:V.norm(V.cross(bd,[0.01,1,0.02])),len:L*(0.28+r()*0.15),width:0.035,prof:t=>1-t*0.3,droop:0.2,segs:2,col,flex:p=>0.12,phase:ph,sp:SPC.hairgrass,ao:()=>0.6+0.4*(1-deep)});}}
+  return mb.normals();}
+// hornwort: bushy stems with whorls of stiff needles, crowded toward the tips like a fox tail
+function genHornwort(seed){const r=rng(seed),mb=new MB(),ns=5+Math.floor(r()*4);
+  for(let k=0;k<ns;k++){const a=r()*TAU,rd=Math.sqrt(r())*2,H=14+r()*16;let p=[Math.cos(a)*rd,0,Math.sin(a)*rd];
+    let d=V.norm([(r()-0.5)*0.3,1,(r()-0.5)*0.3]);const pts=[p.slice()];const segs=Math.ceil(H/1.5);
+    for(let i=0;i<segs;i++){d=V.norm(V.add(d,[(r()-0.5)*0.1,0,(r()-0.5)*0.1]));p=V.madd(p,d,H/segs);pts.push(p.slice());}
+    const ph=r()*TAU,fl=pp=>Math.pow(clamp(pp[1]/24,0,1),1.3)*1.6;
+    tube(mb,pts,0.055,5,{col:()=>[0.24,0.4,0.12,0],ext:()=>[ph,SPC.stem,0.6,0]});
+    let tt=0.06;while(tt<1){const fi=tt*segs,i0=Math.min(segs-1,Math.floor(fi)),q=V.lerp(pts[i0],pts[i0+1],fi-i0),top=tt>0.8,nw=14;
+      for(let w=0;w<nw;w++){const ang=w/nw*TAU+tt*7,out=[Math.cos(ang),top?1.3:0.55,Math.sin(ang)],g=0.8+r()*0.4,ao=0.5+0.5*tt;
+        leaf(mb,{base:q,dir:out,side:[-Math.sin(ang),0,Math.cos(ang)],len:(top?1.3:2.2)*(0.85+r()*0.3),width:0.085,prof:t=>1-t*0.6,droop:0.15,segs:3,
+          col:()=>gcol([0.22,0.48,0.1],g),flex:fl,phase:ph,sp:SPC.hairgrass,ao:()=>ao});}
+      tt+=lerp(0.034,0.014,tt);}}
+  mb.normals();
+  for(let i=0;i<mb.n;i++){if(mb.E[i*4+1]===SPC.stem){mb.C[i*4+3]=Math.pow(clamp(mb.P[i*3+1]/24,0,1),1.3)*1.6;}}
+  return mb;}
 function genRotala(seed){const r=rng(seed),mb=new MB(),ns=6+Math.floor(r()*4);
   for(let k=0;k<ns;k++){const a=r()*TAU,rd=Math.sqrt(r())*1.8,H=14+r()*16;let p=[Math.cos(a)*rd,0,Math.sin(a)*rd];
     let d=V.norm([(r()-0.5)*0.25,1,(r()-0.5)*0.25]);const pts=[p.slice()];const segs=Math.ceil(H/1.5);
@@ -1188,7 +1228,7 @@ function genRotala(seed){const r=rng(seed),mb=new MB(),ns=6+Math.floor(r()*4);
     for(let i=2;i<nodes;i++){const t=i/nodes,q=V.lerp(pts[Math.floor(t*segs)],pts[Math.min(segs,Math.floor(t*segs)+1)],(t*segs)%1);
       for(let sd=0;sd<2;sd++){const ang=i*PI/2+sd*PI+r()*0.3,out=[Math.cos(ang),0.9,Math.sin(ang)];
         const top=t>0.75;const cc=t<0.45?V.lerp([0.17,0.38,0.11],[0.45,0.38,0.12],t/0.45):V.lerp([0.5,0.3,0.12],[0.75,0.16,0.18],(t-0.45)/0.55);const g=0.85+r()*0.3;
-        leaf(mb,{base:q,dir:out,side:[-Math.sin(ang),0,Math.cos(ang)],len:(top?0.9:1.5)*(0.85+r()*0.3),width:top?0.3:0.42,prof:tt=>Math.pow(Math.sin(PI*tt),0.7),
+        leaf(mb,{base:q,dir:out,side:[-Math.sin(ang),0,Math.cos(ang)],len:(top?0.85:1.35)*(0.85+r()*0.3),width:top?0.42:0.56,prof:tt=>Math.pow(Math.sin(PI*tt),0.7),
           droop:0.25,segs:6,col:()=>gcol(cc,g),flex:fl,phase:ph,sp:SPC.rotala,ao:()=>0.55+0.45*t,fold:0.1});}}}
   mb.normals();
   // stems: recompute flex from height (col.a) so they sway with leaves
@@ -1223,7 +1263,7 @@ function genRock(seed,variant){const r=rng(seed),mb=new MB();
     for(const f of s.F)mb.t(b+f[0],b+f[1],b+f[2]);return b;};
   if(variant===3){const n=3+Math.floor(r()*3);let ang=r()*TAU;
     for(let k=0;k<n;k++){const sc=0.35+r()*0.35,rr=k===0?0:0.9+r()*0.7;ang+=1.7+r();
-      const tint=[[1,0.98,0.95],[0.85,0.78,0.7],[0.7,0.72,0.75],[1.1,1.05,1]][Math.floor(r()*4)];
+      const tint=[[1.05,1,0.95],[0.84,0.68,0.52],[0.56,0.58,0.62],[1.15,1.1,1.02],[0.68,0.48,0.38],[0.36,0.36,0.38]][Math.floor(r()*6)]; // a real river mix: grey, tan, rust, near-black, pale quartz
       one(3,sc*(0.9+r()*0.4),sc*(0.45+r()*0.2),sc*(0.8+r()*0.3),Math.cos(ang)*rr,Math.sin(ang)*rr,0.07,0,tint);}}
   else{const sx=0.8+r()*0.5,sy=0.55+r()*0.6,sz=0.7+r()*0.45;
     one(4,sx,sy,sz,0,0,[0.22,0.3,0.32,0.07][variant],variant===0?7+Math.floor(r()*6):variant===1?4+Math.floor(r()*4):3,[1,1,1]);}
@@ -1336,17 +1376,18 @@ function genTank(){const o={};const g=TK.gt,X=TK.gx,Z=TK.gz,Y0=-g,Y1=TK.top;
 // ---------- axolotl ----------
 const AXL=22;
 // the head is broad and blunt (photos from above show an almost semicircular snout), widest just behind the eyes
-function axRX(s){if(s<2){const x=Math.min(s/2,1);return 1.6*Math.sqrt(Math.max(0,1-Math.pow(1-x,3.2)));}if(s<3.9)return 1.6+0.08*Math.sin((s-2)/1.9*PI);
-  if(s<5)return lerp(1.6,1.16,sstep(3.9,5,s));if(s<11.5)return 1.16+0.13*Math.sin((s-5)/6.5*PI);const t=(s-11.5)/(AXL-11.5);return Math.max(0.025,1.16*Math.pow(1-t,1.35));}
-function axRY(s){if(s<2){const x=Math.min(s/2,1);return 0.8*Math.sqrt(Math.max(0,1-Math.pow(1-x,2.6)));}if(s<4.2)return lerp(0.8,1.0,(s-2)/2.2);
-  if(s<11.5)return 1.0+0.12*Math.sin((s-4.2)/7.3*PI);const t=(s-11.5)/(AXL-11.5);return Math.max(0.025,1.0*Math.pow(1-t,0.9));}
+// photos of adults show a stout trunk nearly as wide as the head, with hardly any neck
+function axRX(s){if(s<2){const x=Math.min(s/2,1);return 1.66*Math.sqrt(Math.max(0,1-Math.pow(1-x,3.2)));}if(s<3.9)return 1.66+0.08*Math.sin((s-2)/1.9*PI);
+  if(s<5)return lerp(1.66,1.36,sstep(3.9,5,s));if(s<11.5)return 1.36+0.12*Math.sin((s-5)/6.5*PI);const t=(s-11.5)/(AXL-11.5);return Math.max(0.025,1.36*Math.pow(1-t,1.45));}
+function axRY(s){if(s<2){const x=Math.min(s/2,1);return 1.04*Math.sqrt(Math.max(0,1-Math.pow(1-x,2.4)));}if(s<4.2)return lerp(1.04,1.1,(s-2)/2.2);
+  if(s<11.5)return 1.1+0.12*Math.sin((s-4.2)/7.3*PI);const t=(s-11.5)/(AXL-11.5);return Math.max(0.025,1.1*Math.pow(1-t,0.95));}
 function finD(s){if(s<5.5)return 0;if(s<12)return 0.5*Math.pow(sstep(5.5,12,s),1.2);if(s<16)return lerp(0.5,1.2,(s-12)/4);if(s<19)return 1.2-0.06*(s-16)/3;return 1.14*Math.pow(Math.max(0,1-(s-19)/3),0.8);}
 function finV(s){if(s<12.3)return 0;if(s<16)return 0.78*sstep(12.3,16,s);return 0.78*Math.pow(Math.max(0,1-(s-16)/6),0.9);}
 const AX_HINGE_S=2.7,AX_HINGE_Y=-0.12;
 const AX_LEGS=[{s:5.0,sg:1,front:true},{s:5.0,sg:-1,front:true},{s:11.9,sg:1,front:false},{s:11.9,sg:-1,front:false}];
 function genAxolotl(){const mb=new MB();const kind=[];// 0 body(straight), 1 rigid(attach), 2 leg(local)
   const NS=112,M=30;const sOf=i=>AXL*Math.pow(i/(NS-1),1.18);
-  for(let i=0;i<NS;i++){const s=sOf(i),rx=axRX(s),ry=axRY(s),n=s<4.2?lerp(2.9,2.3,sstep(3,4.6,s)):lerp(2.3,2.0,sstep(10,16,s));
+  for(let i=0;i<NS;i++){const s=sOf(i),rx=axRX(s),ry=axRY(s),n=s<4.2?lerp(2.6,2.3,sstep(3,4.6,s)):lerp(2.3,2.0,sstep(10,16,s));
     for(let j=0;j<=M;j++){const th=j/M*TAU,c=Math.cos(th),sn=Math.sin(th);
       const x=rx*Math.sign(c)*Math.pow(Math.abs(c),2/n);let y=ry*Math.sign(sn)*Math.pow(Math.abs(sn),2/n);if(y<0)y*=0.86;
       const mY=-0.12-0.1*(1-s/AX_HINGE_S);const jaw=(s<AX_HINGE_S&&y<mY)?1:0;
@@ -1361,37 +1402,37 @@ function genAxolotl(){const mb=new MB();const kind=[];// 0 body(straight), 1 rig
   for(let j=0;j<=M;j++){mb.N[j*3]=0;mb.N[j*3+1]=0;mb.N[j*3+2]=1;}
   for(let i=0;i<mb.n;i++){if(!(Math.abs(mb.N[i*3])+Math.abs(mb.N[i*3+1])+Math.abs(mb.N[i*3+2])>0.01)){mb.N[i*3+1]=1;}}
   // eyes
-  for(const sg of[-1,1]){const c=[sg*1.27,0.47,-1.55],ax=V.norm([sg*0.85,0.42,0.3]),b=mb.n,NU=14,NV=10;const t1=V.perp(ax),t2=V.cross(ax,t1);
+  for(const sg of[-1,1]){const c=[sg*1.3,0.6,-1.55],ax=V.norm([sg*0.85,0.42,0.3]),b=mb.n,NU=14,NV=10;const t1=V.perp(ax),t2=V.cross(ax,t1);
     for(let j=0;j<=NV;j++)for(let i=0;i<=NU;i++){const ph=j/NV*PI,ps=i/NU*TAU;const d=V.norm(V.add(V.mul(ax,Math.cos(ph)),V.add(V.mul(t1,Math.sin(ph)*Math.cos(ps)),V.mul(t2,Math.sin(ph)*Math.sin(ps)))));
       const rr=ph/PI*0.7;mb.v(V.madd(c,d,0.17),d,[0.5+rr*Math.cos(ps),0.5+rr*Math.sin(ps)],[1,0,2,0],[1.5,0,0,0]);kind.push(1);}
     for(let j=0;j<NV;j++)for(let i=0;i<NU;i++){const a=b+j*(NU+1)+i;mb.q(a,a+NU+1,a+NU+2,a+1);}}
   // gills
   const gr=rng(77);
-  for(const sg of[-1,1])for(let k=0;k<3;k++){const base=[sg*1.3,0.1+k*0.37,-3.72-k*0.08];
-    let d=V.norm([sg*[0.8,0.72,0.45][k],[-0.14,0.28,0.7][k],-[0.6,0.64,0.58][k]]);const len=[1.75,2.15,2.6][k],segs=9,pts=[];let p=base.slice();
+  for(const sg of[-1,1])for(let k=0;k<3;k++){const base=[sg*1.36,0.2+k*0.37,-3.72-k*0.08];
+    let d=V.norm([sg*[0.64,0.6,0.46][k],[-0.2,0.12,0.44][k],-[0.74,0.79,0.78][k]]);const len=[1.9,2.3,2.6][k],segs=9,pts=[];let p=base.slice();
     for(let i=0;i<=segs;i++){pts.push(p.slice());d=V.norm(V.add(d,[0,-0.025,-0.07]));p=V.madd(p,d,len/segs);}
-    const b0=mb.n;tube(mb,pts,t=>lerp(0.15,0.045,t),6,{cap:true,col:()=>[0.85,0,3,0],ext:t=>[3.7,t*0.7,k*1.3+sg,0]});for(let i=b0;i<mb.n;i++)kind.push(1);
+    const b0=mb.n;tube(mb,pts,t=>lerp(0.19,0.05,t),6,{cap:true,col:()=>[0.85,0,3,0],ext:t=>[3.7,t*0.7,k*1.3+sg,0]});for(let i=b0;i<mb.n;i++)kind.push(1);
     // fimbriae: dense, curling filaments fanned round the back and top of each ramus (a bottle brush, as on the real animal);
     // each filament is two crossed ribbons sharing one normal, so it reads from any angle and flutters as one strand
-    const nf=34;
+    const nf=54;
     for(let f=0;f<nf;f++){const t=0.1+0.88*f/(nf-1),fi=t*segs,i0=Math.min(segs-1,Math.floor(fi)),w=fi-i0;const pt=V.lerp(pts[i0],pts[i0+1],w),tan=V.norm(V.sub(pts[i0+1],pts[i0]));
-      const bk=V.norm(V.sub([0,-0.35,-1],V.mul(tan,V.dot([0,-0.35,-1],tan))));
-      for(const ang of[-1.25,-0.42,0.42,1.25]){const fd=V.norm(V.rot(bk,tan,ang+(gr()-0.5)*0.35));
-        const fl=(0.22+0.42*Math.pow(Math.sin(PI*Math.min(1,t*1.05)),0.7))*(k===2?1.12:1)*(0.75+gr()*0.5)*(Math.abs(ang)>1?0.85:1);
-        const ph=gr()*TAU,curl=(gr()-0.5)*0.9,nrm=V.norm(V.cross(tan,fd)),sv=V.cross(fd,nrm);
+      const ref=[sg*0.25,1,0],bk=V.norm(V.sub(ref,V.mul(tan,V.dot(ref,tan)))); // like a feather: filaments above and below each swept-back stalk, leaning toward its tip
+      for(const ang of[-0.38,0.3,PI-0.3,PI+0.38]){const fd=V.norm(V.madd(V.rot(bk,tan,ang+(gr()-0.5)*0.35),tan,0.55));
+        const fl=(0.3+0.58*Math.pow(Math.sin(PI*Math.min(1,t*1.05)),0.7))*(k===2?1.12:1)*(0.75+gr()*0.5)*(Math.abs(Math.cos(ang))<0.95?0.85:1);
+        const ph=gr()*TAU,curl=(gr()-0.5)*0.8,nrm=V.norm(V.cross(tan,fd)),sv=V.cross(fd,nrm);
         for(const rib of[0,1]){const wd=rib?nrm:tan,b=mb.n,R=4;
-          for(let r=0;r<=R;r++){const tt=r/R;const dir=V.norm(V.add(V.add(fd,V.mul(sv,curl*tt)),[0,-0.35*tt,-0.2*tt]));
-            const c=V.madd(V.madd(pt,fd,fl*tt*0.55),dir,fl*tt*0.45),w2=0.05*(1-tt*0.65);
+          for(let r=0;r<=R;r++){const tt=r/R;const dir=V.norm(V.add(V.add(fd,V.mul(sv,curl*tt)),[0,-0.22*tt,-0.32*tt]));
+            const c=V.madd(V.madd(pt,fd,fl*tt*0.55),dir,fl*tt*0.45),w2=0.085*(1-tt*0.55);
             mb.v(V.madd(c,wd,-w2/2),nrm,[0,tt],[0.9,0,4,0],[3.7,0.2+0.8*tt,ph,0]);mb.v(V.madd(c,wd,w2/2),nrm,[1,tt],[0.9,0,4,0],[3.7,0.2+0.8*tt,ph,0]);kind.push(1,1);}
           for(let r=0;r<R;r++){const a=b+r*2;mb.q(a,a+1,a+3,a+2);}}}}}
   // legs (local to hip)
   const legInfo=[];
-  AX_LEGS.forEach((L,li)=>{const sg=L.sg,fr=L.front;const knee=[sg*1.15,-0.28,fr?0.15:-0.12],wrist=V.add(knee,[sg*0.28,-0.72,fr?0.22:-0.05]);
-    const hip=fr?[sg*1.0,-0.42,0]:[sg*0.92,-0.5,0];legInfo.push({knee,hip,s:L.s});
+  AX_LEGS.forEach((L,li)=>{const sg=L.sg,fr=L.front;const knee=[sg*1.15,-0.3,fr?0.15:-0.12],wrist=V.add(knee,[sg*0.28,-0.72,fr?0.22:-0.05]);
+    const hip=fr?[sg*1.17,-0.46,0]:[sg*1.08,-0.55,0];legInfo.push({knee,hip,s:L.s});
     const add=(pts,rad,kf,cap)=>{const b=mb.n;tube(mb,pts,rad,10,{cap,col:()=>[0.95,0,5,li],ext:()=>[L.s,0,0,kf]});for(let i=b;i<mb.n;i++)kind.push(2);};
-    add([[0,0.15,0],V.lerp([0,0,0],knee,0.5),knee],t=>lerp(0.33,0.23,t),0,false);
-    {const ic=icosphere(2),b=mb.n;for(const q of ic.P)mb.v(V.madd(knee,q,0.232),q,[0,0],[0.95,0,5,li],[L.s,0,0,0]);for(const f of ic.F)mb.t(b+f[0],b+f[1],b+f[2]);for(let i=b;i<mb.n;i++)kind.push(2);} // rounded elbow
-    add([knee,V.lerp(knee,wrist,0.5),wrist],t=>lerp(0.23,0.15,t),1,false);
+    add([[0,0.15,0],V.lerp([0,0,0],knee,0.5),knee],t=>lerp(0.38,0.26,t),0,false);
+    {const ic=icosphere(2),b=mb.n;for(const q of ic.P)mb.v(V.madd(knee,q,0.262),q,[0,0],[0.95,0,5,li],[L.s,0,0,0]);for(const f of ic.F)mb.t(b+f[0],b+f[1],b+f[2]);for(let i=b;i<mb.n;i++)kind.push(2);} // rounded elbow
+    add([knee,V.lerp(knee,wrist,0.5),wrist],t=>lerp(0.26,0.17,t),1,false);
     // a flat little palm, then long, slender, splayed fingers (four in front, five behind) with rounded tips
     const nT=fr?4:5,bd=V.norm([sg*0.55,-0.12,fr?0.8:-0.25]),palm=V.madd(V.add(wrist,[0,-0.05,0]),bd,0.16);
     add([V.add(wrist,[0,0.02,0]),palm],t=>lerp(0.15,0.13,t),1,false);
@@ -1413,6 +1454,9 @@ const FISHP={
   cherrybarb:{h:.135,w:.06,top:1.05,bot:1,ped:.34,tmT:.38,tmB:.45,headE:1.9,snT:.18,snB:.14,mouthY:.0,eye:[.12,.12,.036],caud:{len:.2,span:.17,fork:.45},dors:[.02,.15,.15],anal:[-.1,.12,.1],pec:.3},
   // dwarf (pea) puffer: almost round in section, blunt head with a small beak, big high-set eyes, tiny dorsal and anal fins set far back, no pelvic fins
   puffer:{h:.14,w:.13,top:1.05,bot:1.2,ped:.36,tmT:.3,tmB:.4,headE:1.5,snT:.34,snB:.34,mouthY:.02,eye:[.19,.44,.056],caud:{len:.21,span:.14,fork:0,fan:true},dors:[-.2,.085,.1],anal:[-.2,.075,.09],pec:.34,noVent:true,ball:{cx:.15,yc:-.03,rx:.31,ry:.3,rz:.28}},
+  // harlequin rasbora: deep, compressed body; ember tetra: small and slender with an adipose fin
+  harlequin:{h:.15,w:.055,top:1.05,bot:1,ped:.32,tmT:.4,tmB:.42,headE:1.7,snT:.2,snB:.15,mouthY:.15,eye:[.12,.15,.04],caud:{len:.22,span:.18,fork:.55},dors:[.0,.15,.14],anal:[-.08,.16,.1],pec:.3},
+  ember:{h:.1,w:.045,top:1,bot:1.05,ped:.38,tmT:.42,tmB:.45,headE:1.5,snT:.2,snB:.15,mouthY:.15,eye:[.12,.17,.047],adip:[-.22,.04],caud:{len:.22,span:.16,fork:.6},dors:[.0,.14,.12],anal:[-.07,.2,.08],pec:.3},
   cory:{h:.15,w:.11,top:1.12,bot:.72,ped:.4,tmT:.4,tmB:.4,headE:1.3,snT:.32,snB:.22,mouthY:-.45,eye:[.17,.42,.04],adip:[-.2,.035],caud:{len:.2,span:.16,fork:.35},dors:[.1,.16,.2],anal:[-.12,.1,.08],pec:.28,flat:true,barbels:true},
 };
 function genFish(name){const P=FISHP[name],mb=new MB();const NX=44,S=22,x0=0.5,x1=-0.32;
@@ -1606,6 +1650,8 @@ const CAT={
   javafern:{cat:'plants',name:'Java Fern',sub:'Grows on wood or rock',prog:'plant',gen:s=>genJavaFern(s),scale:1,smin:.6,smax:1.5,place:'epi'},
   anubias:{cat:'plants',name:'Anubias Nana',sub:'Glossy, grows on wood',prog:'plant',gen:s=>genAnubias(s),scale:1,smin:.6,smax:1.6,place:'epi'},
   hairgrass:{cat:'plants',name:'Dwarf Hairgrass',sub:'Carpet patch',prog:'plant',gen:s=>genHairgrass(s),scale:1,smin:.6,smax:1.6},
+  moss:{cat:'plants',name:'Java Moss',sub:'Bright green fuzz, grows on wood',prog:'plant',gen:s=>genMoss(s),scale:1,smin:.6,smax:1.5,place:'epi'},
+  hornwort:{cat:'plants',name:'Hornwort',sub:'Bushy, cold-tolerant',prog:'plant',gen:s=>genHornwort(s),scale:1,smin:.6,smax:1.4},
   marimo:{cat:'plants',name:'Marimo Balls',sub:'Velvety algae balls',prog:'plant',gen:s=>genMarimo(s),scale:1,smin:.6,smax:1.6,noSway:true,solid:true},
   frogbit:{cat:'plants',name:'Frogbit',sub:'Floating; dims the light',prog:'plant',gen:s=>genFrogbit(s),scale:1,smin:.6,smax:1.4,place:'float'},
   seiryu:{cat:'hard',name:'Seiryu Stone',sub:'Gray with white veins',prog:'std',mat:2,v:0,gen:s=>genRock(s,0),scale:9,smin:4,smax:17,solid:true,tilt:true},
@@ -1723,7 +1769,7 @@ function sculpt(x,z,mode,rad,dt){const r2=rad*rad;const i0=Math.max(0,Math.floor
 //  LIFE: axolotl, fish, shrimp, snails, food, bubbles, particles, pet care
 // ============================================================
 const MORPHS={
-  leucistic:{name:'Leucistic',c1:[.86,.66,.64],c2:[.30,.25,.25],c3:[.5,.05,.09],eye:[.015,.015,.02],iris:[.07,.06,.06],irid:.15,spots:.12},
+  leucistic:{name:'Leucistic',c1:[.9,.71,.67],c2:[.30,.25,.25],c3:[.7,.15,.2],eye:[.015,.015,.02],iris:[.07,.06,.06],irid:.15,spots:.12},
   wild:{name:'Wild type',c1:[.105,.1,.062],c2:[.035,.034,.024],c3:[.22,.1,.14],eye:[.02,.02,.02],iris:[.55,.45,.2],irid:.9,spots:1},
   golden:{name:'Golden albino',c1:[.95,.68,.24],c2:[1,.88,.55],c3:[.95,.45,.36],eye:[.5,.12,.12],iris:[.85,.6,.5],irid:1.2,spots:.35},
   melanoid:{name:'Melanoid',c1:[.05,.055,.05],c2:[.025,.025,.025],c3:[.15,.10,.12],eye:[.01,.01,.01],iris:[.05,.05,.05],irid:0,spots:.3},
@@ -1736,6 +1782,8 @@ const FISHSP={
   neon:{name:'Neon Tetra',L:3.5,sp:1,cruise:[2.5,6],burst:15,school:.9,zone:[.25,.7],coast:.6,warm:true,note:'Tropical: likes warmer water than an axolotl.'},
   guppy:{name:'Guppy',L:3.3,sp:3,cruise:[2,5],burst:12,school:.2,zone:[.45,.95],coast:.15,warm:true,note:'Colorful fancy tails; prefers warm water.'},
   cherrybarb:{name:'Cherry Barb',L:4.5,sp:4,cruise:[2.5,5.5],burst:14,school:.5,zone:[.2,.7],coast:.55,warm:true,note:'Ruby red; tropical.'},
+  harlequin:{name:'Harlequin Rasbora',L:4.5,sp:7,cruise:[2.5,6],burst:15,school:.85,zone:[.3,.75],coast:.5,warm:true,note:'Copper body with a black wedge; a tight shoaler. Tropical.'},
+  ember:{name:'Ember Tetra',L:2.2,sp:8,cruise:[2,5],burst:13,school:.8,zone:[.3,.8],coast:.6,warm:true,note:'Tiny glowing orange tetra. Tropical.'},
   puffer:{name:'Pea Puffer',L:2.5,sp:6,cruise:[0.8,2.6],burst:9,school:0,zone:[.15,.75],coast:.8,warm:true,puffer:true,note:'Tropical; puffs up when startled. Eats bloodworms and snails; would nip an axolotl\'s gills.'},
   cory:{name:'Panda Cory',L:4,sp:5,cruise:[1,3.5],burst:10,school:.6,zone:'bottom',coast:.7,warm:true,note:'Bottom sifter; tropical.'},
 };
@@ -2325,7 +2373,8 @@ function render(){STATS.draws=0;STATS.tris=0;frameNo++;const q=QUAL[QK];updateDO
   // transparent surfaces refract the resolved scene (shafts included): copy B -> A first
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER,RT.fB);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,RT.fA2);gl.blitFramebuffer(0,0,RT.w,RT.h,0,0,RT.w,RT.h,gl.COLOR_BUFFER_BIT,gl.NEAREST);gl.bindFramebuffer(gl.READ_FRAMEBUFFER,null);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);
   bindUnit(3,null);bindUnit(4,RT.A);gl.bindFramebuffer(gl.FRAMEBUFFER,RT.fBD);gl.enable(gl.DEPTH_TEST);gl.depthMask(false);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
-  common(PR.fish,vp);U(PR.fish,'uFinPass',1);for(const k in MESH.fish){U(PR.fish,'uSp',FISHSP[k].sp);drawInst(MESH.fish[k]);}
+  // fins write depth: otherwise depth of field reads the depth behind them and blurs the fins like the background
+  gl.depthMask(true);common(PR.fish,vp);U(PR.fish,'uFinPass',1);for(const k in MESH.fish){U(PR.fish,'uSp',FISHSP[k].sp);drawInst(MESH.fish[k]);}gl.depthMask(false);
   const Pb=PR.bill;common(Pb,vp);U(Pb,'uCamR',CAM.R);U(Pb,'uCamU',CAM.Uv);drawInst(MESH.bill);
   gl.disable(gl.BLEND);gl.depthMask(true);
   const Ps=PR.surf;common(Ps,vp);U(Ps,'uModel',ID4);U(Ps,'uNmat',ID3);U(Ps,'uOS',1);U(Ps,'uRes',[RT.w,RT.h]);drawMesh(MESH.surf);
@@ -2462,7 +2511,7 @@ function select(it){SELECTED=it;const s=$('sel');if(!it){s.classList.add('hidden
 function counterRow(name,note,swatch,val,max,onSet,warn){const d=document.createElement('div');d.className='row';
   d.innerHTML=`<div class="sw" style="background:${swatch}"></div><div class="l"><b>${esc(name)}</b><span${warn?' style="color:var(--warn)"':''}>${esc(note)}</span></div><div class="cnt"><button aria-label="Fewer">−</button><output>${val}</output><button aria-label="More">+</button></div>`;
   const o=d.querySelector('output');const[m,p]=d.querySelectorAll('button');m.onclick=()=>{val=Math.max(0,val-1);o.textContent=val;onSet(val);save();};p.onclick=()=>{val=Math.min(max,val+1);o.textContent=val;onSet(val);save();};return d;}
-const FSW={puffer:'radial-gradient(circle at 32% 34%,#2b2412 0 17%,transparent 19%),radial-gradient(circle at 68% 50%,#2b2412 0 15%,transparent 17%),linear-gradient(#d6bd3e 0 64%,#eee0bf 66%)',whitecloud:'linear-gradient(135deg,#6d6a4b,#c9b9a2 55%,#d0533a)',danio:'repeating-linear-gradient(180deg,#1f2d63 0 5px,#d9cfa0 5px 10px)',neon:'linear-gradient(180deg,#5a4f38 30%,#1fa2ff 30% 48%,#c51b14 48%)',
+const FSW={harlequin:'linear-gradient(120deg,#c99a7c 0 42%,#16110d 43% 68%,#d4885a 69%)',ember:'radial-gradient(circle at 40% 40%,#ffa452,#e2541c 60%,#9a2c0c)',puffer:'radial-gradient(circle at 32% 34%,#2b2412 0 17%,transparent 19%),radial-gradient(circle at 68% 50%,#2b2412 0 15%,transparent 17%),linear-gradient(#d6bd3e 0 64%,#eee0bf 66%)',whitecloud:'linear-gradient(135deg,#6d6a4b,#c9b9a2 55%,#d0533a)',danio:'repeating-linear-gradient(180deg,#1f2d63 0 5px,#d9cfa0 5px 10px)',neon:'linear-gradient(180deg,#5a4f38 30%,#1fa2ff 30% 48%,#c51b14 48%)',
   guppy:'linear-gradient(135deg,#9aa0a4,#ff7a22 60%,#3a7bff)',cherrybarb:'linear-gradient(135deg,#a51a10,#e06a4a)',cory:'radial-gradient(circle at 70% 40%,#111 20%,#e8dccd 22%)'};
 function renderAnimals(){openSheet('Animals');const b=$('shBody');b.innerHTML=`<div class="sec">Your axolotl</div>
   <div class="row"><div class="l"><b>Name</b></div><input type="text" id="pname" maxlength="18" value="${esc(PET.name)}"></div>
