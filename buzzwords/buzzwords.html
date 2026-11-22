@@ -434,7 +434,7 @@ function speak(line, { onend } = {}) {
       const rate = S.set.rate ? 1.12 : 1; let t = AC.currentTime + .03;
       bufs.forEach((buf, i) => {
         const src = AC.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate; src.connect(VG); src.start(t);
-        t += buf.duration / rate + (isToken(parts[i]) || isToken(parts[i + 1] || '') ? .3 : .14);
+        t += buf.duration / rate + (isToken(parts[i]) || isToken(parts[i + 1] || '') ? .22 : .1);
         VSRCS.push(src);
         if (i === bufs.length - 1) src.onended = () => { if (tok !== voiceToken) return; VSRCS = []; say.classList.remove('talk'); if (onend) onend(); };
       });
