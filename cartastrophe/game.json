@@ -1,0 +1,7 @@
+{
+  "title": "Cartastrophe",
+  "description": "Rocket-powered shopping carts steered with ropes tied to the front wheels. Shove the other carts into the store, parked cars, lamp posts, the duck pond or off the cliff. Last cart rolling wins.",
+  "category": "Action",
+  "controls": "W rocket, A/D pull the steering ropes, Shift boost (watch the heat), S drag your feet, E use item, C camera, Esc pause. Gamepad and touch buttons supported.",
+  "requirements": "WebGL2 browser"
+}
