@@ -1,0 +1,4 @@
+[{"step":1},
+ {"eval":"A._eval('CAM.t.target=[0,-30,0];CAM.t.yaw=.55;CAM.t.pitch=.12;CAM.t.dist=230;updateCamera(1)');return 1"},{"shot":"whole"},
+ {"eval":"A._eval('CAM.t.target=[50,-66,25];CAM.t.yaw=.75;CAM.t.pitch=.1;CAM.t.dist=40;updateCamera(1)');return 1"},{"shot":"leg"},
+ {"eval":"A._eval('CAM.t.target=[25,-34,28];CAM.t.yaw=.2;CAM.t.pitch=.05;CAM.t.dist=60;updateCamera(1)');return 1"},{"shot":"door"}]

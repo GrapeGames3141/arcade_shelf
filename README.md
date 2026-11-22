@@ -27,6 +27,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Axolotl Aquarium | `aquarium/aquarium.html` | `http://127.0.0.1:8000/aquarium/aquarium.html` |
 | Reef Aquarium | `saltaquarium/saltaquarium.html` | `http://127.0.0.1:8000/saltaquarium/saltaquarium.html` |
 | Wool Rampage | `woolrampage/woolrampage.html` | `http://127.0.0.1:8000/woolrampage/woolrampage.html` |
+| Mytharium | `mytharium/mytharium.html` | `http://127.0.0.1:8000/mytharium/mytharium.html` |
 | Lawnchair Aces | `lawnchairaces/lawnchairaces.html` | `http://127.0.0.1:8000/lawnchairaces/lawnchairaces.html` |
 | Kindred Crossing | `kindred-crossing/kindred-crossing.html` | `http://127.0.0.1:8000/kindred-crossing/kindred-crossing.html` |
 | Volcanic Island Walk | `experiments/procedural-demo/procedural-demo.html` | `http://127.0.0.1:8000/experiments/procedural-demo/procedural-demo.html` |
@@ -46,7 +47,7 @@ The root `index.html` is The Arcade Shelf: a screenshot-led hero and card shelf 
 
 Castle Defense / Bastion of the Four Roads is based on `GrapeGames3141/castle-defense`, commit `1e0db1147e56025d28960f2e059e19bc6212f74a`. The arcade retains its phone landscape HUD adjustment and the upstream Tailwind CDN reference.
 
-The published Pages build provides **Quick hide**: Escape, P, Pause, or the backtick key opens `https://keytrainsecure.com/` in a closable in-page dialog. Close it with the button or Escape when focus is in the parent page. Animation-frame-driven game updates pause while the dialog is open; independent timers and audio may continue. Fullscreen is exited when needed. The visible arcade-header link and injected in-game Quick hide button are temporarily disabled; keyboard and player-triggered pause behavior remain active. P and backtick remain available for typing in form fields; TrickType keeps P for its typing gameplay. Escape still hides the page. High Country's Space pause also triggers quick hide while flying. This behavior is added during the Pages build, so standalone source game files retain their original controls.
+The published Pages build provides **Quick hide**: Escape, P, Pause, or the backtick key opens `https://keytrainsecure.com/` in a closable in-page dialog. Close it with the button or Escape when focus is in the parent page. Animation-frame-driven game updates pause while the dialog is open; independent timers and audio may continue. Fullscreen is exited when needed. The visible arcade-header link and injected in-game Quick hide button are temporarily disabled; keyboard and player-triggered pause behavior remain active. P and backtick remain available for typing in form fields; TrickType keeps P for its typing gameplay and Mytharium keeps P for Photo Mode. Escape still hides the page. High Country's Space pause also triggers quick hide while flying. This behavior is added during the Pages build, so standalone source game files retain their original controls.
 
 ### GitHub Pages
 

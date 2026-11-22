@@ -1,0 +1,6 @@
+[{"step":2},{"shot":"front"},
+ {"eval":"A._eval('CAM.t.target=[46,10,18];CAM.t.yaw=.25;CAM.t.pitch=.42;CAM.t.dist=52;updateCamera(1)');return 1"},{"shot":"beach"},
+ {"eval":"A._eval('CAM.t.target=[35.5,9,-8.5];CAM.t.yaw=.5;CAM.t.pitch=.55;CAM.t.dist=16;updateCamera(1)');return A.items().filter(i=>i.kind==='shell')"},{"shot":"shell"},
+ {"eval":"A.view('window');return 1"},{"shot":"window"},
+ {"eval":"document.getElementById('ui').style.display='none';A.studio('mermaid','comb');A.step(.4);const c=A._eval('STUDIO.c');const h=c.headP;A.cam({target:[h[0],h[1]-1.2,h[2]],yaw:1.2,pitch:.1,dist:8});return 1"},{"shot":"comb-a"},
+ {"eval":"const c=A._eval('STUDIO.c');const h=c.headP;A.cam({target:[h[0],h[1]-1.2,h[2]],yaw:-.4,pitch:.15,dist:8});return A.state().errs"},{"shot":"comb-b"}]

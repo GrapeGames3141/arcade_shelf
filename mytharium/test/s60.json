@@ -1,0 +1,6 @@
+[{"eval":"document.getElementById('ui').style.display='none';A.time('day');A.studio('mermaid','comb');A.step(.3);const c=A._eval('STUDIO.c');const h=c.headP;A.cam({target:[h[0],h[1]-1.0,h[2]],yaw:1.9,pitch:.1,dist:8});return 1"},{"shot":"comb-1"},
+ {"eval":"A.step(.9);return 1"},{"shot":"comb-2"},
+ {"eval":"const c=A._eval('STUDIO.c');const h=c.headP;A.cam({target:[h[0],h[1]-1.0,h[2]],yaw:.9,pitch:.15,dist:8});A.step(.5);return 1"},{"shot":"comb-3"},
+ {"eval":"const id=A.studio('pegasus','wings');const c=A.get(id);c.yaw=0;A.step(.4);A.cam({target:[0,20,0],yaw:.75,pitch:.16,dist:30});return 1"},{"shot":"peg-q"},
+ {"eval":"A.cam({target:[0,20,0],yaw:1.57,pitch:.1,dist:30});return 1"},{"shot":"peg-front"},
+ {"eval":"A.cam({target:[0,20,0],yaw:0,pitch:.1,dist:30});return A.state().errs"},{"shot":"peg-side"}]

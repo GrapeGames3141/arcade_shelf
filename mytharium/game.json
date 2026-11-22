@@ -1,0 +1,7 @@
+{
+  "title": "Mytharium",
+  "description": "A fantasy terrarium: palm-sized unicorns, faeries, a mermaid and a hatchling dragon live in a glass vivarium. Mist the moss, feed everyone with tweezers, landscape the tank and fill in a journal of what you see them do.",
+  "category": "Creative",
+  "controls": "Drag to look around; scroll or pinch to zoom. Tap a creature to pet it, hold to pick it up. Care, Feed, Build, Creatures and Settings are at the bottom. P photo mode, J journal, H hides the interface.",
+  "requirements": "WebGL2 browser"
+}

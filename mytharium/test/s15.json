@@ -1,0 +1,7 @@
+[{"step":1},
+ {"eval":"A.setState(1,'rear',30);A.step(.8);const c=A.get(1);A.cam({target:[c.pos[0],c.pos[1]+5,c.pos[2]],yaw:1.2,pitch:.1,dist:22});return c.state"},{"shot":"rear"},
+ {"eval":"const m=A.get(2);m.state='graze';m.dur=60;const f=A.get(5);f.mount=m;A.setState(5,'ride',60,{mount:m});f.pos=m.pos.slice();A.step(2);A.cam({target:[m.pos[0],m.pos[1]+5,m.pos[2]],yaw:.8,pitch:.2,dist:18});return f.state"},{"shot":"ride"},
+ {"eval":"A.setState(8,'fire',30,{smoke:false});A.step(.9);const c=A.get(8);A.cam({target:[c.pos[0]+1,c.pos[1]+2,c.pos[2]],yaw:.4,pitch:.15,dist:16});return c.state"},{"shot":"fire"},
+ {"eval":"const c=A.get(8);A.setState(8,'hop',30,{target:[-10,30,5],vel:[0,0,0]});A.step(.6);A.cam({target:[c.pos[0],c.pos[1],c.pos[2]],yaw:.9,pitch:.2,dist:18});return [c.state,c.pos]"},{"shot":"dragonfly"},
+ {"eval":"const id=A.crit('pegasus',{morph:0,pos:[-5,0,14]});A.step(.5);A._eval('startPegasusFlight(crits.find(c=>c.id=='+id+'))');A.step(2.5);const c=A.get(id);A.cam({target:[c.pos[0],c.pos[1]+4,c.pos[2]],yaw:1.4,pitch:.2,dist:26});return [c.state,c.pos]"},{"shot":"pegasus"},
+ {"eval":"A.visitor();A.step(16);const c=A._eval('crits.find(c=>c.sp===\"phoenix\")');A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:.6,pitch:.15,dist:16});return [c.state,c.pos]"},{"shot":"phoenix"}]

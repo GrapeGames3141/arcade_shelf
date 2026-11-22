@@ -1,0 +1,4 @@
+[{"eval":"document.getElementById('ui').style.display='none';A.time('day');const id=A.studio('faerie','sleep');const c=A.get(id);c.yaw=0;A.step(.3);A.cam({target:[0,14.4,0],yaw:.6,pitch:.75,dist:7});return c.anim"},{"shot":"fa-top"},
+ {"eval":"A.cam({target:[0,14.4,0],yaw:2.2,pitch:.25,dist:6});return 1"},{"shot":"fa-b"},
+ {"eval":"const id=A.studio('unicorn','sleep');const c=A.get(id);c.yaw=0;A.step(.3);A.cam({target:[2,16,0],yaw:.9,pitch:.3,dist:22});return 1"},{"shot":"un-a"},
+ {"eval":"A.cam({target:[2,16,0],yaw:-.6,pitch:.2,dist:22});return 1"},{"shot":"un-b"}]

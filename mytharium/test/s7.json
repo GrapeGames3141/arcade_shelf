@@ -1,0 +1,6 @@
+[{"step":2},
+ {"eval":"A.setState(7,'bask',60);const g=A.get(7);g.pos=[18,A._eval('topH(18,-4)')+0.4,-4];A.step(2);A.cam({target:[g.pos[0]+3,g.pos[1]+1,g.pos[2]],yaw:-0.5,pitch:0.25,dist:20});return [g.state,g.pos]"},{"shot":"mermaid-bask"},
+ {"eval":"A.setState(7,'swim',20,{target:[33,5,-6]});A.step(1.5);const g=A.get(7);A.cam({target:[g.pos[0],g.pos[1],g.pos[2]],yaw:0.2,pitch:0.7,dist:24});return [g.state,g.pos]"},{"shot":"mermaid-swim"},
+ {"eval":"A.mist(-5,8,3);A.step(1.5);A.cam({target:[0,24,0],yaw:0,pitch:0.08,dist:130});return 1"},{"shot":"mist"},
+ {"eval":"A.time('night');A.step(4);A.cam({target:[0,26,0],yaw:0,pitch:0.08,dist:150});return A.state().day"},{"shot":"night"}
+]

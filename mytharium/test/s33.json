@@ -1,0 +1,4 @@
+[{"step":2},{"shot":"front"},
+ {"eval":"return A._eval(\"items.filter(i=>i.wmax[1]>TK.h-2).map(i=>i.kind+':'+i.wmax[1].toFixed(0)).join(',')+' ground='+CH.list.reduce((s,c)=>s+(c?c.n:0),0)+' bg='+MESH.bgG.n\")"},
+ {"eval":"A.view('right');return 1"},{"shot":"right"},{"eval":"A.view('close');return 1"},{"shot":"close"},
+ {"eval":"A.time('night');A.step(6);A.view('front');return A.state().errs"},{"shot":"night"}]

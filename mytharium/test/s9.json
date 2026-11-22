@@ -1,0 +1,6 @@
+[{"eval":"let log=[];const T0=Date.now();for(let k=0;k<12;k++){A.step(20);const s=A.state();log.push(s.crits.map(c=>c.sp[0]+c.sp[1]+':'+c.state).join(' '));}return {log,journal:A.state().journal,errs:A.state().errs,ms:Date.now()-T0}"},
+ {"eval":"A.feed('clover',0,10);A.feed('nectar',-10,8);A.feed('cricket',-36,0);A.feed('seagrape',30,-5);A.step(25);return A.state().crits.map(c=>c.sp+':'+c.state+':'+c.hunger)"},
+ {"eval":"A.time('dusk');A.step(30);return {crits:A.state().crits.map(c=>c.sp+':'+c.state),lit:A._eval('items.filter(i=>i.lit).length'),j:A.state().journal}"},
+ {"eval":"A.time('night');A.step(40);return A.state().crits.map(c=>c.sp+':'+c.state)"},
+ {"eval":"A.time('day');A.step(30);A.visitor();A.step(20);return A.state().crits.map(c=>c.sp+':'+c.state)"},
+ {"shot":"after"}]

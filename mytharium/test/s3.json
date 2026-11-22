@@ -1,0 +1,1 @@
+[{"eval":"return A._eval('JSON.stringify([SPECIES.dragon.morphs[0], crits.find(c=>c.sp===\"dragon\").morph, CRT.dragon.mb.E.length/4, (()=>{const E=CRT.dragon.mb.E;const r={};for(let i=0;i<E.length;i+=4){r[E[i+3]]=(r[E[i+3]]||0)+1;}return r;})()])')"}]

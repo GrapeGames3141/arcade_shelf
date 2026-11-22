@@ -1,0 +1,2 @@
+[{"step":2},{"shot":"front"},{"eval":"A.view('top');return 1"},{"shot":"top"},{"eval":"A.set('q','low');A.view('front');A.step(1);return A.state().errs"},{"shot":"low"},
+ {"eval":"A.set('q','high');A.view('window');A.step(1);return A.state().errs"},{"shot":"window"}]

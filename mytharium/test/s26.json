@@ -1,0 +1,4 @@
+[{"step":1},{"shot":"front"},
+ {"eval":"A.cam({target:[0,-40,10],yaw:.45,pitch:.05,dist:170});return 1"},{"shot":"stand"},
+ {"eval":"A.cam({target:[30,-34,30],yaw:.3,pitch:.1,dist:45});return 1"},{"shot":"door"},
+ {"eval":"A.cam({target:[56,-70,26],yaw:.7,pitch:.15,dist:30});return 1"},{"shot":"leg"}]
