@@ -158,6 +158,7 @@ body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webki
 .hold::after{content:'';position:absolute;left:0;bottom:0;height:5px;width:0;background:rgba(255,255,255,.95);border-radius:3px}
 .hold.holding::after{width:100%;transition:width 1.4s linear}
 .locknote{font-size:13px;opacity:.75;margin:2px 4px 0;line-height:1.35}
+body.caps .slot, body.caps .slot *, body.caps .key, body.caps .tile, body.caps .flyer, body.caps .exw, body.caps #rule b, body.caps #sRules b { text-transform:uppercase; }
 </style>
 </head>
 <body>
@@ -198,6 +199,7 @@ body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webki
     <div class="ops" id="ops"></div>
     <div class="opts">
       <span>Words per round <span class="seg" id="segN"><button data-n="5">5</button><button data-n="8">8</button><button data-n="12">12</button></span></span>
+      <span>Letters look like <span class="seg" id="segC"><button data-c="lower">abc</button><button data-c="upper">ABC</button></span></span>
       <span>Letters to pick from <span class="seg" id="segK"><button data-k="abc">Whole ABC</button><button data-k="few">Just a few</button></span></span>
     </div>
     <div class="opts">
@@ -302,45 +304,49 @@ const LEVELS = [
   { name: 'Short vowels', sub: 'cat, dog, sun · one sound for each letter', col: '#3fd0a4', sym: 'a' },
   { name: 'Two-letter sounds & blends', sub: 'fish, duck, frog · sh, ch, th, ck, ng', col: '#58b7ff', sym: 'sh' },
   { name: 'Magic e', sub: 'cake, kite, bone · the quiet e at the end', col: '#ff9f43', sym: 'e' },
-  { name: 'Vowel teams & bossy r', sub: 'boat, tree, star · ee, oa, ai, ar, or', col: '#ff6fa5', sym: 'oa' },
+  { name: 'Vowel teams & bossy r', sub: 'boat, tree, star · ee, oa, ai, ar, or, ow, oy', col: '#ff6fa5', sym: 'oa' },
 ];
 // How each sound is said aloud when we stretch a word out
-const SOUNDS = { a: 'ah', e: 'eh', i: 'ih', o: 'aw', u: 'uh', A: 'ay', E: 'ee', I: 'eye', O: 'oh', U: 'you', oo: 'oo', ar: 'ar', or: 'or', er: 'er', ow: 'ow', oy: 'oy',
+const SOUNDS = { a: 'aa', e: 'eh', i: 'ih', o: 'ah', u: 'uh', A: 'ay', E: 'ee', I: 'eye', O: 'oh', U: 'you', oo: 'oo', ar: 'ar', or: 'or', er: 'er', ow: 'ow', oy: 'oy',
   b: 'buh', k: 'kuh', d: 'duh', f: 'fuh', g: 'guh', h: 'huh', j: 'juh', l: 'luh', m: 'muh', n: 'nuh', p: 'puh', r: 'ruh', s: 'sss', t: 'tuh', v: 'vuh', w: 'wuh', x: 'ks', y: 'yuh', z: 'zzz',
   sh: 'shh', ch: 'chuh', th: 'thuh', ng: 'ng', kw: 'kwuh' };
-// Exact pronunciations (IPA) used to record the voice, so short a is the a in cat and s is a real hiss
-const SOUND_IPA = { a: 'ˈææ', e: 'ˈɛɛ', i: 'ˈɪɪ', o: 'ˈɑː', u: 'ˈʌʌ', A: 'ˈeɪ', E: 'ˈiː', I: 'ˈaɪ', O: 'ˈoʊ', U: 'jˈuː', oo: 'ˈuː', ar: 'ˈɑːɹ', or: 'ˈɔːɹ', er: 'ˈɜːɹ', ow: 'ˈaʊ', oy: 'ˈɔɪ',
-  b: 'bʌ', k: 'kʌ', d: 'dʌ', f: 'fff', g: 'ɡʌ', h: 'hʌ', j: 'dʒʌ', l: 'lll', m: 'mmm', n: 'nnn', p: 'pʌ', r: 'ɹɹɹ', s: 'sss', t: 'tʌ', v: 'vvv', w: 'wʌ', x: 'ks', y: 'jʌ', z: 'zzz',
-  sh: 'ʃʃʃ', ch: 'tʃʌ', th: 'θθθ', ng: 'ŋŋŋ', kw: 'kwʌ', fr: 'fɹʌ' };
+// Exact pronunciations (IPA) used to record the voice. Each phonics sound is recorded on its own:
+// vowels and the sounds you can hold (m, s, sh...) are stretched; stop sounds (b, k, t...) are kept short and clipped.
+const SOUND_IPA = { a: 'æ', e: 'ɛ', i: 'ɪ', o: 'ɑː', u: 'ʌ', A: 'eɪ', E: 'iː', I: 'aɪ', O: 'oʊ', U: 'juː', oo: 'uː', ar: 'ɑːɹ', or: 'ɔːɹ', er: 'ɜː', ow: 'aʊ', oy: 'ɔɪ',
+  b: 'b', k: 'k', d: 'd', f: 'f', g: 'ɡ', h: 'h', j: 'dʒ', l: 'l', m: 'm', n: 'n', p: 'p', r: 'ɹ', s: 's', t: 't', v: 'v', w: 'w', x: 'ks', y: 'j', z: 'z',
+  sh: 'ʃ', ch: 'tʃ', th: 'θ', ng: 'ŋ', kw: 'kw', fr: 'fɹ' };
 const LETTER_IPA = { a: 'ˈeɪ', b: 'bˈiː', c: 'sˈiː', d: 'dˈiː', e: 'ˈiː', f: 'ˈɛf', g: 'dʒˈiː', h: 'ˈeɪtʃ', i: 'ˈaɪ', j: 'dʒˈeɪ', k: 'kˈeɪ', l: 'ˈɛl', m: 'ˈɛm', n: 'ˈɛn', o: 'ˈoʊ', p: 'pˈiː', q: 'kjˈuː', r: 'ˈɑːɹ', s: 'ˈɛs', t: 'tˈiː', u: 'jˈuː', v: 'vˈiː', w: 'dˈʌbəljuː', x: 'ˈɛks', y: 'wˈaɪ', z: 'zˈiː' };
 const VOWEL_HELP = { a: 'Short {l:a}, like apple.', e: 'Short {l:e}, like egg.', i: 'Short {l:i}, like igloo.', o: 'Short {l:o}, like octopus.', u: 'Short {l:u}, like umbrella.',
   A: 'The {l:a} is saying its name.', E: 'This is the long {l:e} sound.', I: 'The {l:i} is saying its name.', O: 'The {l:o} is saying its name.', U: 'The {l:u} is saying its name.' };
 const LETTER_NAMES = { a: 'ay', b: 'bee', c: 'see', d: 'dee', e: 'ee', f: 'eff', g: 'jee', h: 'aitch', i: 'eye', j: 'jay', k: 'kay', l: 'el', m: 'em', n: 'en', o: 'oh', p: 'pee', q: 'cue', r: 'ar', s: 'ess', t: 'tee', u: 'you', v: 'vee', w: 'double you', x: 'ex', y: 'why', z: 'zee' };
 // The spelling rules, taught with a picture card and the voice
 const RULES = {
-  shortVowel: { icon: '🍎', t: 'Short vowels', say: 'In short words like cat, the vowel makes its short sound. {l:a} says {s:a}, like apple. {l:e} says {s:e}, like egg. {l:i} says {s:i}, like igloo. {l:o} says {s:o}, like octopus. {l:u} says {s:u}, like umbrella.',
-    p: 'In short words the vowel makes its <b>short sound</b>: <b>a</b> as in apple, <b>e</b> egg, <b>i</b> igloo, <b>o</b> octopus, <b>u</b> umbrella.', ex: ['cat', 'pig', 'sun'] },
-  ck_c: { icon: '🐱', t: 'C or K?', say: 'Both {l:c} and {l:k} can say {s:k}. Use {l:c} before {l:a}, {l:o} and {l:u}, and before {l:l} or {l:r}, like cat, cow and crab. Use {l:k} before {l:e} and {l:i}, like kite and king.',
-    p: 'Both say <b>kuh</b>. Use <b>c</b> before a, o, u, l, r (cat, cow, crab). Use <b>k</b> before e, i (kite, king).', ex: ['cat', 'crab', 'king'] },
-  ck: { icon: '🦆', t: 'C K after a short vowel', say: 'After a short vowel, the {s:k} sound at the end is spelled with two letters: {l:c}, {l:k}. Like duck and sock.',
-    p: 'After a <b>short vowel</b>, the <b>kuh</b> sound at the end is spelled <b>ck</b>: du<b>ck</b>, so<b>ck</b>.', ex: ['duck', 'sock', 'clock'] },
-  digraph: { icon: '🐟', t: 'Two letters, one sound', say: 'Some sounds need two letters. {l:s} and {l:h} together say {s:sh}, like fish. {l:c} and {l:h} say {s:ch}, like chick. {l:t} and {l:h} say {s:th}, like bath. {l:n} and {l:g} say {s:ng}, like ring. {l:w} and {l:h} say {s:w}, like whale.',
+  shortVowel: { icon: '🍎', t: 'Short vowels', say: 'In a short word with one vowel, like cat, the vowel usually makes its short sound. {l:a} says {s:a}, like apple. {l:e} says {s:e}, like egg. {l:i} says {s:i}, like igloo. {l:o} says {s:o}, like octopus. {l:u} says {s:u}, like umbrella.',
+    p: 'A short word with one vowel, like c<b>a</b>t, usually has a <b>short vowel</b>: <b>a</b> as in apple, <b>e</b> egg, <b>i</b> igloo, <b>o</b> octopus, <b>u</b> umbrella.', ex: ['cat', 'pig', 'sun'] },
+  ck_c: { icon: '🐱', t: 'C or K?', say: 'Both {l:c} and {l:k} can say {s:k}. Use {l:c} before {l:a}, {l:o} and {l:u}, and before {l:l} and {l:r}, like cat, cow, cube and crab. Use {l:k} before {l:e} and {l:i}, like kite and king.',
+    p: 'Both say /k/. Use <b>c</b> before a, o, u, l, r: <b>c</b>at, <b>c</b>ow, <b>c</b>rab. Use <b>k</b> before e, i: <b>k</b>ite, <b>k</b>ing.', ex: ['cat', 'crab', 'king'] },
+  ck: { icon: '🦆', t: 'C K after a short vowel', say: 'At the end of a short word, right after a short vowel, the {s:k} sound is spelled with two letters: {l:c} {l:k}. Like duck, sock and clock.',
+    p: 'Right after a <b>short vowel</b>, an ending /k/ is spelled <b>ck</b>: du<b>ck</b>, so<b>ck</b>, clo<b>ck</b>.', ex: ['duck', 'sock', 'clock'] },
+  kEnd: { icon: '🦈', t: 'K at the end', say: 'After a consonant, or after a long vowel sound, the {s:k} sound at the end of a word is spelled with just {l:k}. Like shark and fork.',
+    p: 'After a consonant or a long vowel, an ending /k/ is spelled <b>k</b>: shar<b>k</b>, for<b>k</b>.', ex: ['shark', 'fork'] },
+  digraph: { icon: '🐟', t: 'Two letters, one sound', say: 'Some sounds need two letters working together. {l:s} {l:h} says {s:sh}, like fish. {l:c} {l:h} says {s:ch}, like chick. {l:t} {l:h} says {s:th}, like bath. {l:n} {l:g} says {s:ng}, like ring. {l:w} {l:h} says {s:w}, like whale.',
     p: 'Some sounds need <b>two letters</b>: <b>sh</b> fish, <b>ch</b> chick, <b>th</b> bath, <b>ng</b> ring, <b>wh</b> whale.', ex: ['fish', 'chick', 'ring'] },
-  double: { icon: '🔔', t: 'Double l, s and f', say: 'When a short word ends with a short vowel and then the {s:l}, {s:s} or {s:f} sound, we usually write that letter twice. Like bell and shell.',
-    p: 'After a short vowel, an ending <b>l, s</b> or <b>f</b> is usually doubled: be<b>ll</b>, she<b>ll</b>.', ex: ['bell', 'shell'] },
-  blend: { icon: '🐸', t: 'Blends', say: 'In a blend, two letters sit side by side and you can hear both of them. {l:f} and {l:r} make {s:fr}, like frog. At the end of tent, {l:n} and {l:t} blend together too.',
-    p: 'In a <b>blend</b> you hear <b>both</b> letters: <b>fr</b>og, <b>sl</b>ed, te<b>nt</b>, ha<b>nd</b>.', ex: ['frog', 'sled', 'tent'] },
-  magicE: { icon: '🪄', t: 'Magic e', say: 'Magic {l:e}! When a word ends with {l:e}, the {l:e} is quiet, but it makes the vowel before it say its name. {l:c}, {l:a}, {l:k}, {l:e}: the {l:a} says {s:A}. Cake!',
-    p: 'An <b>e</b> at the end is <b>quiet</b>, but it makes the vowel <b>say its name</b>: c<b>a</b>k<b>e</b>, k<b>i</b>t<b>e</b>, b<b>o</b>n<b>e</b>.', ex: ['cake', 'kite', 'bone'] },
-  sZ: { icon: '🌹', t: 'S can say zzz', say: 'Sometimes the letter {l:s} makes a {s:z} sound, like in rose and nose.', p: 'Sometimes <b>s</b> says <b>zzz</b>: ro<b>s</b>e, no<b>s</b>e.', ex: ['rose', 'nose'] },
-  team: { icon: '⛵', t: 'Vowel teams', say: 'When two vowels go walking, the first one does the talking. {l:o} and {l:a} say {s:O}, like boat. {l:a} and {l:i} say {s:A}, like rain. {l:e} and {l:a} say {s:E}, like leaf. Double {l:e} says {s:E}, like tree.',
-    p: '"When two vowels go walking, the <b>first one does the talking</b>": <b>oa</b> boat, <b>ai</b> rain, <b>ea</b> leaf, <b>ie</b> pie, <b>ee</b> tree.', ex: ['boat', 'rain', 'tree'] },
-  oo: { icon: '🌙', t: 'O O says oo', say: 'Double {l:o} says {s:oo}, like moon and spoon.', p: '<b>oo</b> says <b>oo</b>: m<b>oo</b>n, sp<b>oo</b>n.', ex: ['moon', 'spoon'] },
-  bossyR: { icon: '⭐', t: 'Bossy r', say: 'Bossy {l:r} changes the vowel in front of it. {l:a} {l:r} says {s:ar}, like star. {l:o} {l:r} says {s:or}, like corn. {l:i} {l:r} says {s:er}, like bird.',
-    p: '<b>Bossy r</b> changes the vowel: <b>ar</b> star, <b>or</b> corn, <b>ir</b> bird.', ex: ['star', 'corn', 'bird'] },
-  owoy: { icon: '🐄', t: 'OW and OY', say: '{l:o} {l:w} says {s:ow}, like cow. {l:o} {l:y} says {s:oy}, like boy.', p: '<b>ow</b> says ow (c<b>ow</b>). <b>oy</b> says oy (b<b>oy</b>).', ex: ['cow', 'owl', 'boy'] },
-  qu: { icon: '👸', t: 'Q and u', say: 'The letter {l:q} always comes with {l:u}. Together, {l:q} {l:u} says {s:kw}, like queen.', p: '<b>q</b> always comes with <b>u</b>: <b>qu</b> says kwuh, <b>qu</b>een.', ex: ['queen'] },
-  x: { icon: '🦊', t: 'X says ks', say: 'The letter {l:x} says {s:x}, like fox and box.', p: '<b>x</b> says <b>ks</b>: fo<b>x</b>, bo<b>x</b>, si<b>x</b>.', ex: ['fox', 'box', 'six'] },
+  double: { icon: '🔔', t: 'Double f, l, s and z', say: 'At the end of a short word, right after a short vowel, we usually write {l:f}, {l:l}, {l:s} and {l:z} twice. Like bell and shell.',
+    p: 'Right after a short vowel, an ending <b>f, l, s</b> or <b>z</b> is usually doubled: be<b>ll</b>, she<b>ll</b>. (Bus is a rule breaker!)', ex: ['bell', 'shell'] },
+  blend: { icon: '🐸', t: 'Blends', say: 'In a blend, two consonants sit side by side and you can hear both sounds. {l:f} {l:r} blend together, like frog. At the end of tent, {l:n} and {l:t} blend together too.',
+    p: 'In a <b>blend</b> you hear <b>both</b> sounds: <b>fr</b>og, <b>sl</b>ed, <b>sk</b>ate, te<b>nt</b>, ha<b>nd</b>.', ex: ['frog', 'sled', 'tent'] },
+  magicE: { icon: '🪄', t: 'Magic e', say: 'Magic {l:e}! When a word ends with a vowel, then one consonant, then {l:e}, the {l:e} is quiet, and it makes the vowel say its name. {l:c} {l:a} {l:k} {l:e}: the {l:a} says its name. Cake!',
+    p: 'Vowel, consonant, <b>e</b>: the <b>e</b> is <b>quiet</b>, and the vowel <b>says its name</b>: c<b>a</b>k<b>e</b>, k<b>i</b>t<b>e</b>, b<b>o</b>n<b>e</b>.', ex: ['cake', 'kite', 'bone'] },
+  sZ: { icon: '🌹', t: 'S can say /z/', say: 'The letter {l:s} can say {s:z}, especially between two vowels, like in rose and nose.', p: '<b>s</b> can say /z/, especially between vowels: ro<b>s</b>e, no<b>s</b>e.', ex: ['rose', 'nose'] },
+  team: { icon: '⛵', t: 'Vowel teams', say: 'Some vowel teams make one long vowel sound. {l:o} {l:a} says {s:O}, like boat. {l:a} {l:i} says {s:A}, like rain. {l:e} {l:e} and {l:e} {l:a} say {s:E}, like tree and leaf. {l:i} {l:e} says {s:I}, like pie.',
+    p: 'A <b>vowel team</b> makes one long sound: <b>oa</b> boat, <b>ai</b> rain, <b>ee</b> tree, <b>ea</b> leaf, <b>ie</b> pie.', ex: ['boat', 'rain', 'tree'] },
+  oo: { icon: '🌙', t: 'O O', say: 'Double {l:o} usually says {s:oo}, like moon and spoon. In some words, like book, it makes a shorter sound.', p: '<b>oo</b> usually says /oo/: m<b>oo</b>n, sp<b>oo</b>n. Sometimes it is short, as in b<b>oo</b>k.', ex: ['moon', 'spoon'] },
+  bossyR: { icon: '⭐', t: 'Bossy r', say: 'Bossy {l:r} changes the vowel in front of it. {l:a} {l:r} says {s:ar}, like star. {l:o} {l:r} says {s:or}, like corn. {l:i} {l:r}, {l:e} {l:r} and {l:u} {l:r} all say {s:er}, like bird, her and fur.',
+    p: '<b>Bossy r</b> changes the vowel: <b>ar</b> star, <b>or</b> corn, and <b>ir</b>, <b>er</b>, <b>ur</b> all say /er/: b<b>ir</b>d, h<b>er</b>, f<b>ur</b>.', ex: ['star', 'corn', 'bird'] },
+  owoy: { icon: '🐄', t: 'OW and OY', say: '{l:o} {l:w} says {s:ow}, like cow and owl. {l:o} {l:y} says {s:oy}, like boy, and it usually comes at the end of a word. Sometimes {l:o} {l:w} says {s:O} instead, like snow.',
+    p: '<b>ow</b> says /ow/: c<b>ow</b>, <b>ow</b>l (and sometimes /oh/, as in snow). <b>oy</b> says /oy/ at the end of a word: b<b>oy</b>.', ex: ['cow', 'owl', 'boy'] },
+  qu: { icon: '👸', t: 'Q and u', say: 'The letter {l:q} almost always comes with {l:u}. Together, {l:q} {l:u} says {s:kw}, like queen.', p: '<b>q</b> almost always comes with <b>u</b>: <b>qu</b> says /kw/, <b>qu</b>een.', ex: ['queen'] },
+  x: { icon: '🦊', t: 'X says /ks/', say: 'The letter {l:x} makes two sounds together, {s:x}, like fox, box and six.', p: '<b>x</b> says two sounds, /ks/: fo<b>x</b>, bo<b>x</b>, si<b>x</b>.', ex: ['fox', 'box', 'six'] },
 };
 const GRAPH_RULE = { sh: 'digraph', ch: 'digraph', th: 'digraph', wh: 'digraph', ng: 'digraph', ll: 'double', ss: 'double', ff: 'double', ck: 'ck', ee: 'team', ea: 'team', ai: 'team', oa: 'team', ie: 'team', oo: 'oo', ar: 'bossyR', or: 'bossyR', ir: 'bossyR', er: 'bossyR', ow: 'owoy', oy: 'owoy', qu: 'qu' };
 const VOWEL_SOUNDS = new Set(['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U', 'oo', 'ar', 'or', 'er', 'ow', 'oy', '_']);
@@ -352,6 +358,8 @@ function rulesFor(P, lv) {
   for (let i = 0; i + 1 < P.length; i++) if (P[i].g.length === 1 && P[i + 1].g.length === 1 && !VOWEL_SOUNDS.has(P[i].s) && !VOWEL_SOUNDS.has(P[i + 1].s)) { add('blend'); break; } // fr-og, te-nt
   if (P.some(p => p.g === 'x')) add('x');
   if (P[0].s === 'k' && P[0].g.length === 1) add('ck_c');
+  const last = P[P.length - 1], before = P[P.length - 2];
+  if (last.g === 'k' && before && !['a', 'e', 'i', 'o', 'u'].includes(before.s)) add('kEnd'); // shark, fork
   if (lv === 0) add('shortVowel');
   return r;
 }
@@ -360,7 +368,7 @@ function rulesFor(P, lv) {
 // Save data
 // ---------------------------------------------------------------------------
 const DEFAULT = () => ({ stars: 0, gems: 0, owned: { buddy: { bee: 1 }, garden: { garden: 1 }, tiles: { honey: 1 } }, equip: { buddy: 'bee', garden: 'garden', tiles: 'honey' },
-  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0, lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, words: 0, seen: {} });
+  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0, letters: 'lower', lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, words: 0, seen: {} });
 let S = DEFAULT();
 function load() {
   if (TEST) return;
@@ -405,7 +413,7 @@ function clipBuffer(key) {
   CLIP_CACHE.set(key, pr); pr.catch(() => CLIP_CACHE.delete(key));
   return pr;
 }
-const asParts = x => (Array.isArray(x) ? x : [x]).map(t => (t || '').trim()).filter(Boolean);
+const asParts = x => (Array.isArray(x) ? x : [x]).flatMap(t => (t || '').split(/(\{s:[a-zA-Z]+\})/)).map(t => t.trim().replace(/^[,.;:!?]+\s*/, '')).filter(t => /[a-zA-Z]/.test(t));
 function preload(lines) { if (!AC || TEST) return; for (const l of lines) for (const t of asParts(l)) if (voiceData()[clipKey(t)]) clipBuffer(clipKey(t)).catch(() => {}); }
 function stopVoice() {
   voiceToken++;
@@ -758,7 +766,13 @@ function hintFor(part, typed, pi) {
   if (part.s === '_') return { say: ['Listen:', G.word, "Can you hear the vowel say its name? That's a magic {l:e} word. It ends with a quiet {l:e}."], rule: 'magicE' };
   if (part.g === 'ck') return { say: [idx === 0 ? 'After a short vowel, the {s:k} sound is spelled with two letters.' : 'One more letter for the {s:k} sound.'], rule: 'ck' };
   if (part.s === 'k' && part.g === 'c' && typed === 'k') return { say: ['Good thinking, {l:k} can say {s:k}. But before {l:a}, {l:o}, {l:u}, {l:l} and {l:r}, we use the other letter.'], rule: 'ck_c' };
-  if (part.s === 'k' && part.g === 'k' && typed === 'c') return { say: ['Good thinking, {l:c} can say {s:k}. But before {l:e} and {l:i}, we use the other letter.'], rule: 'ck_c' };
+  if (part.s === 'k' && part.g === 'k' && typed === 'c') {
+    const nx = G.word[G.pos + 1], pv = G.word[G.pos - 1];
+    if (nx === 'e' || nx === 'i' || nx === 'y') return { say: ['Good thinking, {l:c} can say {s:k}. But before {l:e} and {l:i}, we use the other letter.'], rule: 'ck_c' };
+    if (pv === 's') return { say: ['Good thinking, {l:c} can say {s:k}. But in this word, the sound after {l:s} uses the other letter.'], rule: 'blend' };
+    if (G.pos === G.word.length - 1) return { say: ['Good thinking, {l:c} can say {s:k}. But at the end of a word, after a consonant or a long vowel, we use the other letter.'], rule: 'kEnd' };
+    return { say: ['Good thinking, {l:c} can say {s:k}. But this word uses the other letter.'], rule: 'ck_c' };
+  }
   if (part.g.length === 2) return { say: idx === 0 ? ['This sound is', st, 'It takes two letters.'] : ['One more letter for this sound.'], rule: GRAPH_RULE[part.g] };
   if (part.s === 'z' && typed === 'z') return { say: ['Yes, it sounds like', '{s:z}', 'But in this word, another letter makes that sound.'], rule: 'sZ' };
   if (VOWEL_HELP[part.s]) return { say: ['Listen to the vowel:', st, VOWEL_HELP[part.s]], rule: part.s === part.g ? 'shortVowel' : G.rules.includes('magicE') ? 'magicE' : G.rules[0] };
@@ -884,6 +898,8 @@ function updWallet() {
   document.querySelectorAll('.wStick').forEach(e => e.textContent = `${Object.keys(S.stickers).length}/${STICKERS.length}`);
   $('nowNote').textContent = 'Practising: ' + LEVELS.filter((l, i) => S.set.lv[i]).map(l => l.name.toLowerCase()).join(' · ') + (SPEECH ? '' : ' · this browser can\'t speak');
 }
+// Capital or small letters on the keys, the sound boxes, flying tiles and the rule cards
+function applyCase() { document.body.classList.toggle('caps', S.set.letters === 'upper'); }
 function buildSettings() {
   const box = $('ops'); box.innerHTML = '';
   LEVELS.forEach((L, i) => {
@@ -894,7 +910,7 @@ function buildSettings() {
     box.appendChild(el);
   });
   const seg = (id, attr, key, num = true) => $(id).querySelectorAll('button').forEach(b => { const v = num ? +b.dataset[attr] : b.dataset[attr]; b.classList.toggle('on', v === S.set[key]); b.onclick = () => { S.set[key] = v; sfx('click'); save(); buildSettings(); }; });
-  seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segR', 'r', 'rate');
+  seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segC', 'c', 'letters', false); applyCase(); seg('segR', 'r', 'rate');
   for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music'], ['tLock', 'lock']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
   const tl = $('tLock'), flip = tl.onclick; tl.onclick = () => { flip(); if (S.set.lock) kidLock(); else kidUnlock(); };
   $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak(TEST_LINE); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? 'The voice is working.' : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 3000); };
@@ -962,6 +978,7 @@ $('bRuleNext').onclick = () => { const f = ruleNext; ruleNext = null; hideRule()
 // Kid lock (on by default on phones and tablets; Grown-ups can turn it off): the first tap goes full screen and
 // locks the rotation, Back and pull-to-refresh stay in the game, long-press menus are off, and the Grown-ups buttons
 // need a press and hold so a small child can't wander into settings.
+applyCase();
 const lockOn = () => !TEST && S.set.lock;
 function kidLock() {
   if (!lockOn()) return;
