@@ -48,8 +48,6 @@ The root `index.html` is The Arcade Shelf: a screenshot-led hero and card shelf 
 
 Castle Defense / Bastion of the Four Roads is based on `GrapeGames3141/castle-defense`, commit `1e0db1147e56025d28960f2e059e19bc6212f74a`. The arcade retains its phone landscape HUD adjustment and the upstream Tailwind CDN reference.
 
-The published Pages build provides **Quick hide**: Escape, P, Pause, or the backtick key opens `https://keytrainsecure.com/` in a closable in-page dialog. Close it with the button or Escape when focus is in the parent page. Animation-frame-driven game updates pause while the dialog is open; independent timers and audio may continue. Fullscreen is exited when needed. The visible arcade-header link and injected in-game Quick hide button are temporarily disabled; keyboard and player-triggered pause behavior remain active. P and backtick remain available for typing in form fields; TrickType keeps P for its typing gameplay and Mytharium keeps P for Photo Mode. Escape still hides the page. High Country's Space pause also triggers quick hide while flying. This behavior is added during the Pages build, so standalone source game files retain their original controls.
-
 ### GitHub Pages
 
 The `Publish arcade to GitHub Pages` workflow publishes on pushes to `main` and can also be run manually. In repository **Settings → Pages**, set **Source** to **GitHub Actions**. A private repository requires a GitHub plan that supports Pages for private repositories; the workflow does not change repository visibility.
