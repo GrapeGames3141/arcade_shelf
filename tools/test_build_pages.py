@@ -30,6 +30,14 @@ class PagesTests(unittest.TestCase):
         opus.mkdir(parents=True, exist_ok=True)
         (opus / 'opus.html').write_text('<!doctype html><title>Not promoted</title>', encoding='utf-8')
     def tearDown(self): self.temp.cleanup()
+    def test_kids_games_skip_quick_hide(self):
+        game = self.root / 'littles'
+        game.mkdir()
+        (game / 'littles.html').write_text('<!doctype html><html><head><title>Littles</title></head><body></body></html>', encoding='utf-8')
+        (game / 'game.json').write_text(json.dumps({'category': 'Kids'}), encoding='utf-8')
+        builder.build(self.root)
+        self.assertNotIn('arcade-quick-hide-injected', (self.root / 'work/pages/littles/littles.html').read_text(encoding='utf-8'))
+        self.assertIn('arcade-quick-hide-injected', (self.root / 'work/pages/splat/splat.html').read_text(encoding='utf-8'))
     def test_discovery_metadata_assets_and_rebuild(self):
         game = self.root / 'future fields'
         (game / 'nested').mkdir(parents=True)

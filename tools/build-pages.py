@@ -198,6 +198,8 @@ def build(root=ROOT):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(item, dest)
     for game in games:
+        # Kids games never get the quick-hide: a child pressing pause or P must not open KeyTrain.
+        if category_slug(metadata(game)["category"]) == "kids": continue
         page = out / game.name / entry_name(game)
         html = page.read_text(encoding="utf-8-sig")
         page.write_text(inject_quick_hide(html, runtime, game.name), encoding="utf-8")
