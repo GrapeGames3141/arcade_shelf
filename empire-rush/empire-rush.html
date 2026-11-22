@@ -170,6 +170,7 @@
     <div class="sub">Raise a clan from cave to town. Keep the fires lit. Burn your rival's hall.</div>
     <ul>
       <li><b>Gather</b> food, wood, stone and gold with your people. Build dwellings to grow the clan.</li>
+      <li><b>Changed your mind?</b> Esc or right-click stops placing a building. Select a building that is still going up and press <b>Cancel</b> (or Delete) to get its resources back.</li>
       <li><b>Every dawn</b> your people eat. Run out of food and they starve. Fields freeze in <b>winter</b>.</li>
       <li><b>At night</b> wolves hunt anyone outside the firelight. Build braziers and lookouts, or ring the bell to shelter in the Hearth Hall. Every fifth night is a <b>Blood Moon</b>.</li>
       <li><b>Advance</b> from the Ember Age (cavemen) through the Kiln Age to the Forge Age, unlocking bowhunters, outriders and stonehurlers.</li>
@@ -234,11 +235,11 @@ const pick = arr => arr[Math.floor(rnd() * arr.length)];
 const RES = ['food', 'wood', 'stone', 'gold'];
 const ERA_NAMES = ['Ember Age', 'Kiln Age', 'Forge Age'];
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
-const DAY_LEN = 120;           // seconds per day
-const NIGHT_AT = .62, DAWN_END = .07;
+const DAY_LEN = 150;           // seconds per day
+const NIGHT_AT = .76, DAWN_END = .05; // about 105 s of daylight and 44 s of night
 const UPKEEP = 4;              // food per head at dawn
 const CARRY = 10;
-const RATE = { tree: .95, berry: 1.05, carcass: 1.5, farm: .78, stone: .8, gold: .78 };
+const RATE = { tree: 1.25, berry: 1.35, carcass: 1.9, farm: 1.02, stone: 1.05, gold: 1.02 };
 const DIFF = [
   { name: 'Easy', gm: .78, firstAtk: 520, every: 190, wave: [3, 5, 6, 8, 10, 12], vill: [12, 16, 20], start: 0 },
   { name: 'Normal', gm: 1.0, firstAtk: 360, every: 160, wave: [4, 6, 9, 12, 15, 18], vill: [14, 22, 28], start: 50 },
@@ -512,6 +513,19 @@ function complete(b) {
   recount(b.team);
   if (b.team === 0 && b.born > 1 && G.time - b.born > .5) { sfx('done', b.x, b.y); G.uiDirty = true; }
 }
+// Cancelling a site that is still going up gives back everything not yet built, plus half of the rest.
+function refundOf(b) { const c = BLD[b.type].cost, k = 1 - b.prog * .5, out = {}; for (const r in c) out[r] = Math.floor(c[r] * k); return out; }
+function cancelBuilding(b) {
+  if (b.dead || b.done) return;
+  const tm = G.teams[b.team], back = refundOf(b);
+  for (const r in back) tm.res[r] += back[r];
+  b.dead = true; G.bldById.delete(b.id);
+  for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
+  G.blds = G.blds.filter(o => o !== b);
+  for (let i = 0; i < 10 * b.w; i++) puff(b.x + rr(-1, 1) * b.w * T / 2, b.y + rr(-1, 1) * b.h * T / 2, 'dust');
+  if (b.team === 0) { sfx('click'); alertMsg(`${bName(b)} cancelled. Resources returned.`, 'good'); setSel(SEL.filter(e => e !== b)); }
+  recount(b.team); G.miniDirty = true; G.uiDirty = true;
+}
 function destroyBuilding(b, by) {
   if (b.dead) return;
   b.dead = true; G.bldById.delete(b.id);
@@ -636,6 +650,28 @@ function step(u, dt) { // follow path; true when finished
   u.x += dx / d * sp; u.y += dy / d * sp;
   return false;
 }
+// When many workers share one spot, pushing keeps some just out of reach and they would re-path forever.
+// After three tries at the same target they work from wherever they ended up, as long as it is close.
+function crowdArrive(u, e, far) {
+  if (u.stallTgt !== e.id) { u.stallTgt = e.id; u.stall = 0; }
+  return u.stall >= 3 && edgeDist(u, e) <= far;
+}
+function stalled(u, e, far) { // a path finished without reaching e: count it and decide whether to try again
+  if (u.stallTgt !== e.id) { u.stallTgt = e.id; u.stall = 0; }
+  u.stall++;
+  // a tree or rock with no way in (deep in a forest, boxed in by others): give up on it and find another
+  if (u.stall >= 4 && e.ent === 'res' && edgeDist(u, e) > far) { u.avoid = e.id; u.tgt = 0; u.path = null; u.needPath = null; u.stall = 0; return; }
+  if (u.stall < 3 || edgeDist(u, e) > far) goNear(u, e);
+}
+// Called every frame while walking to e: if the gap stops shrinking (jostled in a crowd), settle or re-plan.
+function approach(u, e, far, dt) {
+  if (u.stallTgt !== e.id) { u.stallTgt = e.id; u.stall = 0; u.bestD = 1e9; u.appT = 0; }
+  const d = edgeDist(u, e);
+  if (d < (u.bestD ?? 1e9) - 2) { u.bestD = d; u.appT = 0; } else u.appT = (u.appT || 0) + dt;
+  if (u.appT > 2 && d <= far) { u.stall = 3; u.path = null; u.needPath = null; }
+  else if (u.appT > 6) { u.appT = 0; u.bestD = 1e9; stalled(u, e, far); }
+}
+function openNear(r) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if ((dx || dy) && walkable((r.tx + dx + .5) * T, (r.ty + dy + .5) * T)) return true; return false; }
 function edgeDist(u, e) {
   if (e.ent === 'b') {
     const x0 = e.tx * T, y0 = e.ty * T, x1 = x0 + e.w * T, y1 = y0 + e.h * T;
@@ -672,11 +708,33 @@ function commandUnits(units, wx, wy, target, amove) {
   if (!units.length) return;
   if (target && target.ent === 'u' && target.team === units[0].team && target.type === 'villager' && !units.includes(target) && units.some(u => u.type === 'villager') && ['gather', 'deliver', 'build', 'attack'].includes(target.st)) { if (helpWorker(units, target)) return; }
   for (const u of units) u.job = null;
+  if (target && target.ent === 'res' && units.filter(u => u.type === 'villager').length > 1 && spreadGather(units, target)) {
+    for (const u of units) if (u.type !== 'villager') smartOrder(u, target);
+    return;
+  }
   let n = 0;
   for (const u of units) {
     if (target) smartOrder(u, target);
     else { const p = formation(units.length, wx, wy, n++); orderMove(u, p.x, p.y, amove); }
   }
+}
+// Many villagers sent to one tree, bush or rock share it out: a few on the clicked one, the rest on the nearest others of that kind.
+const NODE_CAP = { tree: 2, berry: 3, carcass: 3, stone: 3, gold: 3 };
+function spreadGather(units, target) {
+  const vills = units.filter(u => u.type === 'villager'), cap = NODE_CAP[target.kind] || 3, team = vills[0].team;
+  const kinds = target.kind === 'berry' || target.kind === 'carcass' ? ['berry', 'carcass'] : [target.kind];
+  const load = workerLoad(team).on;
+  const nodes = G.res.filter(r => !r.dead && kinds.includes(r.kind) && dist(r.x, r.y, target.x, target.y) < 8 * T && (team !== 0 || expl[tid(r.tx, r.ty)]) && (!RES_KIND[r.kind].block || openNear(r)))
+    .sort((a, b) => (a === target ? -1 : b === target ? 1 : dist(a.x, a.y, target.x, target.y) - dist(b.x, b.y, target.x, target.y)));
+  if (!nodes.length) return false;
+  const used = new Map(nodes.map(r => [r.id, (load.get(r.id) || 0)]));
+  for (const u of vills) used.set(u.tgt, Math.max(0, (used.get(u.tgt) || 0) - (u.st === 'gather' || u.st === 'deliver' ? 1 : 0)));
+  vills.sort((a, b) => dist(a.x, a.y, target.x, target.y) - dist(b.x, b.y, target.x, target.y));
+  for (const u of vills) {
+    let r = nodes.find(n => used.get(n.id) < cap) || nodes.reduce((a, b) => used.get(a.id) <= used.get(b.id) ? a : b);
+    used.set(r.id, used.get(r.id) + 1); orderGather(u, r);
+  }
+  return true;
 }
 function smartOrder(u, e) {
   const vill = u.type === 'villager';
@@ -881,8 +939,9 @@ function findRes(team, kind, x, y, maxD, self) {
   }
   const kinds = kind === 'berry' || kind === 'carcass' ? ['berry', 'carcass'] : [kind];
   for (const r of G.res) {
-    if (r.dead || !kinds.includes(r.kind)) continue;
+    if (r.dead || !kinds.includes(r.kind) || (self && r.id === self.avoid)) continue;
     if (team === 0 && !expl[tid(r.tx, r.ty)]) continue;
+    if (RES_KIND[r.kind].block && !openNear(r)) continue;
     const d = dist(x, y, r.x, r.y) + (r.kind !== kind ? T * 2 : 0); if (d < bd) { bd = d; best = r; }
   }
   void self;
@@ -907,9 +966,9 @@ function gather(u, dt) {
   if (u.carry > 0 && u.ctype !== give) { u.carry = 0; }
   if (u.carry >= CARRY) { u.back = r.id; orderDeliver(u); return; }
   const d = edgeDist(u, r);
-  if (d > 8) {
+  if (d > 8 && !crowdArrive(u, r, T * 1.3)) {
     if (!u.path && !u.needPath) { if (isFarm) goTo(u, r.x + rr(-T, T), r.y + rr(-T * .7, T)); else goNear(u, r); }
-    if (step(u, dt) && edgeDist(u, r) > 10) goNear(u, r);
+    if (step(u, dt) && edgeDist(u, r) > 10) stalled(u, r, T * 1.3); else approach(u, r, T * 1.3, dt);
     u.task = 'Heading out'; return;
   }
   u.path = null; u.needPath = null;
@@ -940,9 +999,9 @@ function deliver(u, dt) {
     if (!b) { stopUnit(u); u.task = `No drop-off — build a ${u.ctype === 'food' ? 'Larder' : 'Stockpile'}`; return; }
     u.drop = b.id; goNear(u, b);
   }
-  if (edgeDist(u, b) > 9) {
+  if (edgeDist(u, b) > 9 && !crowdArrive(u, b, T * 1.4)) {
     if (!u.path && !u.needPath) goNear(u, b);
-    if (step(u, dt) && edgeDist(u, b) > 12) goNear(u, b);
+    if (step(u, dt) && edgeDist(u, b) > 12) stalled(u, b, T * 1.4); else approach(u, b, T * 1.4, dt);
     u.task = `Carrying ${Math.floor(u.carry)} ${u.ctype}`; return;
   }
   const tm = G.teams[u.team];
@@ -1049,9 +1108,9 @@ function build(u, dt) {
   const b = G.bldById.get(u.tgt);
   if (!b || b.dead || b.team !== u.team) { nextJob(u); return; }
   if (b.done && b.hp >= b.maxhp) { afterBuild(u, b); return; }
-  if (edgeDist(u, b) > 9) {
+  if (edgeDist(u, b) > 9 && !crowdArrive(u, b, T * 1.4)) {
     if (!u.path && !u.needPath) goNear(u, b);
-    if (step(u, dt) && edgeDist(u, b) > 14) goNear(u, b);
+    if (step(u, dt) && edgeDist(u, b) > 14) stalled(u, b, T * 1.4); else approach(u, b, T * 1.4, dt);
     u.task = b.done ? 'Going to repair' : 'Going to build'; return;
   }
   u.path = null; u.needPath = null; u.face = b.x < u.x ? -1 : 1;
@@ -3042,6 +3101,10 @@ function cmdList() {
     return out;
   }
   const b = sel[0];
+  if (sel.length === 1 && b.ent === 'b' && b.team === 0 && !b.done) {
+    const back = refundOf(b);
+    return [{ id: 'bcancel', icon: iconURL('x', 'stop'), tip: { h: 'Cancel building', cost: back, p: `Stop building this ${bName(b)} and get these resources back. Its builders go back to work. (Delete key)` }, act: () => cancelBuilding(b) }];
+  }
   if (sel.length === 1 && b.ent === 'b' && b.team === 0 && b.done) {
     const d = BLD[b.type], out = [];
     for (const ut of d.trains || []) {
@@ -3473,6 +3536,7 @@ window.addEventListener('keydown', e => {
   else if (k === 'b' || k === 'B') { if (G.teams[0].tc) ringBell(0, !G.bell[0]); }
   else if (k === 'h' || k === 'H') { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } }
   else if (k === ' ') { e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); }
+  else if (k === 'Delete' && SEL.length === 1 && SEL[0].ent === 'b' && SEL[0].team === 0 && !SEL[0].done) cancelBuilding(SEL[0]);
   else if (k === 'Delete' && myUnits().length === 1) { killUnit(myUnits()[0], null); }
   else if (/^[1-9]$/.test(k)) {
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); G.groups[k] = myUnits().map(u => u.id); alertMsg(`Group ${k} set (${G.groups[k].length}).`); }
