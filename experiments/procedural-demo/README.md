@@ -2,7 +2,7 @@
 
 Open [procedural-demo.html](procedural-demo.html) directly in a current WebGL 2 browser. It is an offline, code-only scene with no downloads or runtime assets.
 
-It opens in Walk mode on the beach. Use WASD to move, Shift to move faster, Arrow keys or drag to look, and the MOVE/LOOK pads on touch devices. Swimming begins automatically in deep enough water. The outer reef permits lagoon and shallow-sea swimming but smoothly blocks travel into the deep ocean. Aerial, Strand, Reef, Falls, Stream, and Lava are composed orbit and landmark buttons. Walk or `R` resumes first-person play at the current position. SOUND is gesture-gated and then toggles mute. GROWN TREES switches the broadleaf trees between the grown trees and the classic ones. QUALITY steps through low, medium and high: the island regenerates, and the device remembers the choice.
+It opens in Walk mode on the beach. Use WASD to move, Shift to move faster, Arrow keys or drag to look, and the MOVE/LOOK pads on touch devices. Swimming begins automatically in deep enough water. The outer reef permits lagoon and shallow-sea swimming but smoothly blocks travel into the deep ocean. Aerial, Strand, Reef, Falls, Stream, and Lava are composed orbit and landmark buttons. Walk or `R` resumes first-person play at the current position. SOUND is gesture-gated and then toggles mute. GROWN TREES switches the broadleaf trees between the grown trees and the classic ones. QUALITY steps through low, medium, high and max: the island regenerates, and the device remembers the choice. The button also shows the frame rate.
 
 The scene generates eroded volcanic terrain, a reef shelf, coastal and forest plants, forked broadleaf trees, shore objects, wildlife, animated water, waterfall and lava landmarks, moving weather, contact and sun shadows, and synthesized surf, wind, landmark and footstep audio at runtime. A compact generated signed shoreline-distance/normal field is shared by CPU walking, wet-sand history, mark removal, audio, and the water shaders: it guides short incoming swash, sheltered lagoon water, outer-reef breaks, thin torn foam at advancing fronts, and draining afterwash. Sand is procedural carbonate/mineral grain with restrained beach ripples and a polished wet swash zone. Bare footprints and kicked sand follow the terrain; a wetting wave erases a contacted mark in about 0.11 seconds while dry marks persist. `?view=0`, `?view=1`, and `?view=2` open orbit views. `?test=swim`, `?test=falls`, `?test=stream`, and `?test=lava` provide deterministic test positions. `?test=forest` and GROVE open the canopy review. `window.ISLAND.state()` exposes current play state and `window.ISLAND.testSpawn(x,z)` supports local testing.
 
@@ -57,7 +57,7 @@ Stream and storm checks are recorded in [stream to sea](evidence/stream-to-sea.j
 
 ## Realism pass
 
-The renderer works in linear HDR: a 4x multisampled RGBA16F scene target, an ACES tone curve, bloom, and eye adaptation that meters the lower part of the view. Without float render targets, or with `?hdr=0`, each shader tone-maps into an 8-bit target instead. The QUALITY button (or `?q=low`, `?q=medium` and `?q=high` in tests) picks the quality tier; phones and small windows default to low, which drops the volumetric clouds, the planar reflection, SSAO and contact-hardening shadows, and thins the plants.
+The renderer works in linear HDR: a 4x multisampled RGBA16F scene target, an ACES tone curve, bloom, and eye adaptation that meters the lower part of the view. Without float render targets, or with `?hdr=0`, each shader tone-maps into an 8-bit target instead. The QUALITY button (or `?q=low`, `?q=medium`, `?q=high` and `?q=max` in tests) picks the quality tier; phones and small windows default to low, which drops the volumetric clouds, the planar reflection, SSAO and contact-hardening shadows, and thins the plants.
 
 All light comes from one physical sky. A single-scattering Rayleigh, Mie and ozone model is baked into a small table that drives the sky dome, the sun colour, spherical-harmonic sky and ground-bounce ambient, and the height fog, so distant land takes on blue haze. Sun shadows harden at contact (PCSS), the terrain carries baked horizon occlusion, and half-resolution SSAO darkens only the ambient light. Surfaces use GGX highlights; wet sand, rock and leaves pick up the sky and the planar sea reflection.
 
@@ -92,3 +92,12 @@ Beach morning glory (Ipomoea pes-caprae) no longer floats above the sand. Its ru
 Test hooks: `ISLAND.setTrees("grown" | "classic")`, `ISLAND.treeStats()`, `ISLAND.listTrees(minHeight)`, `ISLAND.viewTree(index, dist, az, pitch)` and `ISLAND.canopyLoad()`. Evidence: [grown trees and morning glory](evidence/grown-trees.jpg).
 
 Evidence for the creek and falls rework: [falls, creek steps and banks](evidence/creek-falls.jpg).
+
+## Quality tiers and smoother frames
+
+MAX draws everything at full detail and at the screen's native resolution. HIGH looks the same at a glance but runs lighter, in two ways:
+
+- Leaves more than 6 to 8.5 m away use a light version of each leaf spray, with about 40% of the triangles: simpler leaf outlines, no leaf-stalk tubes and three-sided twigs. The two versions cross-fade with complementary dithering, so there is no pop. Shadows and water reflections also use the light sprays, so trees still show in the reflections.
+- The 3D view is drawn at up to 2.4 million pixels and the browser upscales it, while the buttons stay sharp. When frames take longer than about 21 ms, the render scale steps down, no lower than 70%. It climbs back when frames are quick.
+
+Medium and low also use the light sprays, with budgets of 1.7 and 1.1 million pixels and floors of 60% and 50%. In the grove, HIGH draws about 1.9 million leaf and branch triangles against 2.8 million on MAX, and about 1.4 million against 2.8 million in the shadow and reflection passes. Test hooks: `ISLAND.perf()` (tier, render scale, canvas size, frame rate) and `ISLAND.canopyLoad()`. `?scale=1` pins the render scale for headless tests.

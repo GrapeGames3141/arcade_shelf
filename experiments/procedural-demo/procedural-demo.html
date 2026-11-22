@@ -151,6 +151,8 @@
     requestAnimationFrame(() => setTimeout(() => { try {
     const GEN_T0 = performance.now();
     let thinPetioles = false; // spray modules draw hair-thin petioles with three sides
+    let liteFoliage = false; // light spray modules: 4-station leaves, no petiole tubes, 3-sided twigs
+    const perfStats = { fps: 0, frames: 0, since: 0, ema: 16.7, lastScale: 0, scaleChanges: 0, t0: 0 };
     const canvas = document.querySelector("canvas"),
       gl = canvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, powerPreference: "high-performance" }),
       error = document.querySelector("#error");
@@ -165,11 +167,14 @@
     const PARAMS = new URLSearchParams(location.search),
       coarsePointer = matchMedia("(pointer: coarse)").matches,
       qualityFlag = PARAMS.get("q") || (() => { try { return localStorage.getItem("islandQuality"); } catch (e) { return null; } })(),
-      QUALITY = qualityFlag === "low" ? 0 : qualityFlag === "medium" ? 1 : qualityFlag === "high" ? 2 : (coarsePointer || Math.min(innerWidth, innerHeight) < 560 ? 0 : 2),
+      QUALITY = qualityFlag === "low" ? 0 : qualityFlag === "medium" ? 1 : qualityFlag === "high" || qualityFlag === "max" ? 2 : (coarsePointer || Math.min(innerWidth, innerHeight) < 560 ? 0 : 2),
+      // MAX draws everything at full detail and native resolution; HIGH looks
+      // the same at a glance but uses lighter distant leaves and render scaling.
+      MAXQ = qualityFlag === "max",
       floatTargets = !!gl.getExtension("EXT_color_buffer_float"),
       HDR = floatTargets && PARAMS.get("hdr") !== "0";
     gl.getExtension("OES_texture_float_linear");
-    const RENDER = { hdr: HDR, quality: ["low", "medium", "high"][QUALITY], samples: 0, exposure: 1, adaptedLum: 0, passes: [] };
+    const RENDER = { hdr: HDR, quality: MAXQ ? "max" : ["low", "medium", "high"][QUALITY], samples: 0, exposure: 1, adaptedLum: 0, passes: [] };
     const SHADER_DEFINES = `#define HDR ${HDR ? 1 : 0}\n#define QUALITY ${QUALITY}\n`;
     function program(v, f) {
       const p = gl.createProgram();
@@ -685,7 +690,7 @@ float shadowAt(highp sampler2DShadow map,highp sampler2D raw,mat4 lm,float bias,
 #endif
 }
 float sunShadow(float bias){float slope=bias*(.35+.65*(1.-max(normalize(normal).y,0.)));float blend=1.-smoothstep(21.,26.,length(world.xz-eye.xz));float far=blend>.999?1.:shadowAt(shadowMap,shadowRaw,lightM,slope,380.,619.);float near=blend<.001?1.:shadowAt(nearShadowMap,nearShadowRaw,nearLightM,slope*.55,52.,179.);return mix(far,near,blend);}
-void main(){if(world.y<clipY)discard;if((leafFlag>.5||twigFlag>.5)&&detailFade<.999&&fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>detailFade)discard;vec2 ctx=cuv*vec2(2048.,1024.);float cardLod=max(0.,.5*log2(max(max(dot(dFdx(ctx),dFdx(ctx)),dot(dFdy(ctx),dFdy(ctx))),1e-8)));vec4 cardTex=texture(plantAtlas,cuv);float ca=cardTex.a*(1.+cardLod*.22),caw=max(fwidth(ca),1e-4),cov=1.;
+void main(){if(world.y<clipY)discard;if(leafFlag>.5||twigFlag>.5){float df=abs(detailFade),hs=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);if(detailFade<0.)hs=1.-hs;if(df<.999&&hs>df)discard;}vec2 ctx=cuv*vec2(2048.,1024.);float cardLod=max(0.,.5*log2(max(max(dot(dFdx(ctx),dFdx(ctx)),dot(dFdy(ctx),dFdy(ctx))),1e-8)));vec4 cardTex=texture(plantAtlas,cuv);float ca=cardTex.a*(1.+cardLod*.22),caw=max(fwidth(ca),1e-4),cov=1.;
  float ly=clamp(leafCoord.y,0.,1.),prof=pow(max(sin(3.14159*min(1.,ly*1.03+.02)),0.),.60)*(1.-.07*abs(sin(ly*38.))),le=prof*1.04+.03-abs(leafCoord.x),lew=max(fwidth(le),1e-4);
  // With MSAA the cut-out edge becomes coverage (alpha-to-coverage) instead of a hard test.
  if(cardFlag>.5){if(a2c>.5)cov=clamp((ca-.42)/caw+.5,0.,1.);else if(ca<.42)discard;}else cardTex=vec4(1.);
@@ -2200,22 +2205,23 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       let previous;
       // Six outline stations round the shoulders and keep the tapered
       // tip; its raised centre line is the visibly attached midrib.
-      for(let station=0;station<6;station++){
-        const t=station/5,shoulder=Math.sin(Math.PI*t)*(broad?1.12:.78+.22*Math.sin(t*Math.PI*.5)),span=width*shoulder,
+      const ST=liteFoliage?4:6;
+      for(let station=0;station<ST;station++){
+        const t=station/(ST-1),shoulder=Math.sin(Math.PI*t)*(broad?1.12:.78+.22*Math.sin(t*Math.PI*.5)),span=width*shoulder,
           reach=length*t,drop=length*(.13+.18*noise(phase,3))*t*t,
           centre=[root[0]+forward[0]*reach,root[1]+forward[1]*reach+rise*length*Math.sin(t*Math.PI*.72)-drop,root[2]+forward[2]*reach],
           fold=span*(.30+.20*Math.cos(t*Math.PI)+roll*.16),left=[centre[0]+side[0]*span,centre[1]-roll*span*.34,centre[2]+side[2]*span],
           ridge=[centre[0],centre[1]+fold,centre[2]],right=[centre[0]-side[0]*span,centre[1]+roll*span*.34,centre[2]-side[2]*span],
           leftN=norm(cross(forward,[ridge[0]-left[0],ridge[1]-left[1],ridge[2]-left[2]])),rightN=norm(cross([ridge[0]-right[0],ridge[1]-right[1],ridge[2]-right[2]],forward)),ridgeN=norm(vadd(leftN,rightN)),shade=.88+.08*(1-t),row=[
-            pv(left,leftN,tint.map(v=>v*.84*shade),rootBend+(1-rootBend)*t*.72,-100-station*3),
-            pv(ridge,ridgeN,tint.map((v,i)=>(i===1?v*1.06+.012:v*.94)*shade),rootBend+(1-rootBend)*t*.78,-101-station*3),
-            pv(right,rightN,tint.map((v,i)=>v*(i===1?.91:.82)*shade),rootBend+(1-rootBend)*t*.72,-102-station*3)
+            pv(left,leftN,tint.map(v=>v*.84*shade),rootBend+(1-rootBend)*t*.72,-100-Math.round(t*5)*3),
+            pv(ridge,ridgeN,tint.map((v,i)=>(i===1?v*1.06+.012:v*.94)*shade),rootBend+(1-rootBend)*t*.78,-101-Math.round(t*5)*3),
+            pv(right,rightN,tint.map((v,i)=>v*(i===1?.91:.82)*shade),rootBend+(1-rootBend)*t*.72,-102-Math.round(t*5)*3)
           ];
         if(previous){
           // The first and last stations collapse to a single hinge/tip point.
           // Keep their two real faces and omit the two zero-area strip faces.
           if(station===1){tri(previous[1],row[0],row[1]);tri(previous[2],row[1],row[2]);}
-          else if(station===5){tri(previous[0],row[0],previous[1]);tri(previous[1],row[1],previous[2]);}
+          else if(station===ST-1){tri(previous[0],row[0],previous[1]);tri(previous[1],row[1],previous[2]);}
           else{tri(previous[0],row[0],previous[1]);tri(previous[1],row[0],row[1]);tri(previous[1],row[1],previous[2]);tri(previous[2],row[1],row[2]);}
         }previous=row;
       }
@@ -2270,7 +2276,7 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
           const host=sprays[i%sprays.length], local=Math.floor(i/sprays.length), hostCount=Math.ceil(per/sprays.length), pair=Math.floor(local/2), f=habit==="almond"?.30+.58*(local+.45)/hostCount:.14+.78*(pair+.45)/Math.ceil(hostCount/2), socket=pathPoint(host,f), side=i%2?1:-1,
             la=habit==="almond"?az+i*Math.PI*2/per+.20*Math.sin(seed+i*3.7):az+side*(.48+.22*noise(seed+i*7,twig+3)), petioleLength=.012+.018*noise(seed,i), petiole=vadd(socket,[Math.cos(la)*petioleLength,(.007+.013*noise(seed,i))*petioleLength,Math.sin(la)*petioleLength]),
             length=(habit==="almond"?.145:.095)+(habit==="almond"?.085:.065)*noise(seed+i*5.3,i+11), width=length*((habit==="almond"?.38:.27)+.07*noise(seed+17,i*2));
-          woodSegment(socket,petiole,.00082,.00028,[.11,.065,.026],.06,seed+i*.41);canopyStats.petioles++;
+          if(!liteFoliage)woodSegment(socket,petiole,.00082,.00028,[.11,.065,.026],.06,seed+i*.41);canopyStats.petioles++;
           const mature=tint.map((c,k)=>c*(.74+.32*noise(seed+i*3,k+9))+(k===1?.018:0)),olive=.82+.28*noise(seed+twig*19,i+41),leafTint=young?[mature[0]*1.30+.020,mature[1]*1.14+.030,mature[2]*.64+.004]:[mature[0]*(1.06-.16*olive),mature[1]*olive,mature[2]*(.78+.20*olive)];
           leafBlade(petiole,la,length,width,leafTint,seed*.31+i*.83,.17*Math.sin(seed+i*1.9),.34*side,habit==="almond",.06);
           canopyStats.leaves++;
@@ -2338,6 +2344,13 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     function buildSprayModule(kind){const save=[pP,pN,pC,pI,pW,pB,pU],before={w:canopyStats.woodyInternodes,t:canopyStats.terminalShoots,g:canopyStats.currentYearTwiglets,p:canopyStats.petioles,l:canopyStats.leaves};pP=[];pN=[];pC=[];pI=[];pW=[];pB=[];pU=[];const tint=kind?[.078,.215,.034]:[.069,.198,.029],stem=limbPath([0,0,0],[1,.10,0],.12,.0118,.0075,880+kind,.08,[.11,.063,.024]);thinPetioles=true;terminalShoot(stem.end,stem.direction,4,905+kind*31,tint,kind?46:50,4,kind?"oval":"almond");thinPetioles=false;canopyModules.push(instanceTreeMesh(pP,pN,pC,pI,pW,pB,2+kind,0,true));sprayModuleCounts[kind]={woodyInternodes:canopyStats.woodyInternodes-before.w,terminalShoots:canopyStats.terminalShoots-before.t,currentYearTwiglets:canopyStats.currentYearTwiglets-before.g,petioles:canopyStats.petioles-before.p,leaves:canopyStats.leaves-before.l};[pP,pN,pC,pI,pW,pB,pU]=save;}
     function buildSegmentModule(){const save=[pP,pN,pC,pI,pW,pB,pU];pP=[];pN=[];pC=[];pI=[];pW=[];pB=[];pU=[];const sides=6;for(let ring=0;ring<2;ring++)for(let i=0;i<sides;i++){const a=i/sides*Math.PI*2,ny=Math.cos(a),nz=Math.sin(a);pv([ring,ny,nz],[0,ny,nz],[.125,.072,.030],0,-40,[1,0,0]);}for(let i=0;i<sides;i++){const j=(i+1)%sides;tri(i,sides+i,j);tri(j,sides+i,sides+j);}canopyModules.push(instanceTreeMesh(pP,pN,pC,pI,pW,pB,9,1,true));[pP,pN,pC,pI,pW,pB,pU]=save;}
     buildSprayModule(0);buildSprayModule(1);buildSegmentModule();
+    // Light sprays (about 40% of the triangles) for the HIGH tier: leaves past
+    // 6 m in the main pass, and every near spray in shadows and reflections.
+    const liteSprayCounts=[];
+    function buildLiteSpray(kind,main){const keep=sprayModuleCounts[kind];liteFoliage=true;buildSprayModule(kind);liteFoliage=false;liteSprayCounts[kind]=sprayModuleCounts[kind];sprayModuleCounts[kind]=keep;const m=canopyModules[canopyModules.length-1];m.lite=true;m.inMain=main;m.inShadow=!main;}
+    buildLiteSpray(0,true);buildLiteSpray(1,true);buildLiteSpray(0,false);buildLiteSpray(1,false);
+    // Full sprays cast shadows and reflect only on MAX.
+    canopyModules[3].inShadow=MAXQ;canopyModules[4].inShadow=MAXQ;
     // Far-card atlas scale per arm kind: [px per unit across, px per unit up, ground row].
     const FAR_KIND=[[35,62,120],[35,62,120],[85,140,96],[85,140,96]];
     function deriveArmAtlas(){leafInk.clearRect(0,0,2048,128);for(let frame=0;frame<16;frame++){const kind=frame>>2,K=FAR_KIND[kind],{P,C,I}=canopyModules[kind<2?1+kind:1+kind].rasterSource,angle=(frame&3)*Math.PI*.5,cs=Math.cos(angle),sn=Math.sin(angle),faces=[];for(let q=0;q<I.length;q+=3){const ids=[I[q],I[q+1],I[q+2]],depth=ids.reduce((s,id)=>s+P[id*3]*sn+P[id*3+2]*cs,0);faces.push([depth,ids]);}faces.sort((a,b)=>a[0]-b[0]);for(const [,ids] of faces){const xy=ids.map(id=>{const x=P[id*3],y=P[id*3+1],z=P[id*3+2];return [frame*128+64+(x*cs-z*sn)*K[0],K[2]-y*K[1]];}),id=ids[0],r=Math.round(Math.min(255,C[id*3]*620)),g=Math.round(Math.min(255,C[id*3+1]*620)),b=Math.round(Math.min(255,C[id*3+2]*620));leafInk.fillStyle=`rgb(${r},${g},${b})`;leafInk.beginPath();leafInk.moveTo(...xy[0]);leafInk.lineTo(...xy[1]);leafInk.lineTo(...xy[2]);leafInk.fill();}}for(const mesh of canopyModules)delete mesh.rasterSource;const alpha=leafInk.getImageData(0,0,2048,128).data;atlasAlpha.length=16;for(let frame=0;frame<16;frame++){let count=0,base=frame*128;for(let y=0;y<128;y++)for(let x=0;x<128;x++)if(alpha[(y*2048+base+x)*4+3])count++;atlasAlpha[frame]=count;}gl.bindTexture(gl.TEXTURE_2D,leafTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,leafCanvas);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);}
@@ -2814,7 +2827,7 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     function woodSegment(a, b, r0, r1, tint, tipBend = 0, phase = 0) {
       let axis = norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]),
         side = norm(cross(axis, Math.abs(axis[1]) > .9 ? [1, 0, 0] : [0, 1, 0])),
-        up = cross(side, axis), first = pP.length / 3, sides = thinPetioles && r0 < .0012 ? 3 : 5;
+        up = cross(side, axis), first = pP.length / 3, sides = (thinPetioles && r0 < .0012) || (liteFoliage && r0 < .008) ? 3 : 5;
       for (let ring = 0; ring < 2; ring++) for (let i = 0; i < sides; i++) {
         let angle = i * Math.PI * 2 / sides, radius = ring ? r1 : r0, q = ring ? b : a,
           nx = side[0] * Math.cos(angle) + up[0] * Math.sin(angle), ny = side[1] * Math.cos(angle) + up[1] * Math.sin(angle), nz = side[2] * Math.cos(angle) + up[2] * Math.sin(angle);
@@ -3568,7 +3581,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       canopySelectX=x;canopySelectZ=z;canopySelectProjection=projection;if(flat)canopySelectFacing=flat;const buckets=Array.from({length:canopyModules.length},()=>[]),farRoots=[],farData=[],farFades=[],grown=treeMode==="grown";if(!grown)buckets[0].push(...treeRoots);let culledDetail=0;
       for(const r of treeRoots){const dx=r.x-x,dz=r.z-z,d=Math.hypot(dx,dz),range=15+r.h*1.8,fade=Math.max(0,Math.min(1,(range+7-d)/7));let visible=true;
         if(flat&&d>.01){const front=(dx*flat[0]+dz*flat[1])/d,side=Math.abs(dx*(-flat[1])+dz*flat[0]);visible=front>-.16&&side<Math.max(r.w*2,(d*front+3)*tanHalfFov*aspect*1.22);}
-        r.distance=d;r.detailFade=fade;r.lod=fade>0&&visible?1:0;if(r.lod){for(const arm of r.arms){arm.detailFade=fade;buckets[1+arm.kind].push(arm);}if(grown)for(const w of r.wood)buckets[5].push(w);}else{if(fade>0)culledDetail++;if(grown)for(const w of r.woodFar)buckets[5].push(w);}
+        r.distance=d;r.detailFade=fade;r.lod=fade>0&&visible?1:0;if(r.lod){const fullK=MAXQ?1:1-smooth01(6,8.5,d);for(const arm of r.arms){if(arm.kind<2||MAXQ){arm.detailFade=fade;buckets[1+arm.kind].push(arm);continue;}const k=arm.kind-2;if(fullK>0){arm.detailFade=Math.min(fade,fullK);buckets[3+k].push(arm);}if(fullK<1){const lt=arm.liteTwin||(arm.liteTwin={...arm});lt.detailFade=fullK>0?-(1-fullK):fade;buckets[6+k].push(lt);}const sh=arm.shadowTwin||(arm.shadowTwin={...arm});sh.detailFade=fade;buckets[8+k].push(sh);}if(grown)for(const w of r.wood)buckets[5].push(w);}else{if(fade>0)culledDetail++;if(grown)for(const w of r.woodFar)buckets[5].push(w);}
         const cardFade=r.lod?1-fade:1;if(cardFade>.002)for(const arm of r.arms){if(arm.side)continue;const eyeBearing=Math.atan2(z-arm.z,x-arm.x),localBearing=Math.PI*.5-(eyeBearing-arm.az),viewFrame=((Math.round(localBearing/(Math.PI*.5))%4)+4)%4,billboardYaw=Math.atan2(-(x-arm.x),z-arm.z);if(arm.kind<2){farRoots.push(arm.x,arm.y+arm.scale*.48*128/62,arm.z,arm.scale*64/35);farData.push(arm.scale*128/62,billboardYaw,arm.kind*4+viewFrame,arm.seed);}else{const K=FAR_KIND[arm.kind],sc=arm.scale*1.3,H=sc*128/K[1];farRoots.push(arm.x,arm.y+sc*(K[2]-128)/K[1]+.48*H,arm.z,sc*64/K[0]);farData.push(H,billboardYaw,arm.kind*4+viewFrame,arm.seed);}farFades.push(cardFade);}}
       for(const f of canopyFillers){const fd=Math.hypot(f.x-x,f.z-z);if(fd<24)continue;const ff=Math.min(1,(fd-24)/8);for(const arm of f.arms){const eyeBearing=Math.atan2(z-arm.z,x-arm.x),localBearing=Math.PI*.5-(eyeBearing-arm.az),viewFrame=((Math.round(localBearing/(Math.PI*.5))%4)+4)%4,billboardYaw=Math.atan2(-(x-arm.x),z-arm.z);farRoots.push(arm.x,arm.y+arm.scale*.48*128/62,arm.z,arm.scale*64/35);farData.push(arm.scale*128/62,billboardYaw,arm.kind*4+viewFrame,arm.seed);farFades.push(ff);}}
       for(let i=0;i<canopyModules.length;i++)uploadCanopyInstances(canopyModules[i],buckets[i]);
@@ -3598,7 +3611,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
     gl.bindTexture(gl.TEXTURE_2D,nearShadowDepth);gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,nearShadowSize,nearShadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_COMPARE_MODE,gl.COMPARE_REF_TO_TEXTURE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_COMPARE_FUNC,gl.LEQUAL);gl.bindFramebuffer(gl.FRAMEBUFFER,nearShadowFbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,nearShadowDepth,0);gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error("near sun shadow framebuffer unavailable");gl.bindFramebuffer(gl.FRAMEBUFFER,null);
     function drawInstancedCanopyShadow(matrix,time){
       gl.useProgram(SD);gl.uniformMatrix4fv(gl.getUniformLocation(SD,"lightM"),false,matrix);gl.uniform1f(gl.getUniformLocation(SD,"time"),time);gl.uniform1i(gl.getUniformLocation(SD,"instancedTree"),1);gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,shelterTex);gl.uniform1i(gl.getUniformLocation(SD,"shelterMap"),11);
-      for(const mesh of canopyModules)if(mesh.instanceCount){gl.bindVertexArray(mesh.v);gl.drawElementsInstanced(gl.TRIANGLES,mesh.n,gl.UNSIGNED_INT,0,mesh.instanceCount);}
+      for(const mesh of canopyModules)if(mesh.instanceCount&&mesh.inShadow!==false){gl.bindVertexArray(mesh.v);gl.drawElementsInstanced(gl.TRIANGLES,mesh.n,gl.UNSIGNED_INT,0,mesh.instanceCount);}
       gl.uniform1i(gl.getUniformLocation(SD,"instancedTree"),0);
       if(farInstanceCount){gl.useProgram(SDL);gl.uniformMatrix4fv(gl.getUniformLocation(SDL,"lightM"),false,matrix);gl.uniform1f(gl.getUniformLocation(SDL,"time"),time);gl.uniform1i(gl.getUniformLocation(SDL,"instancedFar"),1);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,leafTexture);gl.uniform1i(gl.getUniformLocation(SDL,"atlas"),0);gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,shelterTex);gl.uniform1i(gl.getUniformLocation(SDL,"shelterMap"),11);gl.bindVertexArray(farVAO);gl.drawArraysInstanced(gl.TRIANGLES,0,farP.length/3,farInstanceCount);gl.uniform1i(gl.getUniformLocation(SDL,"instancedFar"),0);}
     }
@@ -3899,8 +3912,10 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
     function setTreeMode(mode){treeMode=mode==="classic"?"classic":"grown";applyTreeMode();canopySelectX=NaN;updateCanopyInstances(player.x,player.z,0,true);bakeSunShadow();nearShadowStamp=-1;const b=document.querySelector('[data-view="trees"]');b.setAttribute("aria-pressed",String(treeMode==="grown"));b.textContent=treeMode==="grown"?"GROWN TREES":"CLASSIC TREES";}
     function toggleTrees(){setTreeMode(treeMode==="grown"?"classic":"grown");}
     // QUALITY button: low / medium / high, remembered on this device; the island regenerates.
-    function cycleQuality(){const next=["medium","high","low"][QUALITY];try{localStorage.setItem("islandQuality",next);}catch(e){}const q=new URLSearchParams(location.search);q.set("q",next);location.search=q.toString();}
-    document.querySelector('[data-view="quality"]').textContent="QUALITY: "+RENDER.quality.toUpperCase();
+    function cycleQuality(){const next={low:"medium",medium:"high",high:"max",max:"low"}[RENDER.quality]||"high";try{localStorage.setItem("islandQuality",next);}catch(e){}const q=new URLSearchParams(location.search);q.set("q",next);location.search=q.toString();}
+    const qualityButton=document.querySelector('[data-view="quality"]');
+    function showQuality(){qualityButton.textContent="QUALITY: "+RENDER.quality.toUpperCase()+(perfStats.fps?" \u00b7 "+perfStats.fps+" FPS":"");}
+    showQuality();
     function toggleStorm(){weather.on=!weather.on;if(weather.on){weather.nextStrike=waterClock+5.4;weather.lastStrike=null;}document.querySelector('[data-view="storm"]').setAttribute("aria-pressed",String(weather.on));}
     function updateAudio() {
       if (!audio.ctx || audio.muted) return;
@@ -4171,7 +4186,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       gl.frontFace(gl.CW); // the mirrored projection reverses winding
       gl.uniform1i(mU.instancedTree, 0); gl.uniform1i(mU.landPass, 1); gl.bindVertexArray(island.v); gl.drawElements(gl.TRIANGLES, island.n, gl.UNSIGNED_INT, 0);
       gl.uniform1i(mU.landPass, 0); gl.bindVertexArray(vegetation.v); gl.drawElements(gl.TRIANGLES, vegetation.n, gl.UNSIGNED_INT, 0);
-      if (QUALITY > 1) { gl.uniform1i(mU.instancedTree, 1); for (const mesh of canopyModules) if (mesh.instanceCount) { gl.bindVertexArray(mesh.v); gl.drawElementsInstanced(gl.TRIANGLES, mesh.n, gl.UNSIGNED_INT, 0, mesh.instanceCount); } gl.uniform1i(mU.instancedTree, 0); }
+      if (QUALITY > 1) { gl.uniform1i(mU.instancedTree, 1); for (const mesh of canopyModules) if (mesh.instanceCount && mesh.inShadow !== false) { gl.bindVertexArray(mesh.v); gl.drawElementsInstanced(gl.TRIANGLES, mesh.n, gl.UNSIGNED_INT, 0, mesh.instanceCount); } gl.uniform1i(mU.instancedTree, 0); }
       gl.frontFace(gl.CCW);
       bindShadowRaw(false); gl.uniformMatrix4fv(mU.m, false, m); gl.uniform3fv(mU.eye, cam.eye); gl.uniform1f(pu(M, "clipY"), -.70); gl.uniform1f(pu(M, "reflOn"), 1);
       if (farInstanceCount) { gl.useProgram(Q); gl.uniformMatrix4fv(qU.m, false, mR); gl.uniform3fv(qU.eye, eyeR); gl.uniform1i(qU.instancedFar, 1); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, leafTexture); gl.bindVertexArray(farVAO); gl.drawArraysInstanced(gl.TRIANGLES, 0, farP.length / 3, farInstanceCount); gl.uniformMatrix4fv(qU.m, false, m); gl.uniform3fv(qU.eye, cam.eye); }
@@ -4250,8 +4265,17 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       // final AO lives in aoTmp after the vertical pass
       const swap = T.aoTex; T.aoTex = T.aoTmp; T.aoTmp = swap; const sf = T.aoFbo; T.aoFbo = T.aoTmpFbo; T.aoTmpFbo = sf;
     };
+    // Render scale: the 3D view is drawn at up to a pixel budget per tier and
+    // the browser upscales it (the buttons stay sharp).  On low, medium and high
+    // the scale also drops when frames run long and climbs back when they are
+    // quick.  MAX always draws every native pixel.  ?scale=1 pins it for tests.
+    const PIXEL_BUDGET = MAXQ ? Infinity : [1.1e6, 1.7e6, 2.4e6][QUALITY], scalePin = PARAMS.has("scale") ? Math.max(.3, Math.min(1, +PARAMS.get("scale") || 1)) : 0;
+    let renderScale = 1, renderScaleCap = 1;
     function resize() {
-      let r = devicePixelRatio || 1,
+      const dpr = devicePixelRatio || 1;
+      renderScaleCap = scalePin || Math.min(1, Math.sqrt(PIXEL_BUDGET / Math.max(1, innerWidth * innerHeight * dpr * dpr)));
+      renderScale = scalePin || Math.min(renderScale, renderScaleCap);
+      let r = dpr * renderScale,
         max = Math.min(
           gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0],
           gl.getParameter(gl.MAX_RENDERBUFFER_SIZE),
@@ -4267,7 +4291,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       canvas.height = h;
       renderWidth = innerWidth;
       renderHeight = innerHeight;
-      renderDpr = r;
+      renderDpr = dpr;
       createTargets(canvas.width, canvas.height);
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
@@ -4276,9 +4300,21 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
     resize();
     if (mode === "walk") setWalk(); else setView(view);
     RENDER.generationMs = Math.round(performance.now() - GEN_T0);
+    // Frame-rate readout on the QUALITY button and the adaptive render scale.
+    function perfFrame(t, ms) {
+      perfStats.frames++; if (!perfStats.since) perfStats.since = t;
+      if (t - perfStats.since >= 500) { perfStats.fps = Math.round(perfStats.frames * 1000 / (t - perfStats.since)); perfStats.frames = 0; perfStats.since = t; showQuality(); }
+      perfStats.ema += (Math.max(4, Math.min(100, ms)) - perfStats.ema) * .06;
+      if (!perfStats.t0) perfStats.t0 = t;
+      if (scalePin || MAXQ || t - perfStats.lastScale < 1600 || t - perfStats.t0 < 3000) return;
+      const floor = Math.min(renderScaleCap, [.5, .6, .7][QUALITY]);
+      if (perfStats.ema > 21 && renderScale > floor + .01) { renderScale = Math.max(floor, renderScale * .88); perfStats.lastScale = t; perfStats.scaleChanges++; resize(); }
+      else if (perfStats.ema < 13.5 && renderScale < renderScaleCap - .01) { renderScale = Math.min(renderScaleCap, renderScale / .88); perfStats.lastScale = t; perfStats.scaleChanges++; resize(); }
+    }
     function draw(t) {
       if (renderWidth !== innerWidth || renderHeight !== innerHeight || renderDpr !== (devicePixelRatio || 1)) resize();
       let dt = Math.min(0.05, (t - lastFrame || 16) * 0.001), adaptDt = Math.min(.5, (t - lastFrame || 16) * .001);
+      if (lastFrame) perfFrame(t, t - lastFrame);
       lastFrame = t;
       waterClock = t * .001;
       updatePlayer(dt);
@@ -4376,7 +4412,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       gl.bindVertexArray(vegetation.v);
       gl.drawElements(gl.TRIANGLES, vegetation.n, gl.UNSIGNED_INT, 0);
       gl.uniform1i(mU.instancedTree,1);
-      for(const mesh of canopyModules)if(mesh.instanceCount){gl.bindVertexArray(mesh.v);gl.drawElementsInstanced(gl.TRIANGLES,mesh.n,gl.UNSIGNED_INT,0,mesh.instanceCount);}
+      for(const mesh of canopyModules)if(mesh.instanceCount&&mesh.inMain!==false){gl.bindVertexArray(mesh.v);gl.drawElementsInstanced(gl.TRIANGLES,mesh.n,gl.UNSIGNED_INT,0,mesh.instanceCount);}
       gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE); gl.uniform1f(pu(M, "a2c"), 0);
       gl.uniform1i(mU.instancedTree,0);bindShadowRaw(false);
       if(grassInstanceCount){
@@ -4582,7 +4618,8 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       plantSamples: () => ({ ...plantSamples, palms: palmRoots.slice(0, 6) }),
       setTrees: (mode) => setTreeMode(mode),
       streamBanks: () => { const out = {}; for (const [name, nodes, lengths, halfAt, waterAt] of [["creek", streamNodes, streamLengths, creekHalfWidth, creekWaterAt], ["river", riverNodes, riverLengths, riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s)]]) { const total = lengths[lengths.length - 1], rows = []; for (let s = 0; s <= total; s += 1) { const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), w = waterAt(s), side = (a) => { const px = cx - tz * a, pz = cz + tx * a, wl = name === "creek" ? creekWaterAt(s, Math.sign(a) * half) : w; return { nat: +(naturalGround(px, pz, true) - wl).toFixed(2), ter: +(gridHeight(px, pz) - wl).toFixed(2) }; }; rows.push({ s, w: +w.toFixed(2), half: +half.toFixed(2), L: side(half + .5), R: side(-half - .5), L2: side(half + 2), R2: side(-half - 2) }); } out[name] = rows; } return out; },
-      canopyLoad: () => { const mods = canopyModules.map((m) => ({ tris: m.n / 3, instances: m.instanceCount })); return { mods, detailTris: mods.reduce((a, m) => a + m.tris * m.instances, 0), farCards: farInstanceCount }; },
+      canopyLoad: () => { const mods = canopyModules.map((m) => ({ tris: m.n / 3, instances: m.instanceCount, main: m.inMain !== false, shadow: m.inShadow !== false })); return { mods, detailTris: mods.reduce((a, m) => a + (m.main ? m.tris * m.instances : 0), 0), shadowTris: mods.reduce((a, m) => a + (m.shadow ? m.tris * m.instances : 0), 0), farCards: farInstanceCount }; },
+      perf: () => ({ quality: RENDER.quality, renderScale: +renderScale.toFixed(3), renderScaleCap: +renderScaleCap.toFixed(3), canvas: [canvas.width, canvas.height], fps: perfStats.fps, frameMs: +perfStats.ema.toFixed(1), scaleChanges: perfStats.scaleChanges, liteSpray: liteSprayCounts }),
       listTrees: (minH = 0) => treeRoots.map((r, i) => ({ i, x: +r.x.toFixed(1), z: +r.z.toFixed(1), y: +r.y.toFixed(1), h: +r.h.toFixed(2), kind: r.kind, sprays: r.sprays.length, n4: treeRoots.reduce((n, q) => n + (q !== r && Math.hypot(q.x - r.x, q.z - r.z) < 4 ? 1 : 0), 0) })).filter((t) => t.h >= minH),
       viewTree: (i, dist = 9, az = 0, pitch = .12) => { const r = treeRoots[i], ex = r.x + Math.cos(az) * dist, ez = r.z + Math.sin(az) * dist; player.x = ex; player.z = ez; setWalk(); player.yaw = Math.atan2(r.x - ex, -(r.z - ez)); player.pitch = pitch; },
       treeStats: () => ({ mode: treeMode, ...sotStats, sprayModule: sprayModuleCounts, perTree: treeRoots.slice(0, 5).map((r) => ({ seed: r.seed, h: +r.h.toFixed(2), kind: r.kind, sprays: r.sprays.length, segments: r.wood.length, classicArms: r.classicArms.length })) }),
