@@ -111,6 +111,7 @@
   .hold { position:relative; overflow:hidden; }
   .hold::after { content:''; position:absolute; left:0; bottom:0; height:5px; width:0; background:rgba(255,255,255,.95); border-radius:3px; }
   .hold.holding::after { width:100%; transition:width 1.4s linear; }
+  #basket, #build, #careBottom, #trash { transition:transform .35s ease; } body.fsnote #basket, body.fsnote #build, body.fsnote #careBottom, body.fsnote #trash { transform:translateY(-120px); } body.fsnote #basket { transform:translate(-50%,-120px); }
 </style>
 </head>
 <body>
@@ -1444,9 +1445,11 @@ const lockOn = () => !TEST && S.set.lock;
 function kidLock() {
   if (!lockOn()) return;
   const d = document.documentElement;
-  if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(() => { const o = screen.orientation; if (o && o.lock) o.lock(o.type.split('-')[0]).catch(() => {}); }).catch(() => {});
+  if (!document.fullscreenElement && d.requestFullscreen) d.requestFullscreen({ navigationUI: 'hide' }).then(() => { fsNote(); const o = screen.orientation; if (o && o.lock) o.lock(o.type.split('-')[0]).catch(() => {}); }).catch(() => {});
   if (!(history.state && history.state.kidLock)) history.pushState({ kidLock: true }, '');
 }
+// The browser shows its own "swipe to exit full screen" notice along the bottom for a few seconds; lift the controls above it meanwhile.
+function fsNote() { document.body.classList.add('fsnote'); clearTimeout(fsNote.t); fsNote.t = setTimeout(() => document.body.classList.remove('fsnote'), 4200); }
 function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
 document.addEventListener('click', kidLock, true);
 window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
