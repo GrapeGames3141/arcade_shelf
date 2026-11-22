@@ -121,6 +121,35 @@
   #praise.show { opacity:1; transform:translate(-50%,-50%) scale(1); }
   #praise.oops { text-shadow:0 4px 0 #e8743b; -webkit-text-stroke:2px #e8743b; font-size:clamp(26px,6vw,44px); }
   .hintbtn { pointer-events:auto; }
+  /* sound boxes */
+  .sbox { display:flex; gap:4px; padding:6px; border-radius:20px; background:rgba(255,255,255,.4); border:3px solid rgba(255,255,255,.85); cursor:pointer; transition:background .2s; }
+  .sbox.plain { background:none; border-color:transparent; padding:6px 2px; }
+  .sbox.done { background:rgba(63,208,164,.28); border-color:#bff3e2; }
+  .sbox.quiet { position:relative; } .sbox.quiet::after { content:"quiet"; position:absolute; left:50%; bottom:-20px; transform:translateX(-50%); font-size:12px; font-weight:800; color:#fff; background:#ff9f43; border-radius:999px; padding:1px 7px; }
+  #slots { gap:clamp(4px,1vw,10px); }
+  /* ABC keyboard */
+  #tiles.abc { display:grid; grid-template-columns:repeat(9, var(--tt)); gap:6px; justify-content:center; }
+  .key { width:var(--tt); height:calc(var(--tt) * 1.05); border:0; border-radius:14px; background:var(--tile-bg); color:inherit; font-size:calc(var(--tt) * .58); font-weight:900; padding:0;
+    box-shadow:0 5px 0 var(--tile-sh), 0 8px 12px rgba(36,50,90,.16); text-transform:lowercase; position:relative; }
+  .key::after { content:""; position:absolute; inset:5px 6px auto; height:35%; border-radius:10px; background:rgba(255,255,255,.3); }
+  .key span { position:relative; z-index:1; } .key:active { transform:translateY(4px); box-shadow:0 1px 0 var(--tile-sh); }
+  .key.ok { animation:pop .3s; } .key.no { animation:shake .4s; } .key.hint { animation:hint 1s infinite; outline:4px solid #fff; }
+  @media (max-width:520px) { #tiles.abc { grid-template-columns:repeat(7, var(--tt)); gap:5px; } }
+  /* rule card */
+  #rule { position:fixed; z-index:4; left:50%; top:50%; transform:translate(-50%,-50%); width:min(520px,92vw); background:#fffdf5; border:5px solid #fff; border-radius:26px; padding:14px 16px;
+    box-shadow:0 8px 0 rgba(36,50,90,.15), 0 18px 44px rgba(36,50,90,.28); display:flex; gap:12px; align-items:flex-start; text-align:left; pointer-events:auto; }
+  #rule[hidden] { display:none !important; } #rule.in { animation:pop .45s cubic-bezier(.3,1.7,.5,1); }
+  #rule .ricon { font-size:48px; line-height:1; flex:none; } #rule .rt { display:block; font-size:21px; color:var(--grape); }
+  #rule .rp { margin:4px 0 8px; font-size:16px; color:var(--ink); font-weight:700; } #rule .rp b { color:var(--pink); font-size:1.12em; }
+  #rule .rex { display:flex; gap:6px; flex-wrap:wrap; } #rule .pill { margin-left:auto; align-self:flex-end; }
+  .exw { border:3px solid var(--line); background:#fff; border-radius:999px; padding:4px 11px; font-weight:800; font-size:16px; color:var(--ink); }
+  #voiceHelp { position:fixed; z-index:4; left:50%; bottom:12px; transform:translateX(-50%); width:min(480px,92vw); background:#fff3d6; border:3px solid #ffc93c; border-radius:18px; padding:8px 12px; font-size:14px; text-align:center; pointer-events:auto; }
+  #voiceHelp[hidden] { display:none !important; }
+  /* rule book */
+  .rlist { display:grid; gap:10px; text-align:left; }
+  .rbk { background:#fff; border:3px solid var(--line); border-radius:20px; padding:10px 12px; display:flex; gap:10px; cursor:pointer; }
+  .rbk .ricon { font-size:36px; line-height:1; } .rbk b.t { color:var(--grape); font-size:18px; } .rbk p { margin:3px 0 6px; font-size:14.5px; } .rbk p b { color:var(--pink); }
+
   @media (pointer:fine) { #tiles { margin-top:clamp(18px,5vh,60px); } }
 </style>
 </head>
@@ -137,16 +166,19 @@
   <div id="tiles"></div>
 </div>
 <div id="praise"></div>
+<div id="rule" hidden><div class="ricon"></div><div style="flex:1;min-width:0"><b class="rt"></b><p class="rp"></p><div class="rex"></div></div><button class="pill sky" id="bRuleNext">Next ▶</button></div>
+<div id="voiceHelp" hidden>Can't hear the voice? Turn the volume up, check the phone isn't on silent, and tap 🔊. You can test it in ⚙️ Grown-ups.</div>
 
 <div id="sTitle" class="screen">
   <div class="card">
     <h1 class="logo"><span>B</span><span>u</span><span>z</span><span>z</span> <span>W</span><span>o</span><span>r</span><span>d</span><span>s</span></h1>
-    <div class="tag">Hear it, see it, spell it!</div>
+    <div class="tag">Listen to the word, sound it out, spell it!</div>
     <div class="wallet"><div class="chip"><i>⭐</i><span class="wStars">0</span></div><div class="chip"><i>💎</i><span class="wGems">0</span></div><div class="chip"><i>📒</i><span class="wStick">0</span></div></div>
     <div class="row" style="margin-top:18px"><button class="big" id="bPlay">▶ Play</button></div>
     <div class="row">
       <button class="pill sun" id="bShop">🛍️ Shop</button>
       <button class="pill pink" id="bBook">📒 Stickers</button>
+      <button class="pill" id="bRules">📘 Spelling Rules</button>
       <button class="pill sky" id="bSettings">⚙️ Grown-ups</button>
     </div>
     <div class="note" id="nowNote"></div>
@@ -159,20 +191,22 @@
     <div class="ops" id="ops"></div>
     <div class="opts">
       <span>Words per round <span class="seg" id="segN"><button data-n="5">5</button><button data-n="8">8</button><button data-n="12">12</button></span></span>
-      <span>Extra letters <span class="seg" id="segX"><button data-x="0">None</button><button data-x="2">2</button><button data-x="4">4</button></span></span>
+      <span>Letters to pick from <span class="seg" id="segK"><button data-k="abc">Whole ABC</button><button data-k="few">Just a few</button></span></span>
     </div>
     <div class="opts">
-      <label><button class="tog" id="tGhost"></button> Show the word to copy</label>
+      <label><button class="tog" id="tSounds"></button> Sound out each word</label>
+      <label><button class="tog" id="tBoxes"></button> Sound boxes</label>
+      <label><button class="tog" id="tRules"></button> Teach the spelling rules</label>
+    </div>
+    <div class="opts">
       <label><button class="tog" id="tVoice"></button> Voice</label>
-      <label><button class="tog" id="tNames"></button> Say each letter</label>
-    </div>
-    <div class="opts">
       <label><button class="tog" id="tSound"></button> Sound</label>
       <label><button class="tog" id="tMusic"></button> Music</label>
       <span>Voice speed <span class="seg" id="segR"><button data-r="0">Slow</button><button data-r="1">Normal</button></span></span>
     </div>
+    <div class="row"><button class="pill sun" id="bTestVoice">🔊 Test the voice</button></div>
     <div class="row"><button class="big" id="bSetDone">✓ Done</button></div>
-    <div class="note" id="voiceNote">Turn on any mix of word sizes. Each word is picked from what's on.</div>
+    <div class="note" id="voiceNote"></div>
   </div>
 </div>
 
@@ -192,6 +226,15 @@
     <div class="note" id="bookCount" style="margin:0 0 10px"></div>
     <div class="book" id="book"></div>
     <div class="row"><button class="big" id="bBookDone">✓ Back</button></div>
+  </div>
+</div>
+
+<div id="sRules" class="screen" hidden>
+  <div class="card">
+    <h2>Spelling Rules</h2>
+    <div class="note" style="margin:0 0 10px">Tap a rule to hear it. Tap a word to hear its sounds.</div>
+    <div class="rlist" id="rlist"></div>
+    <div class="row"><button class="big" id="bRulesDone">✓ Back</button></div>
   </div>
 </div>
 
@@ -230,53 +273,128 @@ const $ = id => document.getElementById(id);
 // Words with pictures
 // ---------------------------------------------------------------------------
 const WORDS = [
-  [['cat', '🐱'], ['dog', '🐶'], ['pig', '🐷'], ['cow', '🐮'], ['fox', '🦊'], ['bee', '🐝'], ['owl', '🦉'], ['bat', '🦇'], ['ant', '🐜'], ['hen', '🐔'], ['ram', '🐏'],
-   ['sun', '☀️'], ['bus', '🚌'], ['bed', '🛏️'], ['egg', '🥚'], ['box', '📦'], ['car', '🚗'], ['key', '🔑'], ['map', '🗺️'], ['web', '🕸️'], ['cap', '🧢'], ['pie', '🥧'], ['ice', '🧊'], ['hat', '🎩'], ['bow', '🎀'], ['jet', '✈️']],
-  [['frog', '🐸'], ['fish', '🐟'], ['duck', '🦆'], ['bear', '🐻'], ['lion', '🦁'], ['goat', '🐐'], ['crab', '🦀'], ['deer', '🦌'], ['swan', '🦢'], ['bird', '🐦'],
-   ['moon', '🌙'], ['star', '⭐'], ['tree', '🌳'], ['cake', '🍰'], ['milk', '🥛'], ['corn', '🌽'], ['kite', '🪁'], ['ship', '🚢'], ['boat', '⛵'], ['bell', '🔔'],
-   ['book', '📖'], ['shoe', '👟'], ['sock', '🧦'], ['drum', '🥁'], ['rain', '🌧️'], ['snow', '❄️'], ['ring', '💍'], ['leaf', '🍁'], ['rose', '🌹'], ['fire', '🔥'], ['gift', '🎁'], ['door', '🚪'], ['tent', '⛺'], ['bike', '🚲'], ['ball', '⚽'], ['pear', '🍐']],
-  [['apple', '🍎'], ['horse', '🐴'], ['tiger', '🐯'], ['zebra', '🦓'], ['snake', '🐍'], ['mouse', '🐭'], ['sheep', '🐑'], ['panda', '🐼'], ['koala', '🐨'], ['whale', '🐳'], ['shark', '🦈'],
-   ['train', '🚆'], ['truck', '🚚'], ['house', '🏠'], ['clock', '⏰'], ['bread', '🍞'], ['grape', '🍇'], ['lemon', '🍋'], ['pizza', '🍕'], ['robot', '🤖'], ['heart', '❤️'], ['cloud', '☁️'],
-   ['carrot', '🥕'], ['banana', '🍌'], ['rabbit', '🐰'], ['turtle', '🐢'], ['monkey', '🐵'], ['castle', '🏰'], ['rocket', '🚀'], ['spider', '🕷️'], ['cookie', '🍪'], ['flower', '🌸'], ['pencil', '✏️'], ['orange', '🍊']],
+  [['cat', '🐱', 'c:k a:a t:t'], ['dog', '🐶', 'd:d o:o g:g'], ['pig', '🐷', 'p:p i:i g:g'], ['hen', '🐔', 'h:h e:e n:n'], ['fox', '🦊', 'f:f o:o x:x'], ['bat', '🦇', 'b:b a:a t:t'],
+   ['sun', '☀️', 's:s u:u n:n'], ['bus', '🚌', 'b:b u:u s:s'], ['bed', '🛏️', 'b:b e:e d:d'], ['map', '🗺️', 'm:m a:a p:p'], ['web', '🕸️', 'w:w e:e b:b'], ['cap', '🧢', 'c:k a:a p:p'],
+   ['hat', '🎩', 'h:h a:a t:t'], ['jet', '✈️', 'j:j e:e t:t'], ['ant', '🐜', 'a:a n:n t:t'], ['box', '📦', 'b:b o:o x:x'], ['van', '🚐', 'v:v a:a n:n'], ['bug', '🐛', 'b:b u:u g:g'],
+   ['rat', '🐀', 'r:r a:a t:t'], ['pen', '🖊️', 'p:p e:e n:n'], ['six', '6️⃣', 's:s i:i x:x'], ['ten', '🔟', 't:t e:e n:n']],
+  [['fish', '🐟', 'f:f i:i sh:sh'], ['ship', '🚢', 'sh:sh i:i p:p'], ['duck', '🦆', 'd:d u:u ck:k'], ['sock', '🧦', 's:s o:o ck:k'], ['chick', '🐤', 'ch:ch i:i ck:k'], ['crab', '🦀', 'c:k r:r a:a b:b'],
+   ['frog', '🐸', 'f:f r:r o:o g:g'], ['drum', '🥁', 'd:d r:r u:u m:m'], ['shell', '🐚', 'sh:sh e:e ll:l'], ['bell', '🔔', 'b:b e:e ll:l'], ['king', '🤴', 'k:k i:i ng:ng'], ['ring', '💍', 'r:r i:i ng:ng'],
+   ['bath', '🛁', 'b:b a:a th:th'], ['clock', '⏰', 'c:k l:l o:o ck:k'], ['truck', '🚚', 't:t r:r u:u ck:k'], ['sled', '🛷', 's:s l:l e:e d:d'], ['plug', '🔌', 'p:p l:l u:u g:g'], ['tent', '⛺', 't:t e:e n:n t:t'],
+   ['hand', '✋', 'h:h a:a n:n d:d'], ['gift', '🎁', 'g:g i:i f:f t:t']],
+  [['cake', '🍰', 'c:k a:A k:k e:_'], ['kite', '🪁', 'k:k i:I t:t e:_'], ['bike', '🚲', 'b:b i:I k:k e:_'], ['rose', '🌹', 'r:r o:O s:z e:_'], ['bone', '🦴', 'b:b o:O n:n e:_'], ['home', '🏠', 'h:h o:O m:m e:_'],
+   ['nose', '👃', 'n:n o:O s:z e:_'], ['cone', '🍦', 'c:k o:O n:n e:_'], ['game', '🎮', 'g:g a:A m:m e:_'], ['plane', '🛩️', 'p:p l:l a:A n:n e:_'], ['skate', '⛸️', 's:s k:k a:A t:t e:_'], ['snake', '🐍', 's:s n:n a:A k:k e:_'],
+   ['whale', '🐳', 'wh:w a:A l:l e:_'], ['five', '5️⃣', 'f:f i:I v:v e:_'], ['nine', '9️⃣', 'n:n i:I n:n e:_'], ['smile', '😊', 's:s m:m i:I l:l e:_'], ['grape', '🍇', 'g:g r:r a:A p:p e:_'], ['cube', '🧊', 'c:k u:U b:b e:_'], ['globe', '🌍', 'g:g l:l o:O b:b e:_']],
+  [['tree', '🌳', 't:t r:r ee:E'], ['bee', '🐝', 'b:b ee:E'], ['sheep', '🐑', 'sh:sh ee:E p:p'], ['queen', '👸', 'qu:kw ee:E n:n'], ['boat', '⛵', 'b:b oa:O t:t'], ['goat', '🐐', 'g:g oa:O t:t'],
+   ['coat', '🧥', 'c:k oa:O t:t'], ['rain', '🌧️', 'r:r ai:A n:n'], ['snail', '🐌', 's:s n:n ai:A l:l'], ['train', '🚆', 't:t r:r ai:A n:n'], ['moon', '🌙', 'm:m oo:oo n:n'], ['spoon', '🥄', 's:s p:p oo:oo n:n'],
+   ['star', '⭐', 's:s t:t ar:ar'], ['car', '🚗', 'c:k ar:ar'], ['shark', '🦈', 'sh:sh ar:ar k:k'], ['corn', '🌽', 'c:k or:or n:n'], ['fork', '🍴', 'f:f or:or k:k'], ['horn', '📯', 'h:h or:or n:n'],
+   ['bird', '🐦', 'b:b ir:er d:d'], ['cow', '🐄', 'c:k ow:ow'], ['owl', '🦉', 'ow:ow l:l'], ['clown', '🤡', 'c:k l:l ow:ow n:n'], ['boy', '👦', 'b:b oy:oy'], ['leaf', '🍁', 'l:l ea:E f:f'], ['pie', '🥧', 'p:p ie:I']],
 ];
-const LEVELS = [{ name: 'Short words', sub: '3 letters · cat, sun, bus', col: '#3fd0a4' }, { name: 'Medium words', sub: '4 letters · frog, cake, ship', col: '#58b7ff' }, { name: 'Long words', sub: '5–6 letters · apple, rocket', col: '#ff6fa5' }];
+const LEVELS = [
+  { name: 'Short vowels', sub: 'cat, dog, sun · one sound for each letter', col: '#3fd0a4', sym: 'a' },
+  { name: 'Two-letter sounds & blends', sub: 'fish, duck, frog · sh, ch, th, ck, ng', col: '#58b7ff', sym: 'sh' },
+  { name: 'Magic e', sub: 'cake, kite, bone · the quiet e at the end', col: '#ff9f43', sym: 'e' },
+  { name: 'Vowel teams & bossy r', sub: 'boat, tree, star · ee, oa, ai, ar, or', col: '#ff6fa5', sym: 'oa' },
+];
+// How each sound is said aloud when we stretch a word out
+const SOUNDS = { a: 'ah', e: 'eh', i: 'ih', o: 'aw', u: 'uh', A: 'ay', E: 'ee', I: 'eye', O: 'oh', U: 'you', oo: 'oo', ar: 'ar', or: 'or', er: 'er', ow: 'ow', oy: 'oy',
+  b: 'buh', k: 'kuh', d: 'duh', f: 'fuh', g: 'guh', h: 'huh', j: 'juh', l: 'luh', m: 'muh', n: 'nuh', p: 'puh', r: 'ruh', s: 'sss', t: 'tuh', v: 'vuh', w: 'wuh', x: 'ks', y: 'yuh', z: 'zzz',
+  sh: 'shh', ch: 'chuh', th: 'thuh', ng: 'ng', kw: 'kwuh' };
+const VOWEL_HELP = { a: 'Short a, like apple.', e: 'Short e, like egg.', i: 'Short i, like igloo.', o: 'Short o, like octopus.', u: 'Short u, like umbrella.',
+  A: 'The a is saying its name: ay.', E: 'This is the long e sound: ee.', I: 'The i is saying its name: eye.', O: 'The o is saying its name: oh.', U: 'The u is saying its name: you.' };
 const LETTER_NAMES = { a: 'ay', b: 'bee', c: 'see', d: 'dee', e: 'ee', f: 'eff', g: 'jee', h: 'aitch', i: 'eye', j: 'jay', k: 'kay', l: 'el', m: 'em', n: 'en', o: 'oh', p: 'pee', q: 'cue', r: 'ar', s: 'ess', t: 'tee', u: 'you', v: 'vee', w: 'double you', x: 'ex', y: 'why', z: 'zee' };
+// The spelling rules, taught with a picture card and the voice
+const RULES = {
+  shortVowel: { icon: '🍎', t: 'Short vowels', say: 'In short words like cat, the vowel makes its short sound. A says ah, like apple. E says eh, like egg. I says ih, like igloo. O says aw, like octopus. U says uh, like umbrella.',
+    p: 'In short words the vowel makes its <b>short sound</b>: <b>a</b> as in apple, <b>e</b> egg, <b>i</b> igloo, <b>o</b> octopus, <b>u</b> umbrella.', ex: ['cat', 'pig', 'sun'] },
+  ck_c: { icon: '🐱', t: 'C or K?', say: 'Both c and k can say kuh. Use c before a, o and u, and before l or r, like cat, cow and crab. Use k before e and i, like kite and king.',
+    p: 'Both say <b>kuh</b>. Use <b>c</b> before a, o, u, l, r (cat, cow, crab). Use <b>k</b> before e, i (kite, king).', ex: ['cat', 'crab', 'king'] },
+  ck: { icon: '🦆', t: 'C K after a short vowel', say: 'After a short vowel, the kuh sound at the end is spelled with two letters: c, k. Like duck and sock.',
+    p: 'After a <b>short vowel</b>, the <b>kuh</b> sound at the end is spelled <b>ck</b>: du<b>ck</b>, so<b>ck</b>.', ex: ['duck', 'sock', 'clock'] },
+  digraph: { icon: '🐟', t: 'Two letters, one sound', say: 'Some sounds need two letters. S and h together say shh, like fish. C and h say chuh, like chick. T and h say thuh, like bath. N and g say ng, like ring. W and h say wuh, like whale.',
+    p: 'Some sounds need <b>two letters</b>: <b>sh</b> fish, <b>ch</b> chick, <b>th</b> bath, <b>ng</b> ring, <b>wh</b> whale.', ex: ['fish', 'chick', 'ring'] },
+  double: { icon: '🔔', t: 'Double l, s and f', say: 'When a short word ends with a short vowel and then the l, s or f sound, we usually write that letter twice. Like bell and shell.',
+    p: 'After a short vowel, an ending <b>l, s</b> or <b>f</b> is usually doubled: be<b>ll</b>, she<b>ll</b>.', ex: ['bell', 'shell'] },
+  blend: { icon: '🐸', t: 'Blends', say: 'In a blend, two letters sit side by side and you can hear both of them. F and r make fruh, like frog. At the end of tent, n and t blend together too.',
+    p: 'In a <b>blend</b> you hear <b>both</b> letters: <b>fr</b>og, <b>sl</b>ed, te<b>nt</b>, ha<b>nd</b>.', ex: ['frog', 'sled', 'tent'] },
+  magicE: { icon: '🪄', t: 'Magic e', say: 'Magic e! When a word ends with e, the e is quiet, but it makes the vowel before it say its name. C, a, k, e: the a says ay. Cake!',
+    p: 'An <b>e</b> at the end is <b>quiet</b>, but it makes the vowel <b>say its name</b>: c<b>a</b>k<b>e</b>, k<b>i</b>t<b>e</b>, b<b>o</b>n<b>e</b>.', ex: ['cake', 'kite', 'bone'] },
+  sZ: { icon: '🌹', t: 'S can say zzz', say: 'Sometimes the letter s makes a zzz sound, like in rose and nose.', p: 'Sometimes <b>s</b> says <b>zzz</b>: ro<b>s</b>e, no<b>s</b>e.', ex: ['rose', 'nose'] },
+  team: { icon: '⛵', t: 'Vowel teams', say: 'When two vowels go walking, the first one does the talking. O and a say oh, like boat. A and i say ay, like rain. E and a say ee, like leaf. Two e\'s say ee, like tree.',
+    p: '"When two vowels go walking, the <b>first one does the talking</b>": <b>oa</b> boat, <b>ai</b> rain, <b>ea</b> leaf, <b>ie</b> pie, <b>ee</b> tree.', ex: ['boat', 'rain', 'tree'] },
+  oo: { icon: '🌙', t: 'O O says oo', say: 'Two o\'s together say oo, like moon and spoon.', p: '<b>oo</b> says <b>oo</b>: m<b>oo</b>n, sp<b>oo</b>n.', ex: ['moon', 'spoon'] },
+  bossyR: { icon: '⭐', t: 'Bossy r', say: 'Bossy r changes the vowel in front of it. A r says ar, like star. O r says or, like corn. I r says er, like bird.',
+    p: '<b>Bossy r</b> changes the vowel: <b>ar</b> star, <b>or</b> corn, <b>ir</b> bird.', ex: ['star', 'corn', 'bird'] },
+  owoy: { icon: '🐄', t: 'OW and OY', say: 'O w says ow, like cow. O y says oy, like boy.', p: '<b>ow</b> says ow (c<b>ow</b>). <b>oy</b> says oy (b<b>oy</b>).', ex: ['cow', 'owl', 'boy'] },
+  qu: { icon: '👸', t: 'Q and u', say: 'The letter q always comes with u. Together, q u says kwuh, like queen.', p: '<b>q</b> always comes with <b>u</b>: <b>qu</b> says kwuh, <b>qu</b>een.', ex: ['queen'] },
+  x: { icon: '🦊', t: 'X says ks', say: 'The letter x says ks, like fox and box.', p: '<b>x</b> says <b>ks</b>: fo<b>x</b>, bo<b>x</b>, si<b>x</b>.', ex: ['fox', 'box', 'six'] },
+};
+const GRAPH_RULE = { sh: 'digraph', ch: 'digraph', th: 'digraph', wh: 'digraph', ng: 'digraph', ll: 'double', ss: 'double', ff: 'double', ck: 'ck', ee: 'team', ea: 'team', ai: 'team', oa: 'team', ie: 'team', oo: 'oo', ar: 'bossyR', or: 'bossyR', ir: 'bossyR', er: 'bossyR', ow: 'owoy', oy: 'owoy', qu: 'qu' };
+const VOWEL_SOUNDS = new Set(['a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U', 'oo', 'ar', 'or', 'er', 'ow', 'oy', '_']);
+function rulesFor(P, lv) {
+  const r = [], add = id => id && !r.includes(id) && r.push(id);
+  if (P.some(p => p.s === '_')) add('magicE');
+  for (const p of P) if (p.g.length > 1) add(GRAPH_RULE[p.g]);
+  if (P.some(p => p.g === 's' && p.s === 'z')) add('sZ');
+  for (let i = 0; i + 1 < P.length; i++) if (P[i].g.length === 1 && P[i + 1].g.length === 1 && !VOWEL_SOUNDS.has(P[i].s) && !VOWEL_SOUNDS.has(P[i + 1].s)) { add('blend'); break; } // fr-og, te-nt
+  if (P.some(p => p.g === 'x')) add('x');
+  if (P[0].s === 'k' && P[0].g.length === 1) add('ck_c');
+  if (lv === 0) add('shortVowel');
+  return r;
+}
 
 // ---------------------------------------------------------------------------
 // Save data
 // ---------------------------------------------------------------------------
 const DEFAULT = () => ({ stars: 0, gems: 0, owned: { buddy: { bee: 1 }, garden: { garden: 1 }, tiles: { honey: 1 } }, equip: { buddy: 'bee', garden: 'garden', tiles: 'honey' },
-  set: { lv: [true, false, false], per: 8, extra: 2, ghost: true, voice: true, names: true, sound: true, music: true, rate: 0 }, stickers: {}, rounds: 0, words: 0, seen: {} });
+  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0 }, stickers: {}, rounds: 0, words: 0, seen: {} });
 let S = DEFAULT();
 function load() {
   if (TEST) return;
-  try { const raw = localStorage.getItem('buzzwords.save'); if (raw) { const d = JSON.parse(raw), b = DEFAULT(); S = Object.assign(b, d); for (const k of ['owned', 'equip', 'set']) S[k] = Object.assign(b[k], d[k] || {}); } } catch (e) { /* storage unavailable */ }
+  try { const raw = localStorage.getItem('buzzwords.save2'); if (raw) { const d = JSON.parse(raw), b = DEFAULT(); S = Object.assign(b, d); for (const k of ['owned', 'equip', 'set']) S[k] = Object.assign(b[k], d[k] || {}); if (S.set.lv.length !== 4) S.set.lv = [true, false, false, false]; } } catch (e) { /* storage unavailable */ }
 }
-function save() { if (TEST) return; try { localStorage.setItem('buzzwords.save', JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+function save() { if (TEST) return; try { localStorage.setItem('buzzwords.save2', JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
 
 // ---------------------------------------------------------------------------
 // Voice (the browser's own speech synthesis)
 // ---------------------------------------------------------------------------
 const SPEECH = 'speechSynthesis' in window ? window.speechSynthesis : null;
-let VOICE = null;
+let VOICE = null, UTTER = null, speechHeard = false, speechTries = 0;
 function pickVoice() {
   if (!SPEECH) return;
-  const vs = SPEECH.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
-  const pref = [/samantha/i, /google us english/i, /aria/i, /jenny/i, /karen/i, /serena/i, /zira/i, /female/i, /en-us/i, /en-gb/i];
-  for (const re of pref) { const v = vs.find(x => re.test(x.name) || re.test(x.lang)); if (v) { VOICE = v; return; } }
-  VOICE = vs[0] || null;
+  let vs = []; try { vs = SPEECH.getVoices(); } catch (e) { vs = []; }
+  const en = vs.filter(v => /^en([-_]|$)/i.test(v.lang || ''));
+  const pref = [/samantha/i, /google us english/i, /aria/i, /jenny/i, /ava/i, /karen/i, /serena/i, /zira/i, /female/i];
+  VOICE = null;
+  for (const re of pref) { const v = en.find(x => re.test(x.name)); if (v) { VOICE = v; break; } }
+  if (!VOICE) VOICE = en.find(v => /us/i.test(v.lang)) || en.find(v => v.localService) || en[0] || null;
 }
-if (SPEECH) { pickVoice(); SPEECH.onvoiceschanged = pickVoice; }
-function speak(text, { rate = 1, cancel = true, onend } = {}) {
-  if (!SPEECH || !S.set.voice || TEST) { if (onend) setTimeout(onend, 10); return; }
-  try {
-    if (cancel) SPEECH.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    if (VOICE) u.voice = VOICE;
-    u.lang = VOICE ? VOICE.lang : 'en-US'; u.rate = (S.set.rate ? .95 : .78) * rate; u.pitch = 1.15; u.volume = 1;
-    const say = $('say'); say.classList.add('talk'); u.onend = () => { say.classList.remove('talk'); if (onend) onend(); }; u.onerror = () => say.classList.remove('talk');
-    SPEECH.speak(u);
-  } catch (e) { /* speech unavailable */ }
+if (SPEECH) { pickVoice(); try { SPEECH.addEventListener('voiceschanged', pickVoice); } catch (e) { SPEECH.onvoiceschanged = pickVoice; } }
+// iOS and Android only allow speech that starts from a tap, so the first tap says a tiny word
+function unlockSpeech() {
+  if (!SPEECH || speechTries++ > 0) return;
+  try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; SPEECH.speak(u); } catch (e) { /* ignore */ }
+}
+function speak(text, { rate = 1, onend } = {}) {
+  if (!SPEECH || !S.set.voice || TEST || !text) { if (onend) setTimeout(onend, 10); return; }
+  const say = $('say');
+  const go = (useVoice) => {
+    try {
+      SPEECH.resume(); // Chrome can get stuck paused
+      const u = new SpeechSynthesisUtterance(text); UTTER = u; // keep a reference or Chrome drops it
+      if (!VOICE) pickVoice();
+      if (useVoice && VOICE) { u.voice = VOICE; u.lang = (VOICE.lang || 'en-US').replace('_', '-'); } else u.lang = 'en-US';
+      u.rate = (S.set.rate ? .95 : .8) * rate; u.pitch = 1.1; u.volume = 1;
+      let started = false, finished = false;
+      const end = () => { if (finished) return; finished = true; say.classList.remove('talk'); if (onend) onend(); };
+      u.onstart = () => { started = true; speechHeard = true; say.classList.add('talk'); $('voiceHelp').hidden = true; };
+      u.onend = end;
+      u.onerror = e => { if (!started && useVoice && e && e.error !== 'interrupted' && e.error !== 'canceled') { go(false); return; } end(); };
+      SPEECH.speak(u);
+      setTimeout(() => { if (!started && !finished && UTTER === u) { if (!speechHeard) $('voiceHelp').hidden = false; end(); } }, 3500 + text.length * 60);
+    } catch (e) { if (onend) onend(); }
+  };
+  // Chrome swallows an utterance spoken straight after cancel(), so wait a moment
+  if (SPEECH.speaking || SPEECH.pending) { SPEECH.cancel(); setTimeout(() => go(true), 120); } else go(true);
 }
 const letterName = l => LETTER_NAMES[l] || l;
 
@@ -480,94 +598,144 @@ const TILE_STYLE = { honey: ['linear-gradient(#ffe48a,#ffbf2e)', '#c98a10', '#5a
 const STICKERS = ['🐶', '🐱', '🦊', '🐼', '🐨', '🦁', '🐯', '🐸', '🐵', '🦄', '🐙', '🦋', '🐢', '🐬', '🦖', '🐝', '🍓', '🍉', '🍩', '🧁', '🍭', '🌈', '⭐', '🚀', '🎈', '🎨', '⚽', '🏰', '🌻', '🍄', '🐳', '🦉'];
 
 function pickWord() {
-  const pool = []; S.set.lv.forEach((on, i) => on && pool.push(...WORDS[i]));
-  if (!pool.length) pool.push(...WORDS[0]);
+  const pool = []; S.set.lv.forEach((on, i) => on && WORDS[i].forEach(w => pool.push([...w, i])));
+  if (!pool.length) WORDS[0].forEach(w => pool.push([...w, 0]));
   const used = new Set(G.round ? G.round.words.map(w => w[0]) : []);
-  const fresh = pool.filter(w => !used.has(w[0]));
-  const list = fresh.length ? fresh : pool;
-  // favour words this child has seen less often
-  list.sort((a, b) => (S.seen[a[0]] || 0) - (S.seen[b[0]] || 0) + rand(-1.2, 1.2));
+  const fresh = pool.filter(w => !used.has(w[0])), list = fresh.length ? fresh : pool;
+  list.sort((a, b) => (S.seen[a[0]] || 0) - (S.seen[b[0]] || 0) + rand(-1.2, 1.2)); // favour words seen less often
   return list[0];
 }
+const parseWord = tokens => tokens.split(' ').map(t => { const [g, s] = t.split(':'); return { g, s }; });
 function startRound() {
-  audioInit();
-  G.round = { n: S.set.per, i: 0, res: [], earned: 0, words: [] };
+  audioInit(); unlockSpeech();
+  G.round = { n: S.set.per, i: 0, res: [], earned: 0, words: [], shown: new Set() };
   G.mode = 'play'; parts = [];
   show(null); $('hud').hidden = false; $('board').hidden = false;
   nextWord();
 }
 function nextWord() {
-  const [word, emo] = pickWord();
-  G.word = word; G.emo = emo; G.pos = 0; G.wmiss = 0; G.posMiss = 0; G.busy = false; G.helped = false;
+  const [word, emo, tokens, lv] = pickWord();
+  Object.assign(G, { word, emo, lv, parts: parseWord(tokens), pos: 0, wmiss: 0, posMiss: 0, busy: false, helped: false });
+  G.rules = rulesFor(G.parts, lv);
+  G.partOf = []; G.parts.forEach((p, i) => { for (let k = 0; k < p.g.length; k++) G.partOf.push(i); });
   G.round.words.push([word, emo]);
-  const emoEl = $('emo'); emoEl.textContent = emo; const pic = $('pic'); pic.classList.remove('bump'); void pic.offsetWidth; pic.classList.add('bump'); setTimeout(() => pic.classList.remove('bump'), 300);
-  // slots
+  $('emo').textContent = emo; const pic = $('pic'); pic.classList.remove('bump'); void pic.offsetWidth; pic.classList.add('bump'); setTimeout(() => pic.classList.remove('bump'), 300);
+  // one sound box for each sound; "sh" and "ck" share a box, the quiet e has its own
   const slots = $('slots'); slots.innerHTML = '';
-  for (let i = 0; i < word.length; i++) { const d = document.createElement('div'); d.className = 'slot' + (i === 0 ? ' next' : ''); d.innerHTML = S.set.ghost ? `<span class="ghost">${word[i]}</span>` : ''; slots.appendChild(d); }
-  // tiles: the word's letters plus a few decoys
-  const letters = word.split(''), extra = S.set.extra + (word.length >= 5 && S.set.extra ? 1 : 0);
-  const pool = 'abcdefghijklmnoprstuvwy'.split('').filter(l => !word.includes(l));
-  for (let i = 0; i < extra; i++) letters.push(pool.splice(ri(0, pool.length - 1), 1)[0]);
-  shuffle(letters);
-  const tiles = $('tiles'); tiles.innerHTML = '';
-  letters.forEach((l, i) => { const b = document.createElement('button'); b.className = 'tile'; b.dataset.l = l; b.innerHTML = `<span>${l}</span>`; b.addEventListener('pointerdown', e => { e.preventDefault(); tapTile(b); }); tiles.appendChild(b); });
-  applyTileStyle(); layoutBoard(); drawDots(); updHud();
+  G.parts.forEach((p, i) => {
+    const box = document.createElement('div'); box.className = 'sbox' + (S.set.boxes ? '' : ' plain'); box.title = 'Hear this sound';
+    for (let k = 0; k < p.g.length; k++) { const d = document.createElement('div'); d.className = 'slot'; box.appendChild(d); }
+    box.addEventListener('click', () => { if (G.mode === 'play') sayPart(i); });
+    slots.appendChild(box);
+  });
+  markNext(); buildKeys(); applyTileStyle(); layoutBoard(); drawDots(); updHud(); hideRule();
   sayWord(true);
 }
-function sayWord(first) { speak(first ? `${G.word}. Can you spell ${G.word}?` : G.word); sfx('buzz'); }
-function tapTile(b) {
-  if (G.mode !== 'play' || G.busy || b.classList.contains('used')) return;
+const slotEls = () => [...document.querySelectorAll('#slots .slot')];
+function markNext() { slotEls().forEach((s, i) => s.classList.toggle('next', i === G.pos)); }
+const soundText = p => p.s === '_' ? '' : SOUNDS[p.s] || p.g;
+const stretched = () => G.parts.filter(p => p.s !== '_').map(soundText).join('... ');
+function sayPart(i) { const p = G.parts[i]; if (p) speak(p.s === '_' ? 'quiet e' : soundText(p), { rate: .9 }); }
+function sayWord(first) {
+  sfx('buzz');
+  const sounds = S.set.sounds ? ` Listen to the sounds: ${stretched()}.` : '';
+  speak(first ? `${G.word}.${sounds} Can you spell ${G.word}?` : `${G.word}.${sounds} ${G.word}.`);
+}
+function buildKeys() {
+  const box = $('tiles'), few = S.set.keys === 'few'; box.innerHTML = ''; box.className = few ? 'few' : 'abc';
+  let letters;
+  if (few) { letters = G.word.split(''); const pool = 'abcdefghijklmnoprstuvwy'.split('').filter(l => !G.word.includes(l)); for (let i = 0; i < 4; i++) letters.push(pool.splice(ri(0, pool.length - 1), 1)[0]); shuffle(letters); }
+  else letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
+  for (const l of letters) { const b = document.createElement('button'); b.className = few ? 'tile' : 'key'; b.dataset.l = l; b.innerHTML = `<span>${l}</span>`; b.addEventListener('pointerdown', e => { e.preventDefault(); typeLetter(l, b); }); box.appendChild(b); }
+}
+function typeLetter(l, b) {
+  if (G.mode !== 'play' || G.busy) return;
   audioInit();
-  const l = b.dataset.l, need = G.word[G.pos];
-  document.querySelectorAll('.tile.hint').forEach(t => t.classList.remove('hint'));
+  if (b && b.classList.contains('used')) return;
+  if (!b) b = [...document.querySelectorAll('#tiles [data-l]')].find(x => x.dataset.l === l && !x.classList.contains('used'));
+  document.querySelectorAll('#tiles .hint').forEach(t => t.classList.remove('hint'));
+  const need = G.word[G.pos], pi = G.partOf[G.pos], part = G.parts[pi];
   if (l === need) {
-    const slot = $('slots').children[G.pos];
-    flyTo(b, slot, l);
-    b.classList.add('used'); G.pos++; G.posMiss = 0;
-    sfx('place'); if (S.set.names) speak(letterName(l), { rate: 1.1 });
-    [...$('slots').children].forEach((s, i) => s.classList.toggle('next', i === G.pos));
+    const slot = slotEls()[G.pos];
+    if (b && S.set.keys === 'few') { flyTo(b, slot, l); b.classList.add('used'); } else { fill(slot, l); if (b) { b.classList.remove('ok'); void b.offsetWidth; b.classList.add('ok'); } }
+    G.pos++; G.posMiss = 0; sfx('place');
+    if (G.pos >= G.word.length || G.partOf[G.pos] !== pi) { // this sound is complete: say it
+      const box = $('slots').children[pi]; box.classList.add('done'); if (part.s === '_') box.classList.add('quiet');
+      if (G.pos < G.word.length) speak(part.s === '_' ? 'quiet e' : soundText(part), { rate: 1.05 });
+    }
+    markNext(); hideRule(true);
     if (G.pos >= G.word.length) wordDone();
   } else {
-    b.classList.remove('no'); void b.offsetWidth; b.classList.add('no'); sfx('no');
-    G.wmiss++; G.posMiss++; G.mood = 'oops'; G.moodT = .7;
-    say('Try another letter!', true);
-    if (G.posMiss === 1) speak(`Not ${letterName(l)}. Try again!`);
-    if (G.posMiss >= 2) showHint(false);
+    if (b) { b.classList.remove('no'); void b.offsetWidth; b.classList.add('no'); }
+    sfx('no'); G.wmiss++; G.posMiss++; G.mood = 'oops'; G.moodT = .7; say('Try again!', true);
+    if (G.posMiss >= 3) revealLetter();
+    else { const tip = hintFor(part, l, pi); speak(tip.say); if (tip.rule && G.posMiss >= 2) showRule(tip.rule, false); }
   }
 }
-function showHint(asked) {
-  const need = G.word[G.pos]; if (!need) return;
-  const t = [...document.querySelectorAll('.tile:not(.used)')].find(x => x.dataset.l === need);
-  if (t) t.classList.add('hint');
-  const slot = $('slots').children[G.pos]; if (slot && !slot.querySelector('.ghost')) slot.innerHTML = `<span class="ghost">${need}</span>`;
-  speak(`Next is ${letterName(need)}.`);
-  if (asked) { G.helped = true; sfx('click'); }
+function fill(slot, l) { slot.textContent = l; slot.classList.add('full', 'pop'); slot.classList.remove('next'); }
+function revealLetter() {
+  const need = G.word[G.pos], slot = slotEls()[G.pos];
+  if (slot && !slot.textContent) slot.innerHTML = `<span class="ghost">${need}</span>`;
+  const k = [...document.querySelectorAll('#tiles [data-l]')].find(x => x.dataset.l === need && !x.classList.contains('used')); if (k) k.classList.add('hint');
+  speak(`This one is ${letterName(need)}.`); G.helped = true;
 }
+// A hint that teaches the rule behind the letter the child is stuck on
+function hintFor(part, typed, pi) {
+  const st = soundText(part), start = G.parts.slice(0, pi).reduce((a, p) => a + p.g.length, 0), idx = G.pos - start;
+  if (part.s === '_') return { say: `Listen: ${G.word}. Can you hear the vowel say its name? That's a magic e word. It ends with a quiet e.`, rule: 'magicE' };
+  if (part.g === 'ck') return { say: idx === 0 ? 'After a short vowel, the kuh sound is spelled with two letters.' : 'One more letter for the kuh sound.', rule: 'ck' };
+  if (part.s === 'k' && part.g === 'c' && typed === 'k') return { say: `Good thinking, k can say kuh. But before ${G.word[G.pos + 1] || 'this vowel'}, we use the other kuh letter.`, rule: 'ck_c' };
+  if (part.s === 'k' && part.g === 'k' && typed === 'c') return { say: 'Good thinking, c can say kuh. But before e and i, we use the other kuh letter.', rule: 'ck_c' };
+  if (part.g.length === 2) return { say: idx === 0 ? `This sound is ${st}. It takes two letters.` : `${st} needs one more letter.`, rule: GRAPH_RULE[part.g] };
+  if (part.s === 'z' && typed === 'z') return { say: 'Yes, it sounds like zzz! But in this word, another letter makes the zzz sound.', rule: 'sZ' };
+  if (VOWEL_HELP[part.s]) return { say: `Listen to the vowel: ${st}. ${VOWEL_HELP[part.s]}`, rule: part.s === part.g ? 'shortVowel' : G.rules.includes('magicE') ? 'magicE' : G.rules[0] };
+  return { say: `Listen: ${st}. Which letter makes the ${st} sound?`, rule: null };
+}
+// Rule cards
+let ruleNext = null;
+function showRule(id, teach, ondone) {
+  const R = RULES[id]; if (!R) { if (ondone) ondone(); return; }
+  const el = $('rule');
+  el.querySelector('.ricon').textContent = R.icon; el.querySelector('.rt').textContent = R.t; el.querySelector('.rp').innerHTML = R.p;
+  el.querySelector('.rex').innerHTML = R.ex.map(w => { const e = findWord(w); return e ? `<button class="exw" data-w="${w}">${e[1]} ${w}</button>` : ''; }).join('');
+  el.querySelectorAll('.exw').forEach(x => x.onclick = ev => { ev.stopPropagation(); sayExample(x.dataset.w); });
+  $('bRuleNext').hidden = !teach; el.hidden = false; el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
+  ruleNext = ondone || null;
+  if (teach) speak(R.say, { rate: .95, onend: () => {} });
+}
+function hideRule(soft) { const el = $('rule'); if (soft && !$('bRuleNext').hidden) return; el.hidden = true; }
+function findWord(w) { for (const L of WORDS) for (const e of L) if (e[0] === w) return e; return null; }
+function sayExample(w) { const e = findWord(w); if (!e) return; const P = parseWord(e[2]); speak(`${w}. ${P.filter(p => p.s !== '_').map(soundText).join('... ')}. ${w}.`); }
 function flyTo(tile, slot, l) {
   const a = tile.getBoundingClientRect(), z = slot.getBoundingClientRect(), f = document.createElement('div');
   f.className = 'flyer tile'; f.style.cssText = `left:${a.left}px;top:${a.top}px;width:${a.width}px;height:${a.height}px;margin:0;font-size:${a.width * .56}px`; f.innerHTML = `<span>${l}</span>`;
-  f.style.setProperty('--tile-bg', getComputedStyle($('tiles')).getPropertyValue('--tile-bg')); f.style.setProperty('--tile-sh', getComputedStyle($('tiles')).getPropertyValue('--tile-sh')); f.style.color = getComputedStyle($('tiles')).color;
+  const cs = getComputedStyle($('tiles')); f.style.setProperty('--tile-bg', cs.getPropertyValue('--tile-bg')); f.style.setProperty('--tile-sh', cs.getPropertyValue('--tile-sh')); f.style.color = cs.color;
   document.body.appendChild(f);
   requestAnimationFrame(() => { f.style.left = (z.left + (z.width - a.width) / 2) + 'px'; f.style.top = (z.top + (z.height - a.height) / 2) + 'px'; f.style.transform = `scale(${z.width / a.width * .9})`; });
-  setTimeout(() => { f.remove(); slot.textContent = l; slot.classList.add('full', 'pop'); slot.classList.remove('next'); }, TEST ? 0 : 320);
+  setTimeout(() => { f.remove(); fill(slot, l); }, TEST ? 0 : 320);
 }
 function wordDone() {
   const R = G.round; G.busy = true;
-  const clean = G.wmiss === 0 && !G.helped;
-  const gain = Math.max(1, 2 + G.word.length - Math.min(G.wmiss, 3) - (G.helped ? 1 : 0));
+  const clean = G.wmiss === 0 && !G.helped, gain = Math.max(1, 2 + G.word.length - Math.min(G.wmiss, 3) - (G.helped ? 1 : 0));
   R.earned += gain; R.res.push(clean ? 'ok' : 'miss'); R.i++; S.seen[G.word] = (S.seen[G.word] || 0) + 1; S.words++;
   G.mood = 'happy'; G.moodT = 1.4; sfx('word');
   setTimeout(() => { const p = $('pic').getBoundingClientRect(); burst(p.left + p.width / 2, p.top + p.height / 2, 46); }, 250);
-  say(pick(PRAISE));
-  const spelled = G.word.split('').map(letterName).join(', ');
-  updHud(); drawDots();
+  say(pick(PRAISE)); updHud(); drawDots();
+  // after the spelling, teach one rule this word shows (each rule once per round)
+  const teach = G.rules.find(id => !R.shown.has(id));
   let moved = false;
-  const go = () => { if (moved || G.mode !== 'play') return; moved = true; if (R.i >= R.n) endRound(); else nextWord(); };
-  speak(`${spelled}. ${G.word}! ${pick(['Great job!', 'Well done!', 'You did it!', 'Super!'])}`, { onend: () => setTimeout(go, 500) });
-  setTimeout(go, TEST ? 0 : SPEECH && S.set.voice ? 5200 : 1800);
+  const go = () => { if (moved || G.mode !== 'play') return; moved = true; hideRule(); if (R.i >= R.n) endRound(); else nextWord(); };
+  const afterSpell = () => {
+    if (teach && S.set.rules) { R.shown.add(teach); showRule(teach, true, go); ruleNext = go; if (TEST) go(); }
+    else setTimeout(go, TEST ? 0 : 600);
+  };
+  const spelled = G.word.split('').map(letterName).join(', ');
+  speak(`${spelled}. ${G.word}! ${pick(['Great job!', 'Well done!', 'You did it!', 'Super!'])}`, { onend: afterSpell });
+  if (!SPEECH || !S.set.voice || TEST) afterSpell();
 }
 function endRound() {
-  const R = G.round; G.mode = 'result'; G.busy = true; if (SPEECH && !TEST) setTimeout(() => speak(R.res.every(r => r === 'ok') ? 'Perfect round! Amazing spelling!' : 'Round complete! Great job!'), 400);
+  const R = G.round; G.mode = 'result'; G.busy = true; hideRule();
+  setTimeout(() => speak(R.res.every(r => r === 'ok') ? 'Perfect round! Amazing spelling!' : 'Round complete! Great job!'), 300);
   const missed = R.res.filter(r => r === 'miss').length, rating = missed === 0 ? 3 : missed <= Math.ceil(R.n * .25) ? 2 : 1;
   const bonus = rating * 5, gem = rating === 3 ? 1 : 0;
   S.stars += R.earned + bonus; S.gems += gem; S.rounds++;
@@ -578,7 +746,8 @@ function endRound() {
   $('rTitle').textContent = rating === 3 ? 'Perfect round!' : rating === 2 ? 'Great spelling!' : 'Round complete!';
   $('rLine').textContent = `${R.n - missed} of ${R.n} spelled on the first try`;
   $('rLoot').innerHTML = `<div class="chip"><i>⭐</i>+${R.earned + bonus}</div>${gem ? '<div class="chip"><i>💎</i>+1</div>' : ''}`;
-  $('rWords').innerHTML = R.words.map(([w, e], i) => `<span style="display:inline-block;margin:2px 6px;font-size:18px;color:${R.res[i] === 'ok' ? '#22a07a' : '#e0892a'}">${e} ${w}</span>`).join('');
+  $('rWords').innerHTML = R.words.map(([w, e], i) => `<button class="exw" data-w="${w}" style="color:${R.res[i] === 'ok' ? '#22a07a' : '#e0892a'}">${e} ${w}</button>`).join('');
+  $('rWords').querySelectorAll('.exw').forEach(x => x.onclick = () => sayExample(x.dataset.w));
   $('rSticker').innerHTML = sticker ? `<div class="note" style="margin:4px 0 0">New sticker!</div><div class="sticker">${sticker}</div>` : '<div class="note">Sticker book complete! +20 ⭐</div>';
   const box = $('rStars'); box.innerHTML = '';
   for (let i = 0; i < 3; i++) { const c = document.createElement('canvas'); c.width = c.height = 168; drawRatingStar(c.getContext('2d'), i < rating); box.appendChild(c); setTimeout(() => { c.classList.add('in'); if (i < rating) sfx('star', i); }, 350 + i * 300); }
@@ -593,14 +762,16 @@ function drawRatingStar(g, on) {
   if (on) { g.fillStyle = 'rgba(255,255,255,.6)'; ell(g, -18, -22, 14, 8, -.6); g.fill(); g.fillStyle = '#7a4a10'; circle(g, -14, 2, 5); g.fill(); circle(g, 14, 2, 5); g.fill(); g.strokeStyle = '#7a4a10'; g.lineWidth = 4; g.beginPath(); g.arc(0, 8, 10, .3, Math.PI - .3); g.stroke(); }
 }
 let sayT = 0;
-function say(txt, oops) { if (TEST) return; const el = $('praise'); el.textContent = txt; el.classList.toggle('oops', !!oops); el.classList.add('show'); clearTimeout(sayT); sayT = setTimeout(() => el.classList.remove('show'), oops ? 1000 : 1200); }
+function say(txt, oops) { if (TEST) return; const el = $('praise'); el.textContent = txt; el.classList.toggle('oops', !!oops); el.classList.add('show'); clearTimeout(sayT); sayT = setTimeout(() => el.classList.remove('show'), oops ? 900 : 1200); }
 function drawDots() { const R = G.round, box = $('dots'); box.innerHTML = ''; for (let i = 0; i < R.n; i++) { const d = document.createElement('b'); if (i < R.res.length) d.className = R.res[i]; else if (i === R.i) d.className = 'now'; box.appendChild(d); } }
 function updHud() { $('hStars').textContent = S.stars + (G.round ? G.round.earned : 0); }
 function applyTileStyle() { const st = TILE_STYLE[S.equip.tiles] || TILE_STYLE.honey, t = $('tiles'); t.style.setProperty('--tile-bg', st[0]); t.style.setProperty('--tile-sh', st[1]); t.style.color = st[2]; }
 function layoutBoard() {
-  const n = G.word ? G.word.length : 3, tc = $('tiles').children.length || 5, small = H < 620;
-  const ts = Math.min(78, (Math.min(W, 760) - 30) / n - 12, H * (small ? .085 : .1));
-  const perRow = Math.min(tc, W < 520 ? 4 : 6), tt = Math.min(86, (Math.min(W, 760) - 30) / perRow - 14, H * (small ? .1 : .115));
+  const n = G.word ? G.word.length : 3, groups = G.parts ? G.parts.length : n, small = H < 640;
+  const ts = Math.min(70, (Math.min(W, 760) - 24 - groups * 18) / n - 6, H * (small ? .075 : .09));
+  const few = S.set.keys === 'few', tc = $('tiles').children.length || 7;
+  const perRow = few ? Math.min(tc, W < 520 ? 4 : 6) : (W < 520 ? 7 : 9);
+  const tt = few ? Math.min(86, (Math.min(W, 760) - 30) / perRow - 14, H * (small ? .1 : .115)) : Math.min(64, (Math.min(W, 820) - 20) / perRow - 6, H * (small ? .068 : .08));
   $('board').style.setProperty('--ts', ts + 'px'); $('board').style.setProperty('--tt', tt + 'px');
 }
 
@@ -632,28 +803,34 @@ function frame(now) {
 // Menus
 // ---------------------------------------------------------------------------
 function show(id) {
-  for (const s of ['sTitle', 'sSettings', 'sShop', 'sBook', 'sPause', 'sResult']) $(s).hidden = s !== id;
+  for (const s of ['sTitle', 'sSettings', 'sShop', 'sBook', 'sRules', 'sPause', 'sResult']) $(s).hidden = s !== id;
   if (id === 'sTitle') { G.mode = 'title'; $('hud').hidden = true; $('board').hidden = true; updWallet(); }
 }
 function updWallet() {
   document.querySelectorAll('.wStars').forEach(e => e.textContent = S.stars);
   document.querySelectorAll('.wGems').forEach(e => e.textContent = S.gems);
   document.querySelectorAll('.wStick').forEach(e => e.textContent = `${Object.keys(S.stickers).length}/${STICKERS.length}`);
-  $('nowNote').textContent = 'Spelling: ' + LEVELS.filter((l, i) => S.set.lv[i]).map(l => l.name.toLowerCase()).join(' + ') + (S.set.ghost ? ' · copy mode on' : '') + (SPEECH ? '' : ' · this browser can\'t speak');
+  $('nowNote').textContent = 'Practising: ' + LEVELS.filter((l, i) => S.set.lv[i]).map(l => l.name.toLowerCase()).join(' · ') + (SPEECH ? '' : ' · this browser can\'t speak');
 }
 function buildSettings() {
   const box = $('ops'); box.innerHTML = '';
   LEVELS.forEach((L, i) => {
     const on = S.set.lv[i], el = document.createElement('div'); el.className = 'op' + (on ? ' on' : '');
     const ex = WORDS[i].slice(0, 6).map(w => w[1]).join(' ');
-    el.innerHTML = `<div class="sym" style="background:${L.col}">${i + 3}${i === 2 ? '+' : ''}</div><div class="nm">${L.name}<small>${L.sub}</small><small style="font-size:18px;margin-top:2px">${ex}</small></div><button class="tog${on ? ' on' : ''}" aria-label="${L.name}"></button>`;
+    el.innerHTML = `<div class="sym" style="background:${L.col};font-size:${L.sym.length > 1 ? 22 : 30}px">${L.sym}</div><div class="nm">${L.name}<small>${L.sub}</small><small style="font-size:18px;margin-top:2px">${ex}</small></div><button class="tog${on ? ' on' : ''}" aria-label="${L.name}"></button>`;
     el.querySelector('.tog').onclick = () => { S.set.lv[i] = !S.set.lv[i]; if (!S.set.lv.some(Boolean)) S.set.lv[0] = true; sfx('click'); save(); buildSettings(); };
     box.appendChild(el);
   });
-  const seg = (id, attr, key) => $(id).querySelectorAll('button').forEach(b => { b.classList.toggle('on', +b.dataset[attr] === S.set[key]); b.onclick = () => { S.set[key] = +b.dataset[attr]; sfx('click'); save(); buildSettings(); }; });
-  seg('segN', 'n', 'per'); seg('segX', 'x', 'extra'); seg('segR', 'r', 'rate');
-  for (const [id, key] of [['tGhost', 'ghost'], ['tVoice', 'voice'], ['tNames', 'names'], ['tSound', 'sound'], ['tMusic', 'music']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); if (key === 'voice' && S.set.voice) speak('Hello! Let\'s spell!'); }; }
-  $('voiceNote').textContent = SPEECH ? 'Turn on any mix of word sizes. Copy mode shows faint letters to trace.' : 'This browser can\'t speak, so words are shown with their picture only.';
+  const seg = (id, attr, key, num = true) => $(id).querySelectorAll('button').forEach(b => { const v = num ? +b.dataset[attr] : b.dataset[attr]; b.classList.toggle('on', v === S.set[key]); b.onclick = () => { S.set[key] = v; sfx('click'); save(); buildSettings(); }; });
+  seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segR', 'r', 'rate');
+  for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
+  $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak("Hello! Let's spell cat. Kuh... ah... tuh. Cat!"); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? `Voice: ${VOICE ? VOICE.name : 'device default'}` : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 2500); };
+  $('voiceNote').textContent = SPEECH ? 'Kids hear the word, see the picture and spell it from the ABC. Hints teach the rule behind each tricky letter.' : 'This browser can\'t speak, so words are shown with their picture only.';
+}
+function buildRules() {
+  $('rlist').innerHTML = Object.entries(RULES).map(([id, R]) => `<div class="rbk" data-r="${id}"><div class="ricon">${R.icon}</div><div><b class="t">${R.t}</b><p>${R.p}</p><div>${R.ex.map(w => { const e = findWord(w); return e ? `<button class="exw" data-w="${w}">${e[1]} ${w}</button> ` : ''; }).join('')}</div></div></div>`).join('');
+  $('rlist').querySelectorAll('.rbk').forEach(el => el.onclick = () => { audioInit(); unlockSpeech(); speak(RULES[el.dataset.r].say, { rate: .95 }); });
+  $('rlist').querySelectorAll('.exw').forEach(x => x.onclick = ev => { ev.stopPropagation(); audioInit(); sayExample(x.dataset.w); });
 }
 let shopTab = 'buddy';
 const ICON = new Map();
@@ -705,20 +882,25 @@ $('bRShop').onclick = () => { sfx('click'); buildShop(); show('sShop'); };
 $('bRHome').onclick = () => { sfx('click'); show('sTitle'); };
 $('pic').addEventListener('click', () => { if (G.mode === 'play') sayWord(false); });
 $('say').addEventListener('click', e => { e.stopPropagation(); if (G.mode === 'play') sayWord(false); });
-$('bHint').onclick = () => { if (G.mode === 'play' && !G.busy) showHint(true); };
+$('bHint').onclick = () => { if (G.mode === 'play' && !G.busy) { const part = G.parts[G.partOf[G.pos]]; const tip = hintFor(part, '', G.partOf[G.pos]); G.helped = true; if (G.posMiss++ >= 1) revealLetter(); else { speak(tip.say); if (tip.rule) showRule(tip.rule, false); } } };
+$('bRules').onclick = () => { audioInit(); sfx('click'); buildRules(); show('sRules'); };
+$('bRulesDone').onclick = () => { sfx('click'); show('sTitle'); };
+$('bRuleNext').onclick = () => { const f = ruleNext; ruleNext = null; hideRule(); if (f) f(); };
 window.addEventListener('keydown', e => {
   if (G.mode !== 'play' || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (/^[a-z]$/.test(k)) { const t = [...document.querySelectorAll('.tile:not(.used)')].find(x => x.dataset.l === k) || [...document.querySelectorAll('.tile:not(.used)')][0]; if (t) { if (t.dataset.l === k) tapTile(t); else { const fake = { dataset: { l: k }, classList: { contains: () => false, remove() {}, add() {} } }; tapTile(fake); } } }
-  else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); sayWord(false); }
+  if (/^[a-z]$/.test(k)) { if (S.set.keys === 'few' && ![...document.querySelectorAll('#tiles [data-l]')].some(x => x.dataset.l === k && !x.classList.contains('used'))) { typeLetter(k, null); return; } typeLetter(k, null); }
+  else if (e.key === ' ') { e.preventDefault(); sayWord(false); }
+  else if (e.key === 'Enter' && ruleNext) $('bRuleNext').click();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && G.mode === 'play' && !TEST) { G.mode = 'paused'; if (SPEECH) SPEECH.cancel(); show('sPause'); } });
 window.addEventListener('resize', resize);
 window.BW = {
   get G() { return G; }, get S() { return S; }, WORDS, startRound, endRound, show, buildShop, buildSettings, buildBook, equip(c, id) { S.equip[c] = id; },
-  state() { const R = G.round; return { mode: G.mode, word: G.word, pos: G.pos, stars: S.stars, round: R && { i: R.i, n: R.n, res: R.res.join(','), earned: R.earned }, tiles: [...document.querySelectorAll('.tile:not(.used)')].map(t => t.dataset.l).join('') }; },
-  tapLetter(l) { const t = [...document.querySelectorAll('.tile:not(.used)')].find(x => x.dataset.l === l); if (t) tapTile(t); return !!t; },
-  spellAll() { for (const l of G.word) this.tapLetter(l); },
+  state() { const R = G.round; return { mode: G.mode, word: G.word, pos: G.pos, stars: S.stars, rules: G.rules, round: R && { i: R.i, n: R.n, res: R.res.join(','), earned: R.earned } }; },
+  tapLetter(l) { typeLetter(l, null); return true; },
+  spellAll() { const w = G.word, from = G.pos; for (let i = from; i < w.length && G.word === w; i++) typeLetter(w[i], null); },
+  RULES, rulesFor, parseWord, buildRules,
 };
 load(); resize(); seedAmbient(); updWallet();
 requestAnimationFrame(frame);

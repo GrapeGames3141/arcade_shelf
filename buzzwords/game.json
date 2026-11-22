@@ -1,7 +1,7 @@
 {
   "title": "Buzz Words",
-  "description": "A spelling game for kids. Hear the word, see the picture, and tap the honeycomb letters to spell it, with a friendly voice saying every letter. Earn stars and stickers and unlock buddies, gardens and tiles.",
+  "description": "A phonics spelling game for kids. Hear the word, see the picture, sound it out and spell it on an ABC keyboard. A friendly voice teaches the rules as they come up: short vowels, sh and ck, magic e, vowel teams and bossy r.",
   "category": "Kids",
-  "controls": "Tap or click the letters in order. Tap the picture or 🔊 to hear the word again. Keyboard letters work too.",
+  "controls": "Tap or click letters on the ABC keyboard. Tap the picture or 🔊 to hear the word and its sounds again. Tap a sound box to hear that sound. Keyboard letters work too.",
   "requirements": "Any modern browser. Voice uses the browser's built-in speech. Saves progress in this browser."
 }
