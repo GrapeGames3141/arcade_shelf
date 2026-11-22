@@ -125,4 +125,17 @@ class PagesTests(unittest.TestCase):
         (game / 'game.json').write_text(json.dumps({'entry': r'..\outside.html'}), encoding='utf-8')
         with self.assertRaises(ValueError): builder.build(self.root)
 
+    def test_salt_aquarium_source_dirs_are_not_packaged(self):
+        game = self.root / 'saltaquarium'
+        (game / 'parts').mkdir(parents=True)
+        (game / 'test').mkdir()
+        (game / 'saltaquarium.html').write_text('<!doctype html><title>Reef Aquarium</title>', encoding='utf-8')
+        (game / 'game.json').write_text(json.dumps({'title': 'Reef Aquarium', 'category': 'Creative'}), encoding='utf-8')
+        (game / 'parts' / 'author.js').write_text('throw new Error()', encoding='utf-8')
+        (game / 'test' / 'shot.js').write_text('throw new Error()', encoding='utf-8')
+        out = builder.build(self.root)
+        self.assertTrue((out / 'saltaquarium' / 'saltaquarium.html').exists())
+        self.assertFalse((out / 'saltaquarium' / 'parts').exists())
+        self.assertFalse((out / 'saltaquarium' / 'test').exists())
+
 if __name__ == '__main__': unittest.main()

@@ -1,0 +1,7 @@
+{
+  "title": "Reef Aquarium",
+  "description": "Build and tend a realistic saltwater reef aquarium filled with corals, fish, shrimp, crabs, snails and other invertebrates.",
+  "category": "Creative",
+  "controls": "Drag to orbit, scroll or pinch to zoom. Use Feed, Decorate, Animals and Tank to shape the reef and its inhabitants. H hides the interface.",
+  "requirements": "WebGL2 browser"
+}

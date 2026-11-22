@@ -4,7 +4,7 @@ Start every session by reading this file, the root `AGENTS.md`, and the target g
 
 ## Repository layout
 
-The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `woolrampage`, and `kindred-crossing` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
+The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `saltaquarium`, `woolrampage`, and `kindred-crossing` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
 
 | Source game | Source file | Drive release copy |
 | --- | --- | --- |
@@ -27,6 +27,7 @@ The root repository uses branch `main` and has origin `https://github.com/GrapeG
 | Heroes Sold Separately | `guildmaster\guildmaster.html` | none yet |
 | Empire Rush | `empire-rush\empire-rush.html` | none yet |
 | Axolotl Aquarium | `aquarium\aquarium.html` | none yet |
+| Reef Aquarium | `saltaquarium\saltaquarium.html` | none yet |
 | Wool Rampage | `woolrampage\woolrampage.html` | none yet |
 | Kindred Crossing | `kindred-crossing\kindred-crossing.html` | none yet |
 | Volcanic Island Walk | `experiments\procedural-demo\procedural-demo.html` | none yet |

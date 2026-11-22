@@ -25,6 +25,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Heroes Sold Separately | `guildmaster/guildmaster.html` | `http://127.0.0.1:8000/guildmaster/guildmaster.html` |
 | Empire Rush | `empire-rush/empire-rush.html` | `http://127.0.0.1:8000/empire-rush/empire-rush.html` |
 | Axolotl Aquarium | `aquarium/aquarium.html` | `http://127.0.0.1:8000/aquarium/aquarium.html` |
+| Reef Aquarium | `saltaquarium/saltaquarium.html` | `http://127.0.0.1:8000/saltaquarium/saltaquarium.html` |
 | Wool Rampage | `woolrampage/woolrampage.html` | `http://127.0.0.1:8000/woolrampage/woolrampage.html` |
 | Kindred Crossing | `kindred-crossing/kindred-crossing.html` | `http://127.0.0.1:8000/kindred-crossing/kindred-crossing.html` |
 | Volcanic Island Walk | `experiments/procedural-demo/procedural-demo.html` | `http://127.0.0.1:8000/experiments/procedural-demo/procedural-demo.html` |
