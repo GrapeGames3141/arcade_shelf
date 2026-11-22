@@ -1,0 +1,7 @@
+{
+  "title": "Lawnchair Aces",
+  "description": "Lawn chairs hang from clusters of helium balloons over a forest lake, and everyone brought a pellet rifle. Pop the other chairs' balloons until they splash down. Climb or sink to catch a different wind, and give the leaf blower a burst when you need a nudge.",
+  "category": "Action",
+  "controls": "Click the view to aim. Click fires; hold R to pump and reload; right mouse scopes in; Space pours water to climb; hold E to let a balloon go; W runs the leaf blower; Shift steadies; V changes view; Esc pauses. Touch controls are in the settings.",
+  "requirements": "WebGL2 browser"
+}

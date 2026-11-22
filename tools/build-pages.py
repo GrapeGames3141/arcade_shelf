@@ -91,7 +91,7 @@ def runtime_files(folder):
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(folder)
         if any(part.startswith(".") or part.lower() in SKIP_DIRS for part in rel.parts): continue
-        if folder.name in {"saltaquarium", "cartastrophe"} and any(part.lower() in {"parts", "test"} for part in rel.parts): continue
+        if folder.name in {"saltaquarium", "cartastrophe", "lawnchairaces"} and any(part.lower() in {"parts", "test"} for part in rel.parts): continue
         if path.is_symlink() or not path.is_file(): continue
         if path.suffix.lower() in EXTENSIONS and path.name.lower() != "game.json": yield path
 

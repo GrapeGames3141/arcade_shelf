@@ -29,6 +29,7 @@ The root repository uses branch `main` and has origin `https://github.com/GrapeG
 | Axolotl Aquarium | `aquarium\aquarium.html` | none yet |
 | Reef Aquarium | `saltaquarium\saltaquarium.html` | none yet |
 | Wool Rampage | `woolrampage\woolrampage.html` | none yet |
+| Lawnchair Aces | `lawnchairaces\lawnchairaces.html` | none yet |
 | Kindred Crossing | `kindred-crossing\kindred-crossing.html` | none yet |
 | Volcanic Island Walk | `experiments\procedural-demo\procedural-demo.html` | none yet |
 | Pop Quiz | `popquiz\popquiz.html` | none yet |
