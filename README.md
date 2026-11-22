@@ -31,6 +31,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Volcanic Island Walk | `experiments/procedural-demo/procedural-demo.html` | `http://127.0.0.1:8000/experiments/procedural-demo/procedural-demo.html` |
 | Pop Quiz | `popquiz/popquiz.html` | `http://127.0.0.1:8000/popquiz/popquiz.html` |
 | Buzz Words | `buzzwords/buzzwords.html` | `http://127.0.0.1:8000/buzzwords/buzzwords.html` |
+| Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 
