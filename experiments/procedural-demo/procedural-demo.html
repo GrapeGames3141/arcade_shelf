@@ -422,9 +422,10 @@ void main(){
   vec2 flatOff=flatRay.xz/(-flatRay.y)*rayDepth;
   vec2 surf=refr-flatOff;
   float warp=.6*sin(dot(surf,vec2(.69,.38))-.45*t)+.36*sin(dot(surf,vec2(-.44,.55))+.32*t);
-  vec2 slope=.11*vec2(1.,.33)*cos(dot(surf,vec2(4.7,1.55))-t*2.1+warp)
-    +.09*vec2(-.29,1.)*cos(dot(surf,vec2(-1.64,5.7))+t*1.7-warp)
-    +.071*vec2(.59,-.81)*cos(dot(surf,vec2(5.2,-7.13))-t*2.5+.8*warp);
+  // Finer, livelier caustic cells (real ones are a hand's width at 1-3 m).
+  vec2 slope=.044*vec2(1.,.33)*cos(dot(surf,vec2(11.75,3.9))-t*3.4+warp*2.)
+    +.036*vec2(-.29,1.)*cos(dot(surf,vec2(-4.1,14.25))+t*2.7-warp*2.)
+    +.028*vec2(.59,-.81)*cos(dot(surf,vec2(13.,-17.8))-t*4.+1.6*warp);
   vec3 ray=refract(-sun,normalize(vec3(-slope.x,1.,-slope.y)),.7502);
   vec2 landing=surf+ray.xz/(-ray.y)*rayDepth;
   vec2 adx=dFdx(refr),ady=dFdy(refr),bdx=dFdx(landing),bdy=dFdy(landing);
@@ -472,6 +473,23 @@ void main(){
   float sandy=1.-.48*smoothstep(.62,.83,n(world.xz*.55+vec2(8.1,2.3)));
   float outer=margin*foamPatch*sandy*(.58+.42*lace)*marine;
   float foam=marine*clamp(leading*.76+touchdownFoam*.48+after*.34+retained*.48+outer*.86,0.,.88);
+  // Broken waves stir carbonate sand into the water column and roll ashore as
+  // a white bore; behind it the inner surf zone stays milky and sand-green.
+  float inner=marine*smoothstep(-6.6,-4.4,si.x)*(1.-smoothstep(-.3,1.,si.x));
+  float surfZ=marine*smoothstep(-10.,-6.2,si.x)*(1.-smoothstep(.8,2.6,si.x));
+  float churn=max(smoothstep(.15,.85,sin(phase+.9)),history);
+  float plume=.55+.45*smoothstep(.28,.72,n(world.xz*.19+si.yz*t*.22+vec2(t*.031,-t*.017)));
+  float turbid=clamp((surfZ*(.42+.58*churn)*plume+inner*.30)*(1.-exp(-max(closeDepth,.02)*4.)),0.,1.);
+  float plumeTone=n(world.xz*.47+vec2(-t*.05,t*.04));
+  vec3 murk=mix(vec3(.060,.090,.068),vec3(.115,.118,.080),smoothstep(.25,.75,plumeTone))*down*(.85+.30*n(world.xz*1.6+vec2(t*.22,-t*.13)));
+  body=mix(body,murk,turbid*.92);
+  // Bubble lacework stretched by the backwash and the next bore.
+  vec2 lp=mat2(.9,.44,-.44,.9)*world.xz*vec2(1.6,3.2)+si.yz*t*.55;lp+=vec2(n(world.xz*.9+t*.1),n(world.xz*.9-3.))*1.3;
+  float streak=smoothstep(.62,.90,laceF(lp))*smoothstep(.45,.8,n(world.xz*.7+vec2(t*.1,0.)));
+  foam=max(foam,streak*surfZ*churn*.42);
+  float boreFront=smoothstep(.42,.93,sin(phase))*inner,boreTrail=smoothstep(.30,.95,sin(phase+.8))*inner;
+  float bore=clamp(boreFront*(.80+.20*torn)+boreTrail*(.35+.45*lace),0.,1.);
+  foam=max(foam,bore*.97);
 
   vec3 R=reflect(-V,NN);R.y=abs(R.y);vec3 env=skyRad(R);
   if(reflOn>.5){vec4 rf=texture(reflTex,gl_FragCoord.xy*screenInv+NN.xz*.035/(1.+length(world-eye)*.02));env=mix(env,rf.rgb,rf.a);}
@@ -483,7 +501,8 @@ void main(){
   c=mix(c,foamRad,foam);
   c=applyFog(c,world,eye);
   c=mix(c,farSea(-V),smoothstep(210.,470.,length(world.xz)));
-  emit(c,mix(.95,smoothstep(.045,.18,closeDepth),shoreBand(si.x)),0.,0.);
+  float seaA=mix(.95,smoothstep(.045,.18,closeDepth),shoreBand(si.x));seaA=max(seaA,max(turbid*.9,foam*.95)*smoothstep(.0,.05,closeDepth));
+  emit(c,seaA,0.,0.);
 }`;
     // Connected crest slots turn the steepening surface into forward-curving
     // geometry.  Each slot advances across a coast contour as one train while
@@ -496,7 +515,7 @@ uniform mat4 m;
 uniform float t;
 out vec3 world, N;
 out vec2 frothUV;                   // metres: cumulative coast arc, face travel
-out float foam, breakAmt, crestProfile;
+out float foam, breakAmt, crestProfile, collapseAmt;
 ${shoreGLSL}
 void main(){
   const float TAU=6.283185;
@@ -550,13 +569,14 @@ void main(){
   foam=lip*energy*(.42+.58*smoothstep(.48,.82,sin(shorePhase(center,s,t))));
   breakAmt=energy;
   crestProfile=q;
+  collapseAmt=collapse;
   gl_Position=m*vec4(world,1.);
 }`;
     const breakerF = `#version 300 es
 precision highp float;
 in vec3 world, N;
 in vec2 frothUV;
-in float foam, breakAmt, crestProfile;
+in float foam, breakAmt, crestProfile, collapseAmt;
 uniform vec3 eye;
 uniform float t, coastPerimeter;
 uniform highp sampler2DShadow nearShadowMap;uniform mat4 nearLightM;
@@ -599,16 +619,21 @@ void main(){
   float torn=seamNoise(froth+vec2(13.2,-5.7),frothUV.x,1.22);
   float clumps=smoothstep(.36,.64,broad)*(.55+.45*smoothstep(.37,.70,torn));
   float lace=clumps*(.70+.30*laceF(froth*7.3+vec2(5.4,-3.1)));
-  float white=max(foam*(.22+.78*lace),falling*lace*breakAmt*.92);
+  // Real shore break is not glass: the face carries sand sucked off the bottom,
+  // the throwing lip and everything after the collapse is aerated white water.
+  float sandLoad=clamp((1.-smoothstep(.12,.62,crestProfile))*.75+collapseAmt*.45,0.,1.);
+  float white=max(foam*(.55+.45*lace),falling*(.78+.22*lace)*breakAmt);
+  white=max(white,collapseAmt*(.62+.38*lace)*smoothstep(.18,.55,crestProfile));
   float edge=smoothstep(.035,.16,crestProfile)*(1.-smoothstep(.90,1.,crestProfile));
-  float alpha=breakAmt*(face*.13+white*.88)*edge;
+  float alpha=breakAmt*(face*(.36+.26*sandLoad)+white*.96)*edge;
   if(alpha<.022)discard;
   vec3 Nn=normalize(N);if(dot(Nn,V)<0.)Nn=-Nn;
   vec3 down=sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.));
   vec3 waterRad=mix(vec3(.004,.030,.030),vec3(.012,.075,.062),max(0.,Nn.y)*.58+.16)*lumOf(down);
+  waterRad=mix(waterRad,mix(vec3(.040,.070,.050),vec3(.095,.100,.068),sandLoad)*lumOf(down),.45+.5*sandLoad);
   vec3 R=reflect(-V,Nn);R.y=abs(R.y);float fr=.02+.98*pow(1.-max(dot(Nn,V),0.),5.);waterRad=waterRad*(1.-fr)+skyRad(R)*fr;
   float bsh=brkShadow(world);
-  float thin=face*(1.-white)*smoothstep(.15,.65,crestProfile),back=pow(max(dot(-V,sunDir),0.),3.);waterRad+=vec3(.035,.42,.32)*sunColor*bsh*thin*(.20+1.6*back)*breakAmt;
+  float thin=face*(1.-white)*smoothstep(.15,.65,crestProfile),back=pow(max(dot(-V,sunDir),0.),3.);waterRad+=vec3(.05,.34,.27)*sunColor*bsh*thin*(.20+1.6*back)*breakAmt*(1.-.65*sandLoad);
   vec3 Nf=normalize(Nn+vec3(0.,.5,0.));vec3 foamRad=vec3(.84,.88,.88)*(sunColor*max(dot(Nf,sunDir),0.)*bsh+shAmbient(Nf))+vec3(.9)*sunColor*bsh*back*.12;
   vec3 c=mix(waterRad,foamRad,clamp(white*1.18,0.,1.));
   c+=sunColor*3.14159*ggxSpec(Nn,V,sunDir,.14,.02)*(1.-white)*bsh;
@@ -743,9 +768,20 @@ if(landPass){
 if(leafFlag>.5){float aa=max(fwidth(leafCoord.x)*1.7,.025),rib=1.-smoothstep(.025,.025+aa,abs(leafCoord.x));float curve=abs(abs(leafCoord.x)-(.18+.66*leafCoord.y));float vein=(1.-smoothstep(.026,.026+aa,curve))*(.35+.65*sin(leafCoord.y*37.+leafCoord.x*4.)*.5+.5);float underside=(gl_FrontFacing?0.:1.)*(.45+.55*smoothstep(.20,.88,leafCoord.y));base=mix(base,base*vec3(1.08,1.055,.88)+vec3(.006,.009,.002),rib*.20);base=mix(base,base*vec3(.98,1.01,.91),vein*.045);base=mix(base,base*vec3(1.03,1.055,.91),underside*.08);}
  if(palmMat>.5){vec3 radial=normalize(N-vec3(0,1,0)*N.y),tangent=normalize(cross(vec3(0,1,0),radial));float ang=atan(radial.z,radial.x),ax=world.y,grain=fb(vec2(ang*19.3,ax*14.7)),phase=ax*5.65+.07*sin(ang+ax*2.17)+.04*sin(2.*ang-ax*1.3)+.08*grain,band=abs(fract(phase)-.5),scar=1.-smoothstep(.030,.072,band),lip=smoothstep(.070,.125,band)*(1.-smoothstep(.125,.19,band)),age=.32+.68*smoothstep(4.,11.,ax);vec3 palm=mix(vec3(.20,.17,.115),vec3(.46,.40,.27),.34+.26*grain+.13*age);palm=mix(palm,vec3(.14,.105,.062),scar*(.52+.22*age));palm+=vec3(.075,.060,.036)*lip;N=normalize(N+radial*(lip*.18-scar*.10)+tangent*(grain-.5)*.08);base=palm;}
  if(woodFlag>.5){vec3 A=normalize(barkA),radial=normalize(barkN-A*dot(barkN,A)),ref=normalize(abs(A.y)<.88?cross(A,vec3(0,1,0)):cross(A,vec3(1,0,0))),side=cross(A,ref);float axial=dot(barkP,A),around=atan(dot(radial,side),dot(radial,ref));vec2 buv=vec2(around*.318309886,axial*1.90);vec3 bt=texture(barkField,buv).rgb;float relief=(1.-twigFlag)*(.16+.16*treeTone),tone=.72+.38*treeTone,faceGrain=fb(vec2(around*31.7,axial*27.3)+treeTone*7.)-.5;vec3 bark=mix(vec3(.235,.215,.18),vec3(.39,.35,.28),bt.r*tone+.20*faceGrain);bark=mix(bark,vec3(.135,.118,.090),smoothstep(.10,.28,1.-bt.r)*(.40-.20*twigFlag));bark+=vec3(.046,.038,.025)*smoothstep(.54,.79,bt.r)*(.40+.60*treeTone);vec3 Aw=normalize(barkWorldA),radialW=normalize(N-Aw*dot(N,Aw)),circW=normalize(cross(Aw,radialW));vec2 grad=bt.gb*2.-1.;N=normalize(N-(Aw*grad.y+circW*grad.x)*relief);float graze=pow(max(dot(normalize(eye-world),radialW),0.),5.);bark+=vec3(.030,.025,.017)*graze*smoothstep(.54,.80,bt.r);base=mix(base,bark,.88-.20*twigFlag);roughM=.86;}
- if(!landPass&&barkA.y<-1.5){vec2 vp=vec2(world.x+world.y*.62,world.z-world.y*.58)*5.3;vec2 vi=floor(vp),vf=fract(vp);float f1=9.;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(float(x),float(y));f1=min(f1,length(g+fract(sin(vec2(dot(vi+g,vec2(127.1,311.7)),dot(vi+g,vec2(269.5,183.3))))*43758.5453)*.8+.1-vf));}float pit=1.-smoothstep(.12,.30,f1);float lich=smoothstep(.62,.80,n(world.xz*2.3+world.y))*smoothstep(.3,.8,N.y)*smoothstep(.6,2.5,world.y);base*=1.-pit*.45;base=mix(base,vec3(.42,.44,.36),lich*.45);N=normalize(N+vec3(n(vp*1.7)-.5,0.,n(vp*1.7+3.)-.5)*.35+N*pit*-.2);roughM=.74;float sea=1.-smoothstep(.15,.9,world.y);wetM=max(wetM,sea*.85);}
+ float creekBed=(!landPass&&barkA.y<-2.5)?1.:0.;
+ if(creekBed>.5){ // wet basalt cobbles and gravel lining the creek and stream
+   float tone=albedo.r,wetv=albedo.g,mossv=albedo.b;vec2 cp=world.xz*4.6,ci=floor(cp),cf=fract(cp);float f1=9.,f2=9.;vec2 best=vec2(0.),bc=vec2(0.);
+   for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(float(x),float(y)),o=g+.15+.7*vec2(h(ci+g),h(ci+g+vec2(7.1,3.3)))-cf;float d=dot(o,o);if(d<f1){f2=f1;f1=d;best=o;bc=ci+g;}else f2=min(f2,d);}
+   float patchC=smoothstep(.42,.70,n(world.xz*.9+7.)+.25*h(bc)),cob=smoothstep(.0,.30,sqrt(f2)-sqrt(f1))*step(.35,h(bc+3.1))*patchC,gravel=n(world.xz*23.)*.5+n(world.xz*57.)*.5;
+   vec3 rockC=mix(vec3(.15,.145,.135),vec3(.36,.33,.29),clamp(tone*.55+.45*h(bc),0.,1.)),grav=mix(vec3(.36,.31,.23),vec3(.52,.46,.35),gravel*.8+.2*n(world.xz*3.1));
+   grav=mix(grav,vec3(.25,.23,.20)*(.8+.4*gravel),smoothstep(.45,.8,n(world.xz*1.7-3.)));
+   base=mix(grav,rockC,cob);base=mix(base,base*vec3(.46,.50,.42),wetv*.80);
+   base=mix(base,vec3(.09,.16,.06)*(.7+.6*n(world.xz*2.7)),mossv*smoothstep(.35,.75,n(world.xz*1.9+3.))*.85);
+   N=normalize(N-vec3(best.x,0.,best.y)*cob*.9+vec3(n(world.xz*31.)-.5,0.,n(world.xz*31.+5.)-.5)*.18);
+   roughM=mix(.80,.22,wetv);wetM=max(wetM,wetv*.85*(1.-mossv));}
+ if(!landPass&&barkA.y<-1.5&&barkA.y>-2.5){vec2 vp=vec2(world.x+world.y*.62,world.z-world.y*.58)*5.3;vec2 vi=floor(vp),vf=fract(vp);float f1=9.;for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){vec2 g=vec2(float(x),float(y));f1=min(f1,length(g+fract(sin(vec2(dot(vi+g,vec2(127.1,311.7)),dot(vi+g,vec2(269.5,183.3))))*43758.5453)*.8+.1-vf));}float pit=1.-smoothstep(.12,.30,f1);float lich=smoothstep(.62,.80,n(world.xz*2.3+world.y))*smoothstep(.3,.8,N.y)*smoothstep(.6,2.5,world.y);base*=1.-pit*.45;base=mix(base,vec3(.42,.44,.36),lich*.45);N=normalize(N+vec3(n(vp*1.7)-.5,0.,n(vp*1.7+3.)-.5)*.35+N*pit*-.2);roughM=.74;float sea=1.-smoothstep(.15,.9,world.y);wetM=max(wetM,sea*.85);}
  if(treeTone>.001&&leafFlag<.5&&woodFlag<.5&&!landPass){float bark=.91+.09*sin(world.y*27.+world.x*4.1-world.z*2.7)+.045*n(world.xz*19.);base*=vec3(bark,bark*.94,bark*.83);}
-vec3 cpj=world+sunDir*((300.-world.y)/sunDir.y);float cloudShade=cloudCover(cpj.xz,time)*.92;vec3 cp2=world+sunDir*((capC.y-world.y)/sunDir.y);cloudShade=max(cloudShade,smoothstep(1.,.30,length((cp2.xz-capC.xz)/capR.xz))*capOn*.55);vec2 map=world.xz/vec2(300.,200.)+.5;float gust=.5+.5*sin(dot(world.xz,vec2(.035,.021))-time*.22+fb(world.xz*.09)*4.);vec2 drift=vec2(.87,.49)*(.0015+.0012*gust)*sin(time*.7+gust*3.);float canopy=texture(dappleMap,map+drift).r;float contact=texture(contactMap,map).r;float leafMaterial=max((landPass?0.:1.)*smoothstep(.055,.15,albedo.g-albedo.r),cardFlag),instancedLeaf=leafFlag;
+vec3 cpj=world+sunDir*((300.-world.y)/sunDir.y);float cloudShade=cloudCover(cpj.xz,time)*.92;vec3 cp2=world+sunDir*((capC.y-world.y)/sunDir.y);cloudShade=max(cloudShade,smoothstep(1.,.30,length((cp2.xz-capC.xz)/capR.xz))*capOn*.55);vec2 map=world.xz/vec2(300.,200.)+.5;float gust=.5+.5*sin(dot(world.xz,vec2(.035,.021))-time*.22+fb(world.xz*.09)*4.);vec2 drift=vec2(.87,.49)*(.0015+.0012*gust)*sin(time*.7+gust*3.);float canopy=texture(dappleMap,map+drift).r;float contact=texture(contactMap,map).r;float leafMaterial=max((landPass?0.:1.)*(1.-creekBed)*smoothstep(.055,.15,albedo.g-albedo.r),cardFlag),instancedLeaf=leafFlag;
   if(instancedLeaf>.5){float patchy=smoothstep(.50,.90,n(world.xz*1.7+world.y*.9));base*=mix(vec3(1.),vec3(1.12,1.05,.78),patchy*.6);float red=step(.968,fract(sin(dot(floor(world*3.3),vec3(12.9898,78.233,37.719)))*43758.5453))*step(.45,treeTone);base=mix(base,vec3(.50,.15,.05),red*.85);}vec3 treePalette=mix(vec3(1.),vec3(.95,1.045,.84),treeTone);base=mix(base,base*treePalette,instancedLeaf);
   float foliage=max(leafMaterial,instancedLeaf);vec3 alb=linearOf(base);float wetG=envA.y;alb*=mix(1.,mix(.60,.86,foliage),wetG*(landPass?.85:1.));wetM=max(wetM,wetG*(foliage>.5?.55:.80));
   // Under a physical sky the authored greens read neon: pull foliage and turf toward olive.
@@ -862,7 +898,7 @@ precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec4 uv;u
     const flowF = `#version 300 es
 precision highp float;in vec4 v;in vec3 world;uniform vec3 eye;uniform float t;uniform sampler2D fallDensity;${shoreGLSL}${commonGLSL}
 float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+1.),f.x),f.y);}
-void main(){if(v.z<.5&&v.w<.008)discard;float edge=smoothstep(0.,.10,v.y)*(1.-smoothstep(.90,1.,v.y));float vein=n(vec2(v.x*8.-t*1.7,v.y*18.+t*.35));if(v.z<.5){float center=1.-abs(v.y*2.-1.),riffle=.5+.5*sin(v.x*1.31),ripples=.5+.5*sin(v.x*7.3-t*4.2+vein*4.);float stones=n(vec2(v.x*.42,v.y*13.));float foam=smoothstep(.76,.93,stones)*smoothstep(.32,.88,riffle)*smoothstep(.10,.58,center)+.38*smoothstep(.55,.9,laceF(vec2(v.x*2.2-t*1.4,v.y*5.)))*smoothstep(.25,.8,n(vec2(v.x*.5-t*.3,v.y*2.)))*center;vec3 normal=normalize(vec3(.12*sin(v.x*5.7-t*3.1+vein*4.),1.,.10*sin(v.x*8.1-t*4.2+v.y*9.)));vec3 view=normalize(eye-world);float fres=.025+.42*pow(1.-max(0.,dot(normal,view)),3.);vec3 bed=mix(vec3(.28,.255,.18),vec3(.075,.22,.20),center*.58);vec3 down=sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.));vec3 R=reflect(-view,normal);R.y=abs(R.y);vec3 refl=mix(vec3(.030,.045,.028)*lumOf(down),skyRad(R),smoothstep(.10,.45,R.y));fres=.02+.98*pow(1.-max(0.,dot(normal,view)),5.);vec3 c=linearOf(bed)*down*.8*(1.-fres)+refl*fres;vec3 foamR=vec3(.80,.86,.84)*down;c=mix(c,foamR,foam*.58+.08*ripples*center);c+=sunColor*3.14159*ggxSpec(normal,view,sunDir,.12,.02);c=applyFog(c,world,eye);float mouth=smoothstep(-.08,.22,world.y);if(world.y<.38){float wave=surfWave(world.xz,t);mouth*=smoothstep(wave-.01,wave+.09,world.y);}float opacity=.48-.20*max(0.,view.y);float bankFade=smoothstep(.01,.20,v.w);emit(c,edge*(opacity+.14*center+.14*foam)*mouth*bankFade,0.,0.);}else if(v.z<1.5){float warp=n(vec2(v.x*.17+t*.012,v.y*3.));float plate=n(vec2(v.x*.38+warp*2.-t*.035,v.y*7.));float finger=abs(fract(v.y*3.7+warp*.8)-.5);float crack=(1.-smoothstep(.035,.17,finger))*smoothstep(.48,.82,n(vec2(v.x*.72-t*.11,v.y*12.+warp)));vec3 crust=mix(vec3(.045,.035,.028),vec3(.19,.16,.13),plate);vec3 fire=mix(vec3(.62,.025,.003),vec3(1.,.48,.035),n(vec2(v.x*3.2-t*.8,v.y*19.)));vec3 c=mix(linearOf(crust)*(sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.))),linearOf(fire)*4.5,crack);emit(applyFog(c,world,eye),edge,0.,crack);}else if(v.z<2.5){vec2 uv=vec2(v.y,v.x);vec2 texel=vec2(1./128.,1./256.);float thick=texture(fallDensity,uv).r*.34;for(int j=1;j<6;j++){float jj=float(j);thick+=texture(fallDensity,uv-vec2(0.,jj*texel.y*1.65)).r*(.19-.021*jj);}thick+=(texture(fallDensity,uv+vec2(texel.x,0.)).r+texture(fallDensity,uv-vec2(texel.x,0.)).r)*.12;float bottom=smoothstep(.48,.98,uv.y);float aer=texture(fallDensity,uv).g*(.22+.78*bottom);float streak=.58+.42*n(vec2(v.x*23.-t*4.1,v.y*13.+t*.42));float density=smoothstep(.055,.36,thick);float support=smoothstep(.04,.18,uv.y)*(1.-smoothstep(.91,.995,uv.y))*smoothstep(.02,.15,.5-abs(v.y-.5))*(.42+.58*n(vec2(v.x*5.2-t*.42,v.y*19.+t*.15)));float waterAlpha=max(density*(.18+.34*streak+.19*aer),support*.23);vec3 sheet=mix(vec3(.035,.16,.19),vec3(.55,.78,.80),.34+.26*streak);vec3 c=mix(sheet,mix(vec3(.055,.19,.20),vec3(.82,.92,.90),clamp(density*.86+aer*.34,0.,1.)),smoothstep(.025,.23,thick));c=linearOf(c)*(sunColor*.42+shAmbient(normalize(vec3(.62,.30,.62)))*1.15);emit(applyFog(c,world,eye),edge*waterAlpha,0.,0.);}else if(v.z<3.5){float depth=v.y;if(depth<.008)discard;vec2 impact=world.xz-vec2(-65.004,-47.004);float d=length(impact);
+void main(){if(v.z<.5&&v.w<.008)discard;float edge=smoothstep(0.,.10,v.y)*(1.-smoothstep(.90,1.,v.y));float vein=n(vec2(v.x*8.-t*1.7,v.y*18.+t*.35));if(v.z<.5){float center=1.-abs(v.y*2.-1.),riffle=.5+.5*sin(v.x*1.31),ripples=.5+.5*sin(v.x*7.3-t*4.2+vein*4.);float stones=n(vec2(v.x*.42,v.y*13.));float foam=smoothstep(.76,.93,stones)*smoothstep(.32,.88,riffle)*smoothstep(.10,.58,center)+.38*smoothstep(.55,.9,laceF(vec2(v.x*2.2-t*1.4,v.y*5.)))*smoothstep(.25,.8,n(vec2(v.x*.5-t*.3,v.y*2.)))*center;vec3 normal=normalize(vec3(.12*sin(v.x*5.7-t*3.1+vein*4.),1.,.10*sin(v.x*8.1-t*4.2+v.y*9.)));vec3 view=normalize(eye-world);float fres=.025+.42*pow(1.-max(0.,dot(normal,view)),3.);vec3 bed=mix(vec3(.28,.255,.18),vec3(.075,.22,.20),center*.58);vec3 down=sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.));vec3 R=reflect(-view,normal);R.y=abs(R.y);vec3 refl=mix(vec3(.030,.045,.028)*lumOf(down),skyRad(R),smoothstep(.10,.45,R.y));fres=.02+.98*pow(1.-max(0.,dot(normal,view)),5.);vec3 c=linearOf(bed)*down*.8*(1.-fres)+refl*fres;vec3 foamR=vec3(.80,.86,.84)*down;c=mix(c,foamR,foam*.58+.08*ripples*center);c+=sunColor*3.14159*ggxSpec(normal,view,sunDir,.12,.02);c=applyFog(c,world,eye);float mouth=smoothstep(-.08,.22,world.y);if(world.y<.38){float wave=surfWave(world.xz,t);mouth*=smoothstep(wave-.01,wave+.09,world.y);}float opacity=.48-.20*max(0.,view.y);float bankFade=smoothstep(.01,.20,v.w);emit(c,edge*(opacity+.14*center+.14*foam)*mouth*bankFade,0.,0.);}else if(v.z<1.5){float warp=n(vec2(v.x*.17+t*.012,v.y*3.));float plate=n(vec2(v.x*.38+warp*2.-t*.035,v.y*7.));float finger=abs(fract(v.y*3.7+warp*.8)-.5);float crack=(1.-smoothstep(.035,.17,finger))*smoothstep(.48,.82,n(vec2(v.x*.72-t*.11,v.y*12.+warp)));vec3 crust=mix(vec3(.045,.035,.028),vec3(.19,.16,.13),plate);vec3 fire=mix(vec3(.62,.025,.003),vec3(1.,.48,.035),n(vec2(v.x*3.2-t*.8,v.y*19.)));vec3 c=mix(linearOf(crust)*(sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.))),linearOf(fire)*4.5,crack);emit(applyFog(c,world,eye),edge,0.,crack);}else if(v.z<2.5){vec2 uv=vec2(v.y,v.x);vec2 texel=vec2(1./128.,1./256.);float thick=texture(fallDensity,uv).r*.34;for(int j=1;j<6;j++){float jj=float(j);thick+=texture(fallDensity,uv-vec2(0.,jj*texel.y*1.65)).r*(.19-.021*jj);}thick+=(texture(fallDensity,uv+vec2(texel.x,0.)).r+texture(fallDensity,uv-vec2(texel.x,0.)).r)*.12;float bottom=smoothstep(.48,.98,uv.y);float aer=texture(fallDensity,uv).g*(.22+.78*bottom);float streak=.58+.42*n(vec2(v.x*23.-t*4.1,v.y*13.+t*.42));float density=smoothstep(.055,.36,thick);float support=smoothstep(.04,.18,uv.y)*(1.-smoothstep(.91,.995,uv.y))*smoothstep(.02,.15,.5-abs(v.y-.5))*(.42+.58*n(vec2(v.x*5.2-t*.42,v.y*19.+t*.15)));float waterAlpha=max(density*(.40+.36*streak+.26*aer),support*.40);vec3 sheet=mix(vec3(.10,.24,.25),vec3(.72,.86,.87),.45+.30*streak);vec3 c=mix(sheet,mix(vec3(.20,.34,.34),vec3(.88,.94,.93),clamp(density*.95+aer*.45,0.,1.)),smoothstep(.025,.23,thick));c=linearOf(c)*(sunColor*.55+shAmbient(normalize(vec3(.62,.30,.62)))*1.6+shAmbient(vec3(0.,1.,0.))*.5);emit(applyFog(c,world,eye),edge*waterAlpha,0.,0.);}else if(v.z<3.5){float depth=v.y;if(depth<.008)discard;vec2 impact=world.xz-vec2(-65.004,-47.004);float d=length(impact);
 float fade=(1.-smoothstep(.77,1.,v.x))*smoothstep(.007,.18,depth),delta=.09*n(impact*3.+vec2(t*.15,-t*.05)),theta=19.*(d+delta)-t*4.8;
 float wave=cos(theta)*exp(-d*.97)*.09;vec2 dir=impact/max(d,.02);
 vec3 normal=normalize(vec3(dir.x*wave+.074*(n(impact*2.1+vec2(-t*.31,t*.14))-.5),1.,dir.y*wave+.09*(n(impact*2.41+vec2(t*.14,1.-t*.22))-.5)));
@@ -872,7 +908,27 @@ vec3 bed=mix(vec3(.13,.105,.066),vec3(.32,.30,.225),gravel),body=mix(bed,vec3(.0
 vec3 reflected=mix(vec3(.055,.12,.085),vec3(.52,.67,.69),smoothstep(-.1,.71,reflect(normalize(world-eye),normal).y));
 float churn=exp(-d*d*5.3)*smoothstep(.41,.76,n(impact*12.+vec2(t*.65,-t*.45)))+.45*smoothstep(.5,.9,laceF(vec2(atan(impact.y,impact.x)*2.6,d*2.4-t*.32)))*exp(-d*.42)*smoothstep(.05,.4,d);
 float flash=.22*pow(max(dot(normal,normalize(normalize(eye-world)+normalize(vec3(-.64,.48,.55)))),0.),110.);
-vec3 down=sunColor*sunDir.y*.6+shAmbient(vec3(0.,1.,0.));vec3 Rp=reflect(normalize(world-eye),normal);Rp.y=abs(Rp.y);float fr=.02+.98*pow(1.-max(dot(normalize(eye-world),normal),0.),5.);vec3 c=linearOf(body)*down*(1.-fr)+mix(vec3(.028,.042,.026)*lumOf(down),skyRad(Rp),smoothstep(.25,.75,Rp.y))*fr;c+=sunColor*3.14159*ggxSpec(normal,normalize(eye-world),sunDir,.10,.02)*.5;c=mix(c,vec3(.80,.86,.84)*down,churn*.85);emit(applyFog(c,world,eye),fade*.87,0.,0.);}else{float a=n(world.xz*.55),b=n(world.xz*1.35+3.);float ropes=.55+.45*sin(world.x*4.2+world.z*1.8+6.*a)+.22*sin(world.z*8.-world.x*2.+b*5.);float crest=smoothstep(.64,.88,ropes);float crack=smoothstep(.90,.975,n(world.xz*1.7+vec2(t*.03,0.))+.18*ropes);vec3 rock=mix(vec3(.10,.105,.10),vec3(.34,.33,.30),crest*.63);rock+=vec3(.055)*pow(max(ropes,0.),9.);vec3 c=linearOf(rock)*(sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.)))+vec3(3.,.4,.03)*crack*.22;emit(applyFog(c,world,eye),1.,.2,crack*.22);}}`;
+vec3 down=sunColor*sunDir.y*.6+shAmbient(vec3(0.,1.,0.));vec3 Rp=reflect(normalize(world-eye),normal);Rp.y=abs(Rp.y);float fr=.02+.98*pow(1.-max(dot(normalize(eye-world),normal),0.),5.);vec3 c=linearOf(body)*down*(1.-fr)+mix(vec3(.028,.042,.026)*lumOf(down),skyRad(Rp),smoothstep(.25,.75,Rp.y))*fr;c+=sunColor*3.14159*ggxSpec(normal,normalize(eye-world),sunDir,.10,.02)*.5;c=mix(c,vec3(.80,.86,.84)*down,churn*.85);emit(applyFog(c,world,eye),fade*.87,0.,0.);}else if(v.z>4.5){
+  // Step-pool creek and lower stream: clear pools over the lining, white chutes.
+  float casc=clamp((v.z-5.)/.9,0.,1.),depth=v.w,s=v.x,acr=v.y;
+  vec3 view=normalize(eye-world);
+  float ft=t*(.45+3.6*casc);vec2 q=vec2(s*2.3-ft*1.4,acr*5.);
+  vec3 nrm=normalize(vec3((n(q)-.5)*(.16+.7*casc)+(n(q*2.3+vec2(4.1,-2.3))-.5)*.08,1.,(n(q+vec2(9.7,3.1))-.5)*(.16+.7*casc)));
+  float fres=.02+.98*pow(1.-max(dot(nrm,view),0.),5.);
+  vec3 down=sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.));
+  vec3 R=reflect(-view,nrm);R.y=abs(R.y);vec3 refl=mix(vec3(.018,.030,.016)*lumOf(down),skyRad(R),smoothstep(.12,.62,R.y));
+  vec3 tr=exp(-depth*vec3(2.4,.72,.55));float T=dot(tr,vec3(.25,.5,.25)),aW=1.-(1.-fres)*T;
+  vec3 cW=(vec3(.012,.040,.034)*down*(1.-T)*(1.-fres)+refl*fres)/max(aW,.001);
+  float streak=n(vec2(s*1.7-ft*1.9,acr*13.))*.62+n(vec2(s*4.6-ft*2.6,acr*29.))*.38;
+  float white=casc*smoothstep(.22,.62,streak+.30*casc-.12);
+  float raft=(1.-casc)*smoothstep(.66,.90,n(vec2(s*3.1-t*.30,acr*11.))*.55+n(vec2(s*7.3-t*.36,acr*23.))*.45)*smoothstep(.35,.75,n(vec2(s*.6-t*.18,acr*2.)))*.32;
+  float W=clamp(max(white,raft),0.,1.),alpha=W+(1.-W)*aW;
+  vec3 c=(vec3(.82,.88,.88)*down*W+cW*aW*(1.-W))/max(alpha,.001);
+  c+=sunColor*3.14159*ggxSpec(nrm,view,sunDir,.07+.25*casc,.02)*(1.-W)*.5/max(alpha,.05);
+  float rim=smoothstep(0.,.07,acr)*(1.-smoothstep(.93,1.,acr));
+  float mouth=smoothstep(-.08,.22,world.y);if(world.y<.38){float wave=surfWave(world.xz,t);mouth*=smoothstep(wave-.01,wave+.09,world.y);}
+  emit(applyFog(c,world,eye),clamp(alpha,0.,1.)*rim*mouth,0.,0.);}
+else{float a=n(world.xz*.55),b=n(world.xz*1.35+3.);float ropes=.55+.45*sin(world.x*4.2+world.z*1.8+6.*a)+.22*sin(world.z*8.-world.x*2.+b*5.);float crest=smoothstep(.64,.88,ropes);float crack=smoothstep(.90,.975,n(world.xz*1.7+vec2(t*.03,0.))+.18*ropes);vec3 rock=mix(vec3(.10,.105,.10),vec3(.34,.33,.30),crest*.63);rock+=vec3(.055)*pow(max(ropes,0.),9.);vec3 c=linearOf(rock)*(sunColor*sunDir.y+shAmbient(vec3(0.,1.,0.)))+vec3(3.,.4,.03)*crack*.22;emit(applyFog(c,world,eye),1.,.2,crack*.22);}}`;
     const spriteV = `#version 300 es
 precision highp float;layout(location=0)in vec4 p;layout(location=1)in vec4 tint;uniform mat4 m;uniform vec2 viewport;uniform float tanHalfFov;out vec4 col;out vec3 spw;out float variant,rainMark;
 void main(){col=tint;spw=p.xyz;rainMark=step(1.2,tint.a);variant=fract(float(gl_VertexID)*.618034)*19.7;gl_Position=m*vec4(p.xyz,1.);gl_PointSize=p.w*viewport.y*(1.+rainMark*.7)/(2.*tanHalfFov*max(.01,gl_Position.w));}`;
@@ -1204,7 +1260,67 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     function gradedLevels(nodes,lengths,endLevel,minFall){let levels=nodes.map(p=>Math.max(endLevel,baseHeight(p[0],p[1])-.22));levels[levels.length-1]=endLevel;for(let i=levels.length-2;i>=0;i--)levels[i]=Math.max(levels[i],levels[i+1]+(lengths[i+1]-lengths[i])*minFall);return levels;}
     const streamLevels=gradedLevels(streamNodes,streamLengths,8.32,.10),riverLevels=riverNodes.map((p,i)=>3.945-4.70*riverLengths[i]/riverLengths[riverLengths.length-1]);
     function levelAt(levels,lengths,s){let i=1;while(i<lengths.length&&lengths[i]<s)i++;let a=Math.max(0,i-1),span=Math.max(.001,lengths[i]-lengths[a]),f=Math.max(0,Math.min(1,(s-lengths[a])/span));return levels[a]*(1-f)+levels[i]*f;}
-    function channelLevel(x,z){const creek=streamSample(x,z);if(creek&&creek.d<1.45)return levelAt(streamLevels,streamLengths,creek.s);const river=riverSample(x,z);if(river&&river.d<2.7)return levelAt(riverLevels,riverLengths,river.s);return gridHeight(x,z)+.09;}
+    // ---- Step-pool creek: flat pools linked by short white-water chutes -------
+    // Built from the lip upstream on the graded profile: each pool sits at the
+    // graded level of its own outlet sill, so the drops between pools carry the
+    // slope (a 28 degree mountain creek is a staircase, not a sloping sheet).
+    const creekPools = (() => {
+      const total = streamLengths[streamLengths.length - 1], pools = [];
+      let end = total, k = 0;
+      while (end > .35) {
+        const lip = levelAt(streamLevels, streamLengths, end), up = levelAt(streamLevels, streamLengths, Math.max(0, end - 2.4)), slope = (up - lip) / 2.4;
+        let len = Math.max(1.7, Math.min(4.6, 3.9 - slope * 2.6 + .55 * Math.sin(k * 2.71 + 1.3)));
+        if (end - len < 1.2) len = end;
+        pools.unshift({ start: end - len, end, level: lip });
+        end -= len; k++;
+      }
+      pools[0].start = 0;
+      for (let i = 0; i < pools.length; i++) { const nx = pools[i + 1]; pools[i].drop = nx ? pools[i].level - nx.level : 0; pools[i].chute = nx ? Math.max(.28, Math.min(1.15, .22 + pools[i].drop * .36)) : 0; }
+      return pools;
+    })();
+    function creekPoolAt(s) { let lo = 0, hi = creekPools.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (creekPools[mid].start <= s) lo = mid; else hi = mid - 1; } return lo; }
+    // Water leaves each sill flat and falls on a parabola into the next pool.
+    function creekWaterAt(s) {
+      const i = creekPoolAt(s), P = creekPools[i];
+      if (i > 0) { const A = creekPools[i - 1], u = (s - P.start) / A.chute; if (u < 1) return A.level - A.drop * u * u * (1.2 - .2 * u); }
+      return P.level;
+    }
+    // 0 in still pools, 1 on a falling chute, decaying through the boil at its foot.
+    function creekChuteAt(s) {
+      const i = creekPoolAt(s), P = creekPools[i];
+      if (i === 0) return 0;
+      const A = creekPools[i - 1], u = (s - P.start) / A.chute;
+      if (u < 1) return u < .22 ? .30 + u * 3.2 : 1;
+      return Math.exp(-(s - P.start - A.chute) / (.35 + A.drop * .25)) * Math.min(1, A.drop / .6);
+    }
+    function creekHalfWidth(s) { const i = creekPoolAt(s), P = creekPools[i], u = (s - P.start) / Math.max(.1, P.end - P.start); return (.60 + .40 * Math.sin(Math.PI * Math.min(1, .08 + u * .96))) * (.92 + .08 * Math.sin(s * .9)); }
+    // Lining height across the wet width: a plunge scour below each chute, a rock sill at each outlet.
+    function creekBedAt(s, d) {
+      const i = creekPoolAt(s), P = creekPools[i], w = creekWaterAt(s);
+      let depth = .22;
+      if (i > 0) { const A = creekPools[i - 1], u = (s - P.start) / A.chute; if (u < 1) depth = .07 + .08 * u; else { const v = (s - P.start - A.chute) / Math.max(.5, P.end - P.start - A.chute); depth = .14 + (.28 + .22 * Math.min(1, A.drop)) * Math.exp(-(((v - .10) / .34) ** 2)) + .04 * Math.sin(s * 2.3); } }
+      const toSill = P.end - s; if (toSill < .6) depth = Math.min(depth, .05 + Math.max(0, toSill) * .22);
+      const half = creekHalfWidth(s), x = Math.min(1, d / half);
+      return w - depth * (1 - x * x * x * x);
+    }
+    // Lower stream: a gentle gravel bed with riffles where the water speeds up.
+    function riverHalfWidth(s) { const q = s / riverLengths[riverLengths.length - 1]; return 1.02 + .63 * q + .10 * Math.sin(s * .39); }
+    function riverRiffleAt(s) { return Math.pow(Math.max(0, Math.sin(s * .74 + .9 * Math.sin(s * .21))), 6); }
+    function riverBedAt(s, d) {
+      const w = levelAt(riverLevels, riverLengths, s), half = riverHalfWidth(s), x = Math.min(1, d / half);
+      const depth = (.16 + .16 * Math.pow(Math.sin(s * .43 + 1.1), 2)) * (1 - .55 * riverRiffleAt(s));
+      return w - depth * (1 - x * x * x * x);
+    }
+    // What the walker stands on: the lining (not the hidden terrain under it).
+    function streamGround(x, z) {
+      let g = gridHeight(x, z);
+      const c = streamSample(x, z);
+      if (c) { const half = creekHalfWidth(c.s); if (c.d <= half) g = Math.max(g, creekBedAt(c.s, c.d)); else if (c.d <= half + .5) g = Math.max(g, creekWaterAt(c.s) + (c.d - half) * .6); }
+      const r = riverSample(x, z);
+      if (r && r.q < .9) { const half = riverHalfWidth(r.s); if (r.d <= half) g = Math.max(g, riverBedAt(r.s, r.d)); else if (r.d <= half + .5) g = Math.max(g, levelAt(riverLevels, riverLengths, r.s) + (r.d - half) * .6); }
+      return g;
+    }
+    function channelLevel(x,z){const creek=streamSample(x,z);if(creek&&creek.d<1.45)return creekWaterAt(creek.s);const river=riverSample(x,z);if(river&&river.d<2.7)return levelAt(riverLevels,riverLengths,river.s);return gridHeight(x,z)+.09;}
     // Erosion is baked after the lava route and landmarks are fixed (see ERO).
     let ERO = null;
     function H(x, z) { const v = H0(x, z); return ERO ? v + erosionAt(x, z) : v; }
@@ -1218,18 +1334,18 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
       const creek=streamSample(x,z);
       let terrain=base;
       if(creek){
-        const riffle=.025*Math.sin(creek.s*1.13)+.012*Math.sin(creek.s*3.7),
-          level=levelAt(streamLevels,streamLengths,creek.s),bed=level-.84-riffle,
-          channel=.72+.13*Math.sin(creek.s*.47)+.10*Math.sin(creek.s*1.31),
-          shoulder=channel+1.35;
-        let cut=Math.max(0,Math.min(1,(3.15-creek.d)/(3.15-channel)));
-        let bank=Math.max(0,Math.min(1,(creek.d-channel)/(shoulder-channel)));bank=bank*bank*(3-2*bank);
-        const bankBed=Math.max(base,level+.14+.16*bank),channelBed=bed*(1-bank)+bankBed*bank;
-        cut=cut*cut*(3-2*cut);terrain=base*(1-cut)+channelBed*cut;
+        const half=creekHalfWidth(creek.s),level=creekWaterAt(creek.s),d=creek.d,E=half+.5;
+        if(d<E+1.6){
+          let target;
+          if(d<=half)target=creekBedAt(creek.s,d)-.45;
+          else if(d<=E)target=level-.45+(d-half)/.5*.63;
+          else{const k=Math.min(1,(d-E)/1.6),b=k*k*(3-2*k);target=level+.18+(base-(level+.18))*b;}
+          terrain=target;
+        }
       }
       const river=riverSample(x,z);
       if(river){
-        const width=1.02+.63*river.q+.10*Math.sin(river.s*.39),level=levelAt(riverLevels,riverLengths,river.s),bed=level-.19,
+        const width=1.02+.63*river.q+.10*Math.sin(river.s*.39),level=levelAt(riverLevels,riverLengths,river.s),lined=1-Math.max(0,Math.min(1,(river.q-.80)/.06)),bed=level-.19+(riverBedAt(river.s,Math.min(river.d,width))-.45-(level-.19))*lined,
           shoulder=width+1.18+.32*river.q,edge=width+1.75+.32*river.q;
         let cut=Math.max(0,Math.min(1,(edge-river.d)/(edge-width)));
         cut=cut*cut*(3-2*cut);
@@ -2262,9 +2378,9 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     // Small neutral basalt cobbles break the water/terrain seam.  They use
     // the same deterministic drainage samples as the channel itself.
     let riverBankCobbles=0;
-    for(const route of [streamNodes,riverNodes])for(let i=1;i<route.length;i++){
+    for(const route of [riverNodes])for(let i=1;i<route.length;i++){
       const a=route[i-1],b=route[i],dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz),steps=Math.max(1,Math.floor(len/2.3));
-      for(let j=0;j<steps;j++){const seed=i*71.3+j*13.7;if(noise(seed,29)>.64)continue;const side=noise(seed,43)>.5?1:-1,q=(j+.18+.64*noise(seed,7))/steps,tx=a[0]+dx*q,tz=a[1]+dz*q,spread=.98+.72*noise(seed,19),x=tx-dz/len*side*spread,z=tz+dx/len*side*spread,y=gridHeight(x,z),r=.10+.31*Math.pow(noise(seed,53),2);if(y<-.35||normal(x,z)[1]<.58)continue;boulder(x,z,y,r,r*(.30+.34*noise(seed,61)),r*(.55+.48*noise(seed,67)),-.075);stoneRoots.push([x,z,r+.09]);riverBankCobbles++;if(noise(seed,73)>.76){const sx=x+dx/len*(.20+.42*noise(seed,79)),sz=z+dz/len*(.20+.42*noise(seed,83)),sr=r*(.38+.30*noise(seed,89));boulder(sx,sz,gridHeight(sx,sz),sr,sr*.46,sr*.8,-.09);stoneRoots.push([sx,sz,sr+.07]);riverBankCobbles++;}}
+      for(let j=0;j<steps;j++){const seed=i*71.3+j*13.7;if(noise(seed,29)>.64)continue;const side=noise(seed,43)>.5?1:-1,q=(j+.18+.64*noise(seed,7))/steps,tx=a[0]+dx*q,tz=a[1]+dz*q,spread=.98+.72*noise(seed,19),x=tx-dz/len*side*spread,z=tz+dx/len*side*spread,y=streamGround(x,z)-.03,r=.10+.31*Math.pow(noise(seed,53),2);if(y<-.35||normal(x,z)[1]<.58)continue;boulder(x,z,y,r,r*(.30+.34*noise(seed,61)),r*(.55+.48*noise(seed,67)),-.075);stoneRoots.push([x,z,r+.09]);riverBankCobbles++;if(noise(seed,73)>.76){const sx=x+dx/len*(.20+.42*noise(seed,79)),sz=z+dz/len*(.20+.42*noise(seed,83)),sr=r*(.38+.30*noise(seed,89));boulder(sx,sz,gridHeight(sx,sz),sr,sr*.46,sr*.8,-.09);stoneRoots.push([sx,sz,sr+.07]);riverBankCobbles++;}}
     }
     // Realism pass: scree where erosion deposited, and dark sea-worn basalt
     // clusters in the swash (before the lee bake below so foam gathers behind them).
@@ -2435,15 +2551,72 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
         distance+=len;
       }
     }
-    flowStrip(fallsPath,streamLevels,streamLengths,.88,0);
-    flowStrip(riverPath,riverLevels,riverLengths,1.08,0,.72);
+    // ---- Creek and stream geometry: lining, water surface, boulders ---------
+    // The lining is a fine (25 cm) mesh of wet basalt cobbles and gravel laid
+    // over the coarse terrain, which the carve keeps 45 cm below it.  The water
+    // surface follows the stepped levels; boulders frame every chute.
+    const streamStats = { pools: creekPools.length, chutes: creekPools.filter((p) => p.drop > 0).length, liningTris: 0, waterTris: 0, boulders: 0 };
+    function centreAt(nodes, lengths, s) {
+      const at = (q) => { q = Math.max(0, Math.min(lengths[lengths.length - 1], q)); let i = 1; while (i < lengths.length - 1 && lengths[i] < q) i++; const a = nodes[i - 1], b = nodes[i], f = Math.max(0, Math.min(1, (q - lengths[i - 1]) / Math.max(1e-4, lengths[i] - lengths[i - 1]))); return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; };
+      const p = at(s), a = at(s - .7), b = at(s + .7), dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1;
+      return [p[0], p[1], dx / l, dz / l];
+    }
+    function buildStreamLining(nodes, lengths, total, halfAt, waterAt, bedAt, sMax) {
+      const cols = 12, rows = [], first = pP.length / 3;
+      for (let s = 0; s <= sMax + 1e-6; s += .25) {
+        const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s), E = half + .5, w = waterAt(s), row = [];
+        for (let j = 0; j <= cols; j++) {
+          const a = -1 + 2 * j / cols, d = Math.abs(a) * E, px = cx - tz * a * E, pz = cz + tx * a * E;
+          let y = d <= half ? bedAt(s, d) : w + (d - half) * .6;
+          if (j === 0 || j === cols) y = Math.min(y, gridHeight(px, pz) + .03);
+          const above = y - w, wet = Math.max(0, Math.min(1, (.32 - above) / .30)), moss = Math.max(0, Math.min(1, (above - .05) / .3)) * (.4 + .6 * noise(px * 1.3, pz * 1.3)), tone = .35 + .65 * noise(px * 2.1 + 7, pz * 2.1);
+          row.push([px, y, pz, tone, wet, moss]);
+        }
+        rows.push(row);
+      }
+      for (let r = 0; r < rows.length; r++) for (let j = 0; j <= cols; j++) {
+        const p = rows[r][j], pr = rows[Math.min(rows.length - 1, r + 1)][j], pl = rows[Math.max(0, r - 1)][j], qa = rows[r][Math.min(cols, j + 1)], qb = rows[r][Math.max(0, j - 1)];
+        const n = norm(cross(vsub([qa[0], qa[1], qa[2]], [qb[0], qb[1], qb[2]]), vsub([pr[0], pr[1], pr[2]], [pl[0], pl[1], pl[2]])));
+        pv([p[0], p[1], p[2]], n[1] < 0 ? n.map((v) => -v) : n, [p[3], p[4], p[5]], 0, 0, [0, -3, 0]);
+      }
+      for (let r = 0; r < rows.length - 1; r++) for (let j = 0; j < cols; j++) { const a = first + r * (cols + 1) + j, b = a + 1, c = a + cols + 1, d = c + 1; const A = pP.slice(a * 3, a * 3 + 3), B = pP.slice(b * 3, b * 3 + 3), C = pP.slice(c * 3, c * 3 + 3); if (cross(vsub(B, A), vsub(C, A))[1] >= 0) { tri(a, b, c); tri(b, d, c); } else { tri(a, c, b); tri(b, c, d); } streamStats.liningTris += 2; }
+    }
+    function buildStreamWater(nodes, lengths, sMax, halfAt, waterAt, bedAt, cascAt) {
+      const cols = 8; let last = null;
+      for (let s = 0; s <= sMax + 1e-6; s += .2) {
+        const [cx, cz, tx, tz] = centreAt(nodes, lengths, s), half = halfAt(s) * 1.03, w = waterAt(s), casc = cascAt(s), row = [];
+        for (let j = 0; j <= cols; j++) {
+          const a = -1 + 2 * j / cols, px = cx - tz * a * half, pz = cz + tx * a * half, d = Math.abs(a) * half / 1.03;
+          const depth = Math.max(0, w - bedAt(s, Math.min(d, halfAt(s))));
+          row.push(flowVertex([px, w + .012 * casc * Math.sin(s * 9 + a * 5), pz], s, j / cols, 5 + .9 * casc, depth));
+        }
+        if (last) for (let j = 0; j < cols; j++) { flowI.push(last[j], row[j], last[j + 1], last[j + 1], row[j], row[j + 1]); streamStats.waterTris += 2; }
+        last = row;
+      }
+    }
+    {
+      const creekTotal = streamLengths[streamLengths.length - 1], riverTotal = riverLengths[riverLengths.length - 1];
+      buildStreamLining(streamNodes, streamLengths, creekTotal, creekHalfWidth, creekWaterAt, creekBedAt, creekTotal);
+      buildStreamLining(riverNodes, riverLengths, riverTotal, riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s), riverBedAt, riverTotal * .86);
+      // boulders frame each chute and stud the pool banks
+      const br = plantRng(12, 34, 56);
+      for (let i = 0; i < creekPools.length; i++) {
+        const P = creekPools[i];
+        if (P.drop > .15) for (const side of [-1, 1]) { const s = P.end + .05, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), half = creekHalfWidth(s), off = half * (.78 + .35 * br()), x = cx - tz * side * off, z = cz + tx * side * off, r = .22 + .22 * br() + .12 * Math.min(1, P.drop); boulder(x, z, creekWaterAt(s) - .25 - r * .2, r, r * (.75 + .4 * br()), r * (.8 + .3 * br()), -.07); streamStats.boulders++; }
+        if (br() > .45) { const s = P.start + (P.end - P.start) * (.3 + .5 * br()), side = br() > .5 ? 1 : -1, [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), off = creekHalfWidth(s) + .25 + .3 * br(), x = cx - tz * side * off, z = cz + tx * side * off, r = .25 + .3 * br(); boulder(x, z, streamGround(x, z) - .12, r, r * (.6 + .3 * br()), r * (.8 + .3 * br()), -.06); streamStats.boulders++; }
+        if (P.drop > 0 && br() > .55) { const s = P.end - (P.end - P.start) * (.35 + .3 * br()), [cx, cz, tx, tz] = centreAt(streamNodes, streamLengths, s), a = (br() - .5) * .8, x = cx - tz * a * creekHalfWidth(s), z = cz + tx * a * creekHalfWidth(s), r = .14 + .14 * br(); boulder(x, z, creekBedAt(s, Math.abs(a) * creekHalfWidth(s)) - .05, r, r * (.9 + .4 * br()), r, -.09); streamStats.boulders++; }
+      }
+    }
+    buildStreamWater(streamNodes, streamLengths, streamLengths[streamLengths.length - 1], creekHalfWidth, creekWaterAt, creekBedAt, creekChuteAt);
+    buildStreamWater(riverNodes, riverLengths, riverLengths[riverLengths.length - 1], riverHalfWidth, (s) => levelAt(riverLevels, riverLengths, s), riverBedAt, (s) => .42 * riverRiffleAt(s));
+    const chuteMist = creekPools.filter((p) => p.drop > .6).map((p) => { const s = p.end + p.chute * .9, c = centreAt(streamNodes, streamLengths, s); return { x: c[0], z: c[1], y: creekWaterAt(s), drop: p.drop }; });
     // Grass candidates are generated once below, after the canopy density map
     // exists.  Only neighboring cells are uploaded while walking.
     let grassTufts=0;
     // One continuous, irregular lip-to-pool sheet maps the density atlas once.
     let lip=[WATERFALL_LIP[0],streamLevels[streamLevels.length-1],WATERFALL_LIP[1]],pool=WATERFALL_POOL.slice();
     let start=flowP.length/3,rows=24,cols=10;
-    for(let r=0;r<=rows;r++)for(let c=0;c<=cols;c++){let v=r/rows,u=c/cols,forward=1.42*v+.07*Math.sin(v*9.+u*7.)*v,across=(u-.5)*1.8*(.92-.22*v)+.08*Math.sin(u*13.+v*8.);let x=lip[0]-.7071*forward+.7071*across,z=lip[2]-.7071*forward-.7071*across,y=lip[1]+(pool[1]-lip[1])*v*v;flowVertex([x,y,z],v,u,2);}
+    for(let r=0;r<=rows;r++)for(let c=0;c<=cols;c++){let v=r/rows,u=c/cols,forward=1.42*v+.07*Math.sin(v*9.+u*7.)*v,across=(u-.5)*2.25*creekHalfWidth(streamLengths[streamLengths.length-1])*(1.-.22*v)+.06*Math.sin(u*13.+v*8.);let x=lip[0]-.7071*forward+.7071*across,z=lip[2]-.7071*forward-.7071*across,y=lip[1]+(pool[1]-lip[1])*v*v;flowVertex([x,y,z],v,u,2);}
     for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){let a=start+r*(cols+1)+c,b=a+1,d=a+cols+1,e=d+1;flowI.push(a,d,b,b,d,e);}
     // Sample the pool bed at each vertex so the irregular shoreline can dry out.
     const poolSides=56,poolRings=13,poolStart=flowP.length/3;
@@ -2631,6 +2804,288 @@ precision highp float;in vec2 uv;uniform sampler2D src;out vec4 o;void main(){o=
     const contactTexture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,contactTexture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,contactCanvas);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
     const contactPixels=contactInk.getImageData(0,0,512,512).data;let contactMin=255,contactMax=0;for(let i=0;i<contactPixels.length;i+=4){contactMin=Math.min(contactMin,contactPixels[i]);contactMax=Math.max(contactMax,contactPixels[i]);}
     const vegetation = makeMesh(pP, pN, pC, pI, pW, pB, pU);
+    // ---- Sea life: meshes ------------------------------------------------------
+    // Built the aquarium's way: lofted bodies with separate back and belly
+    // curves, a narrow caudal peduncle, thin rayed fins, domed eyes.  Local
+    // axes: x forward (nose at +x), y up, z to the right; length about 1.
+    // ext: x part (0 body, 1 fin, 2 paired fin, 3 eye, 4 tail/rear limb), y edge 0..1, z fin id.
+    function cmNew() { return { P: [], N: [], U: [], E: [], I: [] }; }
+    function cmV(mb, p, uv, e) { mb.P.push(p[0], p[1], p[2]); mb.N.push(0, 0, 0); mb.U.push(uv[0], uv[1]); mb.E.push(e[0], e[1], e[2], e[3] || 0); return mb.P.length / 3 - 1; }
+    function cmQuad(mb, a, b, c, d) { mb.I.push(a, b, c, a, c, d); }
+    function cmLoft(mb, secs, S, part = 0) {
+      const base = mb.P.length / 3, NX = secs.length - 1;
+      for (let i = 0; i <= NX; i++) { const sc = secs[i]; for (let j = 0; j <= S; j++) { const th = j / S * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th); let y = sn > 0 ? sn * sc.top : sn * sc.bot; if (sc.flat && sn < 0) y *= .55 + .45 * Math.abs(c); cmV(mb, [sc.x, sc.cy + y, c * sc.w * (1 - .15 * Math.max(sn, 0) ** 2)], [i / NX, sn], [part, 0, 0, 0]); } }
+      for (let i = 0; i < NX; i++) for (let j = 0; j < S; j++) { const a = base + i * (S + 1) + j; cmQuad(mb, a, a + 1, a + S + 2, a + S + 1); }
+      const nose = cmV(mb, [secs[0].x + .006, secs[0].cy, 0], [0, 0], [part, 0, 0, 0]), tail = cmV(mb, [secs[NX].x - .004, secs[NX].cy, 0], [1, 0], [part, 0, 0, 0]);
+      for (let j = 0; j < S; j++) { mb.I.push(nose, base + j + 1, base + j); mb.I.push(tail, base + NX * (S + 1) + j, base + NX * (S + 1) + j + 1); }
+      return [base, mb.P.length / 3];
+    }
+    function cmFin(mb, nu, nv, f, part, finId) { const b = mb.P.length / 3; for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const u = i / nu, v = j / nv; cmV(mb, f(u, v), [u, v], [part, v, finId, 0]); } for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = b + j * (nu + 1) + i; cmQuad(mb, a, a + 1, a + nu + 2, a + nu + 1); } }
+    function cmEye(mb, cx, cy, cz, r, side) { const b = mb.P.length / 3, NR = 3, NA = 10; for (let k = 0; k <= NR; k++) for (let i = 0; i <= NA; i++) { const rr = k / NR, a = i / NA * Math.PI * 2, bulge = Math.sqrt(Math.max(0, 1 - rr * rr)); cmV(mb, [cx + Math.cos(a) * rr * r, cy + Math.sin(a) * rr * r, cz + side * bulge * r * .25], [Math.cos(a) * rr, Math.sin(a) * rr], [3, 0, side, 0]); } for (let k = 0; k < NR; k++) for (let i = 0; i < NA; i++) { const a = b + k * (NA + 1) + i; if (side > 0) cmQuad(mb, a, a + 1, a + NA + 2, a + NA + 1); else cmQuad(mb, a, a + NA + 1, a + NA + 2, a + 1); } }
+    // Smooth normals from faces; body normals then point away from the long axis.
+    function cmNormals(mb, body) {
+      const P = mb.P, N = mb.N, I = mb.I;
+      for (let k = 0; k < I.length; k += 3) { const a = I[k] * 3, b = I[k + 1] * 3, c = I[k + 2] * 3, ux = P[b] - P[a], uy = P[b + 1] - P[a + 1], uz = P[b + 2] - P[a + 2], vx = P[c] - P[a], vy = P[c + 1] - P[a + 1], vz = P[c + 2] - P[a + 2], nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; for (const q of [a, b, c]) { N[q] += nx; N[q + 1] += ny; N[q + 2] += nz; } }
+      for (let i = 0; i < N.length; i += 3) { const l = Math.hypot(N[i], N[i + 1], N[i + 2]) || 1; N[i] /= l; N[i + 1] /= l; N[i + 2] /= l; }
+      for (const [s, e, axisY] of body) for (let v = s; v < e; v++) { const i = v * 3, oy = P[i + 1] - axisY(P[i]), oz = P[i + 2]; if (N[i + 1] * oy + N[i + 2] * oz < 0) { N[i] = -N[i]; N[i + 1] = -N[i + 1]; N[i + 2] = -N[i + 2]; } }
+      return mb;
+    }
+    // Ray-finned fish from a shape profile (the aquarium's FISHP terms).
+    function fishMesh(F) {
+      const mb = cmNew(), x0 = .5, x1 = -.32, NX = 18;
+      const topF = (t) => t < F.tmT ? F.snT + (1 - F.snT) * (1 - Math.pow(1 - t / F.tmT, F.headE)) : 1 + (F.ped - 1) * Math.min(1, Math.max(0, (t - F.tmT) / (.9 - F.tmT))) ** 1.4;
+      const botF = (t) => t < F.tmB ? F.snB + (1 - F.snB) * (1 - Math.pow(1 - t / F.tmB, 2.2)) : 1 + (F.ped - 1) * Math.min(1, Math.max(0, (t - F.tmB) / (.92 - F.tmB))) ** 1.4;
+      const widF = (t) => t < .3 ? .32 + .68 * (1 - Math.pow(1 - t / .3, 2)) : 1 + (F.ped * .75 - 1) * Math.min(1, (t - .3) / .62);
+      const cyF = (t) => F.mouthY * F.h * Math.pow(1 - Math.min(1, t / .32), 1.6);
+      const secs = []; for (let i = 0; i <= NX; i++) { const t = Math.pow(i / NX, 1.15); secs.push({ x: x0 + (x1 - x0) * t, cy: cyF(t), top: F.h * topF(t), bot: F.h * botF(t), w: F.w * widF(t) }); }
+      const tOf = (x) => Math.max(0, Math.min(1, (x0 - x) / (x0 - x1))), topAt = (x) => cyF(tOf(x)) + F.h * topF(tOf(x)), botAt = (x) => -cyF(tOf(x)) + F.h * botF(tOf(x));
+      const body = cmLoft(mb, secs, 12);
+      const ped = F.h * F.ped, C = F.caud;
+      cmFin(mb, 6, 8, (u, v) => { const vv = v * 2 - 1, lobe = 1 - C.fork * (1 - Math.pow(Math.abs(vv), .8)); return [x1 + .01 - u * C.len * lobe, vv * (ped * .95 + (C.span - ped * .95) * Math.pow(u, .85)), 0]; }, 1, 0);
+      const D = F.dors; cmFin(mb, 7, 3, (u, v) => { const bx = D[0] + D[1] / 2 - D[1] * u, sh = Math.pow(Math.sin(Math.PI * Math.min(1, u * .9 + .1)), .5) * (1.1 - .5 * u); return [bx - v * D[1] * .3, topAt(bx) - .004 + v * D[2] * sh, 0]; }, 1, 1);
+      const A = F.anal; cmFin(mb, 6, 3, (u, v) => { const bx = A[0] + A[1] / 2 - A[1] * u, sh = Math.pow(Math.sin(Math.PI * Math.min(1, u * .85 + .15)), .55) * (1.2 - .8 * u); return [bx - v * A[1] * .3, -botAt(bx) + .004 - v * A[2] * sh, 0]; }, 1, 2);
+      for (const sg of [-1, 1]) { const bx = F.pec - .03, by = -botAt(bx) * .4, bz = sg * F.w * .9; cmFin(mb, 3, 2, (u, v) => [bx - u * .12 - v * .02, by - u * .03 + (v - .5) * .05 * (1 - u * .5), bz + sg * u * .05], 2, 3); const E = F.eye, ex = x0 + (x1 - x0) * E[0]; cmEye(mb, ex, cyF(E[0]) + E[1] * F.h, sg * F.w * widF(E[0]) * .9, E[2], sg); }
+      return cmNormals(mb, [[body[0], body[1], (x) => cyF(tOf(x)) + (topAt(x) - botAt(x)) * 0]]);
+    }
+    // Blacktip reef shark: long fusiform body, conical snout, tall first dorsal,
+    // big swept pectorals and a heterocercal tail.
+    function sharkMesh() {
+      const mb = cmNew(), NX = 24, secs = [];
+      for (let i = 0; i <= NX; i++) { const t = i / NX, x = .5 - t * .78, g = t < .3 ? Math.pow(t / .3, .55) : 1 - .78 * Math.pow((t - .3) / .7, 1.3); secs.push({ x, cy: -.004 * t, top: .085 * g, bot: .075 * g, w: .075 * g * (t < .15 ? .85 : 1), flat: true }); }
+      const body = cmLoft(mb, secs, 14), topAt = (x) => { const t = (.5 - x) / .78; const g = t < .3 ? Math.pow(Math.max(t, 0) / .3, .55) : 1 - .78 * Math.pow((t - .3) / .7, 1.3); return .085 * g; };
+      cmFin(mb, 6, 4, (u, v) => { const bx = .12 - u * .16; return [bx - v * (.10 + .04 * u), topAt(bx) - .006 + v * .15 * (1 - u * .85), 0]; }, 1, 1);
+      cmFin(mb, 3, 2, (u, v) => { const bx = -.16 - u * .05; return [bx - v * .03, topAt(bx) - .004 + v * .035 * (1 - u * .7), 0]; }, 1, 4);
+      cmFin(mb, 7, 4, (u, v) => { const x = -.28 - u * .2, up = .02 + u * .19, dn = -.015 - u * .09 * (1 - .4 * u); return [x - v * .02 * u, dn + (up - dn) * v, 0]; }, 1, 0);
+      for (const sg of [-1, 1]) { cmFin(mb, 4, 3, (u, v) => [.2 - u * .1 - v * .16 * u - v * .05, -.05 - v * .045 * (.5 + u), sg * (.06 + v * .2 * (1 - u * .4))], 2, 3); cmFin(mb, 2, 2, (u, v) => [-.1 - u * .05 - v * .03, -.06 - v * .02, sg * (.04 + v * .06)], 2, 5); cmEye(mb, .40, .02, sg * .045, .012, sg); }
+      return cmNormals(mb, [[body[0], body[1], () => 0]]);
+    }
+    // Spinner dolphin: melon, long thin beak, falcate dorsal, flippers, horizontal flukes.
+    function dolphinMesh() {
+      const mb = cmNew(), NX = 26, secs = [];
+      for (let i = 0; i <= NX; i++) { const t = i / NX, x = .5 - t * .86; let top, bot, w, cy = 0;
+        if (t < .07) { const r = .014 + .008 * (t / .07); top = r; bot = r * .9; w = r; cy = -.022; }
+        else if (t < .17) { const u = (t - .07) / .10, r = .022 + .07 * Math.sin(u * Math.PI * .5); top = r * (1 + .25 * Math.sin(u * Math.PI)); bot = r * .92; w = r * .95; cy = -.022 * (1 - u); }
+        else if (t < .5) { const u = (t - .17) / .33, r = .092 + .016 * Math.sin(u * Math.PI); top = r; bot = r * .96; w = r * .9; }
+        else { const u = (t - .5) / .5, r = .10 * (1 - .82 * Math.pow(u, 1.5)); top = r * (1 + .15 * u); bot = r * (1 + .1 * u); w = r * (1 - .45 * u); }
+        secs.push({ x, cy, top, bot, w }); }
+      const body = cmLoft(mb, secs, 14);
+      const topAt = (x) => { for (let i = 1; i < secs.length; i++) if (secs[i].x <= x) { const a = secs[i - 1], b = secs[i], f = (a.x - x) / Math.max(1e-6, a.x - b.x); return a.cy + a.top + (b.cy + b.top - a.cy - a.top) * f; } return 0; };
+      cmFin(mb, 5, 4, (u, v) => { const bx = .0 - u * .12; return [bx - v * (.07 + .05 * v), topAt(bx) - .012 + v * .12 * (1 - u * .8), 0]; }, 1, 1);
+      cmFin(mb, 6, 4, (u, v) => { const sv = Math.abs(v * 2 - 1), sweep = .03 + .10 * sv * sv; return [-.36 - sweep - u * .07 * (1 - sv * .6), 0, (v * 2 - 1) * .19 * (1 - .25 * u)]; }, 4, 0);
+      for (const sg of [-1, 1]) { cmFin(mb, 3, 3, (u, v) => [.26 - u * .06 - v * .08, -.07 - v * .045, sg * (.07 + v * .11 * (1 - u * .3))], 2, 3); cmEye(mb, .385, .01, sg * .052, .009, sg); }
+      return cmNormals(mb, [[body[0], body[1], () => 0]]);
+    }
+    // Green sea turtle: domed carapace, flat plastron, small head, long fore-flippers.
+    function turtleMesh() {
+      const mb = cmNew(), NA = 18, NR = 8, base = mb.P.length / 3;
+      for (let r = 0; r <= NR; r++) for (let a = 0; a <= NA; a++) { const th = a / NA * Math.PI * 2, rr = r / NR, ex = Math.cos(th) * .40 * rr, ez = Math.sin(th) * .32 * rr * (1 - .12 * Math.max(0, Math.cos(th))), y = .13 * Math.sqrt(Math.max(0, 1 - rr * rr)) * (1 - .15 * Math.max(0, -Math.cos(th))); cmV(mb, [ex + .02, y, ez], [ex, ez], [0, 0, 0, 0]); }
+      for (let r = 0; r < NR; r++) for (let a = 0; a < NA; a++) { const i = base + r * (NA + 1) + a; cmQuad(mb, i, i + NA + 1, i + NA + 2, i + 1); }
+      const pb = mb.P.length / 3; for (let r = 0; r <= NR; r++) for (let a = 0; a <= NA; a++) { const th = a / NA * Math.PI * 2, rr = r / NR, ex = Math.cos(th) * .39 * rr, ez = Math.sin(th) * .31 * rr; cmV(mb, [ex + .02, -.025 - .02 * (1 - rr * rr), ez], [ex, ez], [4, 0, 1, 0]); }
+      for (let r = 0; r < NR; r++) for (let a = 0; a < NA; a++) { const i = pb + r * (NA + 1) + a; cmQuad(mb, i, i + 1, i + NA + 2, i + NA + 1); }
+      const head = []; for (let i = 0; i <= 8; i++) { const t = i / 8, x = .40 + t * .17, r = t < .6 ? .055 - .01 * t : .05 * Math.sqrt(Math.max(0, 1 - ((t - .6) / .4) ** 2)) + .004; head.push({ x, cy: .015 + .01 * t, top: r * 1.05, bot: r * .85, w: r }); }
+      const hb = cmLoft(mb, head.reverse().map((s) => s), 10, 5);
+      for (const sg of [-1, 1]) { cmFin(mb, 5, 3, (u, v) => { const reach = .06 + .40 * u, w = .085 * Math.sin(Math.PI * Math.min(1, .15 + u * .9)) * (1 - .3 * u); return [.24 - reach * .55 - (v - .5) * w * 1.6, .01 - u * .02, sg * (.24 + reach * .75)]; }, 2, 3); cmFin(mb, 3, 2, (u, v) => [-.32 - u * .12 - (v - .5) * .06, -.005, sg * (.17 + u * .1)], 4, 6); cmEye(mb, .54, .045, sg * .036, .009, sg); }
+      return cmNormals(mb, [[base, base + (NR + 1) * (NA + 1), () => -.03], [hb[0], hb[1], () => .02]]);
+    }
+    // Spotted eagle ray: a flat diamond disc with pointed wing tips, a head lobe and a whip tail.
+    function rayMesh() {
+      const mb = cmNew(), NU = 16, NV = 12, base = mb.P.length / 3;
+      for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) { const u = i / NU, v = j / NV * 2 - 1, x = .30 - u * .62, edge = Math.max(0, 1 - Math.abs(v)), front = x > 0 ? 1 - x / .3 : 1 + x / .32, span = .5 * Math.pow(Math.max(0, Math.min(1, front)), .7), z = v * span, thick = .035 * Math.pow(edge, .6) * Math.pow(Math.max(0, Math.min(1, front)), .4); cmV(mb, [x - Math.abs(v) * .10, thick, z], [u, v], [0, 1 - edge, 0, 0]); }
+      for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) { const a = base + j * (NU + 1) + i; cmQuad(mb, a, a + NU + 1, a + NU + 2, a + 1); }
+      const bb = mb.P.length / 3; for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) { const u = i / NU, v = j / NV * 2 - 1, x = .30 - u * .62, edge = Math.max(0, 1 - Math.abs(v)), front = x > 0 ? 1 - x / .3 : 1 + x / .32, span = .5 * Math.pow(Math.max(0, Math.min(1, front)), .7); cmV(mb, [x - Math.abs(v) * .10, -.012 * Math.pow(edge, .6), v * span], [u, v], [4, 1 - edge, 1, 0]); }
+      for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) { const a = bb + j * (NU + 1) + i; cmQuad(mb, a, a + 1, a + NU + 2, a + NU + 1); }
+      const head = []; for (let i = 0; i <= 6; i++) { const t = i / 6, x = .36 - t * .12, r = .03 * Math.sqrt(Math.max(.05, 1 - (1 - t) ** 2)); head.push({ x, cy: .012, top: r * .8, bot: r * .7, w: r * 1.2 }); }
+      cmLoft(mb, head, 8, 0);
+      const tail = []; for (let i = 0; i <= 14; i++) { const t = i / 14; tail.push({ x: -.30 - t * 2.0, cy: 0, top: .008 * (1 - t) + .002, bot: .008 * (1 - t) + .002, w: .009 * (1 - t) + .002 }); }
+      cmLoft(mb, tail, 5, 4);
+      for (const sg of [-1, 1]) cmEye(mb, .33, .03, sg * .028, .007, sg);
+      return cmNormals(mb, [[base, bb, () => -.01]]);
+    }
+    // ---- Sea life: shaders, schools and animals --------------------------------
+    // Drawn after the sea surface with premultiplied alpha: each fragment is lit
+    // underwater (sun dimmed with depth, caustics on top surfaces), then
+    // attenuated by the real water path to the surface and the surface Fresnel.
+    const seaV = `#version 300 es
+precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec3 n;layout(location=2)in vec2 uv;layout(location=3)in vec4 ext;
+layout(location=4)in vec4 iPos;layout(location=5)in vec4 iRot;layout(location=6)in vec4 iAnim;
+uniform mat4 m;uniform float time;uniform highp int kind;out vec3 world,normal;out vec2 vuv;out vec4 vext,vinst;
+void main(){vec3 q=p,nn=n;float x=p.x,ph=iRot.w,A=iAnim.x*(kind<=3?.2:kind==4?.28:kind==5?.9:1.);
+  if(kind<=4){float u=clamp((.32-x)/.82,0.,1.),k=kind==4?5.2:7.5,sw=sin(ph-x*k),cw=cos(ph-x*k);q.z+=A*u*u*sw;float dz=-A*u*u*k*cw-A*2.*u*1.22*sw;nn=normalize(vec3(nn.x-nn.z*dz,nn.y,nn.z));
+    if(ext.x>1.5&&ext.x<2.5)q.z+=sign(p.z)*sin(time*(kind==4?1.6:9.)+ext.z+iAnim.z*6.)*.025*ext.y;}
+  else if(kind==5){float u=clamp((.12-x)/.74,0.,1.);q.y+=A*u*u*sin(ph-x*3.6);nn=normalize(vec3(nn.x-nn.y*(-A*u*u*3.6*cos(ph-x*3.6)),nn.y,nn.z));}
+  else if(kind==6){if(ext.x>1.5&&ext.x<2.5){float r=abs(p.z)-.2;q.y+=sin(ph)*r*.75*ext.y+sin(ph)*r*.3;q.x+=cos(ph)*r*.25;}if(ext.x>3.5&&ext.z>5.5)q.x+=sin(ph*.5)*.03;if(ext.x>4.5)q.y+=sin(ph*.5+1.)*.01;}
+  else if(kind==7){float s2=p.z*p.z;q.y+=A*s2*2.2*sin(ph-x*2.4);nn=normalize(vec3(nn.x,nn.y,nn.z-nn.y*A*4.4*p.z*sin(ph-x*2.4)));if(ext.x>3.5&&ext.z<.5)q.z+=sin(ph*.7-x*2.6)*.08*(-x-.3);}
+  float cy=cos(iRot.x),sy=sin(iRot.x),cp=cos(iRot.y),sp=sin(iRot.y),cr=cos(iRot.z),sr=sin(iRot.z);
+  vec3 fwd=vec3(cp*cy,sp,cp*sy),right0=normalize(vec3(-sy,0.,cy)),up0=cross(right0,fwd),up=up0*cr+right0*sr,right=right0*cr-up0*sr;
+  world=iPos.xyz+(fwd*q.x+up*q.y+right*q.z)*iPos.w;normal=normalize(fwd*nn.x+up*nn.y+right*nn.z);vuv=uv;vext=ext;vinst=iAnim;gl_Position=m*vec4(world,1.);}`;
+    const seaF = `#version 300 es
+precision highp float;in vec3 world,normal;in vec2 vuv;in vec4 vext,vinst;uniform vec3 eye;uniform float time;uniform highp int kind;${commonGLSL}
+float hh(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+float nz(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hh(i),hh(i+vec2(1,0)),f.x),mix(hh(i+vec2(0,1)),hh(i+1.),f.x),f.y);}
+float band(float v,float c,float w,float s){return smoothstep(w+s,w,abs(v-c));}
+void main(){float part=vext.x,edge=vext.y,fid=vext.z;bool fin=part>.5&&part<2.5,eyeP=part>2.5&&part<3.5;
+  vec3 V=normalize(eye-world),N=normalize(normal);if(fin||kind==7&&part>3.5){if(dot(N,V)<0.)N=-N;}else if(!gl_FrontFacing)N=-N;
+  float x=vuv.x,y=vuv.y,belly=smoothstep(.1,-.6,y),back=smoothstep(-.1,.75,y);
+  vec3 alb=vec3(.5);float rough=.35,spec=.5,alpha=1.,silv=0.;
+  if(eyeP){float r=length(vuv);alb=mix(vec3(.55,.45,.25)*.6,vec3(.01),smoothstep(.62,.5,r));rough=.05;spec=2.;}
+  else if(kind==0){ // yellow tang: all bright yellow, a white spine patch at the tail base
+    alb=vec3(.92,.74,.04);alb=mix(alb,alb*vec3(.9,.82,.6),back*.25);if(!fin)alb=mix(alb,vec3(.92,.92,.86),smoothstep(.04,.0,abs(x-.86))*smoothstep(.6,.2,abs(y)));if(fin){alpha=.85;alb*=.95;}rough=.42;}
+  else if(kind==1){ // convict tang: pale silver-green with six black bars
+    alb=mix(vec3(.62,.66,.56),vec3(.85,.87,.80),belly);alb=mix(alb,vec3(.78,.74,.42),back*.35);float bars=0.;for(int k=0;k<6;k++)bars=max(bars,band(x,.10+.142*float(k),.022,.012));alb=mix(alb,vec3(.03,.035,.03),bars*(fin?0.:1.));silv=belly*.4;if(fin){alb=vec3(.75,.78,.72);alpha=.35;}}
+  else if(kind==2){ // bigeye scad: blue-green back, mirror-silver sides, yellow lateral stripe
+    alb=mix(vec3(.08,.20,.24),vec3(.70,.72,.72),smoothstep(.55,-.1,y));alb=mix(alb,vec3(.75,.62,.18),band(y,.12,.035,.03)*(1.-x*.3));silv=smoothstep(.45,-.2,y)*.9;if(fin){alb=vec3(.6,.62,.55);alpha=fid<.5?.5:.3;}}
+  else if(kind==3){ // parrotfish: blue-green, salmon scale rims, pale beak
+    vec2 sc=vec2(x*26.,y*5.);sc.x+=floor(sc.y)*.5;float rim=smoothstep(.3,.48,length(fract(sc)-.5));alb=mix(vec3(.10,.42,.38),vec3(.62,.36,.30),rim*.55);alb=mix(alb,vec3(.18,.55,.52),belly*.4);alb=mix(alb,vec3(.85,.85,.78),smoothstep(.04,.0,x)*.8);if(fin){alb=mix(vec3(.12,.45,.42),vec3(.75,.38,.32),edge);alpha=.7;}}
+  else if(kind==4){ // blacktip reef shark: brown-grey back, white belly, black fin tips
+    alb=mix(vec3(.46,.43,.35),vec3(.88,.87,.82),smoothstep(.15,-.35,y));alb=mix(alb,vec3(.86,.85,.80),band(y,-.18,.06,.05)*smoothstep(.75,.45,x)*smoothstep(.3,.5,x));if(fin){alb=vec3(.46,.43,.35);if(fid>.5&&fid<1.5)alb=mix(alb,vec3(.86,.85,.80),band(edge,.62,.06,.05));float tip=fid>.5&&fid<1.5?smoothstep(.72,.86,edge):fid<.5?smoothstep(.7,.9,1.-vuv.y)*smoothstep(.3,.7,vuv.x):fid>2.5&&fid<3.5?smoothstep(.8,.95,vuv.x)*.8:0.;alb=mix(alb,vec3(.03),tip);}rough=.38;spec=.45;}
+  else if(kind==5){ // spinner dolphin: dark cape, grey flank, white belly
+    float cape=smoothstep(.18,.42,y+.10*(x-.45)),flank=smoothstep(-.45,-.15,y);alb=mix(vec3(.82,.82,.80),vec3(.45,.47,.50),flank);alb=mix(alb,vec3(.13,.14,.16),cape);
+    alb=mix(alb,vec3(.15,.16,.18),band(y,-.05+.25*(x-.15),.05,.04)*smoothstep(.3,.1,x)*smoothstep(.02,.1,x));if(fin||part>3.5)alb=vec3(.14,.15,.17);rough=.22;spec=.9;}
+  else if(kind==6){ // green turtle: mottled scutes, cream plastron, scaled grey-brown skin
+    if(part<.5){vec2 c=world.xz*0.;vec2 g=vuv*9.;vec2 gi=floor(g),gf=fract(g);float d1=9.;for(int yy=-1;yy<=1;yy++)for(int xx=-1;xx<=1;xx++){vec2 o=vec2(float(xx),float(yy))+.5+.35*(vec2(hh(gi+vec2(float(xx),float(yy))),hh(gi+vec2(float(xx),float(yy))+3.))-.5)-gf;d1=min(d1,dot(o,o));}float seam=smoothstep(.12,.22,d1);float ray2=.5+.5*sin(atan(gf.y-.5,gf.x-.5)*9.+hh(gi)*6.);alb=mix(vec3(.30,.22,.10),vec3(.55,.42,.18),nz(vuv*14.)*.5+ray2*.5*smoothstep(.02,.2,d1))*(.75+.35*seam);alb=mix(alb,vec3(.12,.09,.05),smoothstep(.2,.45,nz(vuv*30.))*.35);rough=.5;}
+    else if(part>3.5&&fid>.5&&fid<1.5)alb=vec3(.78,.70,.45);
+    else{float sc=nz(vuv*vec2(30.,12.));alb=mix(vec3(.22,.20,.15),vec3(.52,.48,.36),smoothstep(.45,.6,sc));rough=.55;}}
+  else{ // eagle ray: navy-black back with white spots, white belly
+    if(part>3.5&&fid>.5)alb=vec3(.86,.86,.84);else{vec2 g=world.xz*0.+vuv*vec2(11.,9.);vec2 gi=floor(g);float sp2=smoothstep(.22,.12,length(fract(g)-.5-.25*(vec2(hh(gi),hh(gi+7.))-.5)));alb=mix(vec3(.04,.05,.07),vec3(.82,.84,.84),sp2*step(.35,hh(gi+3.)));}rough=.35;}
+  // light: sun through the surface (dimmer and caustic-dappled with depth), blue-green ambient
+  float h=max(0.,-world.y);vec3 sig=vec3(.34,.075,.05);
+  vec3 sunU=normalize(vec3(sunDir.x*.75,sunDir.y,sunDir.z*.75));float dz=h/max(.3,sunU.y);
+  vec2 cq=world.xz*1.7;float caus=h>0.?.55+1.1*pow(max(0.,sin(cq.x*2.3+time*1.4+sin(cq.y*1.9-time))*sin(cq.y*2.1-time*1.1+sin(cq.x*1.7+time*.8))),2.)*max(N.y,0.)*exp(-h*.25):1.;
+  vec3 Es=sunColor*exp(-sig*dz)*caus,amb=shAmbient(N)*mix(vec3(1.),vec3(.45,.85,1.),min(1.,h*.4))*exp(-sig*h*.5);
+  vec3 lit=linearOf(alb)*(Es*max(dot(N,sunU),0.)+amb);
+  lit+=Es*3.14159*ggxSpec(N,V,sunU,rough,.04)*spec;
+  if(silv>0.){vec3 R=reflect(-V,N);lit=mix(lit,(R.y>0.?vec3(.10,.30,.34):vec3(.02,.08,.10))*lumOf(Es+amb)*.6,silv*.55);}
+  // water path to the surface along the view ray, then the surface Fresnel
+  float L=h>0.?length(eye-world)*h/max(eye.y-world.y,.02):0.;vec3 T=exp(-sig*L);
+  float cosV=clamp((eye.y-world.y)/max(length(eye-world),1e-3),0.,1.),F=h>0.?.02+.98*pow(1.-cosV,5.):0.;
+  float tr=h>0.?dot(T,vec3(.2,.5,.3))*(1.-F):1.,a=clamp(alpha*tr,0.,1.);
+  vec3 c=applyFog(lit*(h>0.?T*(1.-F)/max(tr,1e-3):vec3(1.)),world,eye);
+  emit(c*a,a,.5*a,0.);}`;
+    const SEA = program(seaV, seaF);
+    const seaKinds = [
+      { name: 'yellow tang', mesh: fishMesh({ h: .30, w: .06, ped: .25, tmT: .45, tmB: .5, headE: 1.4, snT: .11, snB: .10, mouthY: .1, eye: [.2, .38, .04], caud: { len: .2, span: .2, fork: .12 }, dors: [.04, .62, .18], anal: [-.04, .5, .16], pec: .3 }), len: [.15, .2] },
+      { name: 'convict tang', mesh: fishMesh({ h: .22, w: .06, ped: .3, tmT: .42, tmB: .5, headE: 1.6, snT: .2, snB: .18, mouthY: .05, eye: [.16, .3, .035], caud: { len: .2, span: .17, fork: .3 }, dors: [0, .55, .08], anal: [-.03, .45, .07], pec: .3 }), len: [.14, .19] },
+      { name: 'bigeye scad', mesh: fishMesh({ h: .11, w: .055, ped: .3, tmT: .42, tmB: .45, headE: 1.5, snT: .25, snB: .2, mouthY: .05, eye: [.12, .18, .05], caud: { len: .24, span: .19, fork: .72 }, dors: [-.05, .22, .1], anal: [-.1, .2, .07], pec: .3 }), len: [.2, .26] },
+      { name: 'parrotfish', mesh: fishMesh({ h: .17, w: .085, ped: .38, tmT: .38, tmB: .45, headE: 1.2, snT: .35, snB: .3, mouthY: 0, eye: [.14, .3, .03], caud: { len: .2, span: .18, fork: 0 }, dors: [0, .6, .06], anal: [-.06, .3, .06], pec: .3 }), len: [.4, .6] },
+      { name: 'blacktip reef shark', mesh: sharkMesh(), len: [1.4, 1.75] },
+      { name: 'spinner dolphin', mesh: dolphinMesh(), len: [1.8, 2.0] },
+      { name: 'green sea turtle', mesh: turtleMesh(), len: [1.0, 1.15] },
+      { name: 'spotted eagle ray', mesh: rayMesh(), len: [1.5, 1.9] },
+    ];
+    for (const k of seaKinds) {
+      const mb = k.mesh, vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+      for (const [data, loc, size] of [[mb.P, 0, 3], [mb.N, 1, 3], [mb.U, 2, 2], [mb.E, 3, 4]]) { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); }
+      const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(mb.I), gl.STATIC_DRAW);
+      k.inst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, k.inst); gl.bufferData(gl.ARRAY_BUFFER, 48, gl.DYNAMIC_DRAW);
+      for (let a = 0; a < 3; a++) { gl.enableVertexAttribArray(4 + a); gl.vertexAttribPointer(4 + a, 4, gl.FLOAT, false, 48, a * 16); gl.vertexAttribDivisor(4 + a, 1); }
+      k.vao = vao; k.count = mb.I.length; k.n = 0; k.data = null;
+    }
+    gl.bindVertexArray(null);
+    // Habitat: calm water inside the reef, well off the surf, deep enough to swim.
+    const reefR = (x, z) => { const a = Math.atan2(z / 124, x / 164); return Math.hypot(x / 164, z / 124) / (1 + .052 * Math.sin(a * 3 + .45) + .025 * Math.sin(a * 7 - 1.2)); };
+    const seaFloor = (x, z) => (x > -150 && x < 150 && z > -100 && z < 100) ? gridHeight(x, z) : -6;
+    const inLagoon = (x, z, minDepth) => reefR(x, z) < .955 && seaFloor(x, z) < -minDepth && shoreline(x, z).d < -7;
+    const seaRng = plantRng(3, 8, 13), seaQ = QUALITY === 0 ? .5 : 1;
+    function findSpot(test, tries = 4000) { for (let t = 0; t < tries; t++) { const a = seaRng() * 6.283, r = 100 + 70 * seaRng(), x = Math.cos(a) * r, z = Math.sin(a) * r * .76; if (test(x, z)) return [x, z]; } return null; }
+    const schools = [], animals = [];
+    for (const [kind, count, depthMin] of [[0, 14, 1.0], [1, 18, .9], [2, 40, 1.6], [3, 5, 1.2], [1, 12, .9], [0, 10, 1.0]]) {
+      const c = findSpot((x, z) => inLagoon(x, z, depthMin + .4)); if (!c) continue;
+      const sc = { kind, cx: c[0], cz: c[1], tx: c[0], tz: c[1], depthMin, fish: [], wander: seaRng() * 100 };
+      const n = Math.max(3, Math.round(count * seaQ));
+      for (let i = 0; i < n; i++) { const L = seaKinds[kind].len[0] + (seaKinds[kind].len[1] - seaKinds[kind].len[0]) * seaRng(); sc.fish.push({ p: [c[0] + (seaRng() - .5) * 3, -depthMin * .6, c[1] + (seaRng() - .5) * 3], v: [(seaRng() - .5) * .3, 0, (seaRng() - .5) * .3], L, ph: seaRng() * 6.28, amp: .5, beat: 1, beatT: seaRng(), yaw: 0, pitch: 0, roll: 0, rng: plantRng(i, kind, 7 + schools.length) }); }
+      schools.push(sc);
+    }
+    function addAnimal(kind, test, extra) { const c = findSpot(test); if (!c) return; const L = seaKinds[kind].len[0] + (seaKinds[kind].len[1] - seaKinds[kind].len[0]) * seaRng(); animals.push({ kind, p: [c[0], -1, c[1]], v: [0, 0, 0], L, ph: seaRng() * 6.28, yaw: seaRng() * 6.28, pitch: 0, roll: 0, tx: c[0], tz: c[1], timer: seaRng() * 10, state: 0, rng: plantRng(c[0], c[1], kind), ...extra }); }
+    for (let i = 0; i < 2; i++) addAnimal(4, (x, z) => inLagoon(x, z, 1.1));
+    for (let i = 0; i < (QUALITY === 0 ? 1 : 3); i++) addAnimal(6, (x, z) => inLagoon(x, z, 1.4), { breathe: 30 + seaRng() * 40 });
+    for (let i = 0; i < (QUALITY === 0 ? 1 : 2); i++) addAnimal(7, (x, z) => inLagoon(x, z, 1.8));
+    // spinner dolphins travel as a pod outside the reef
+    const pod = { ang: seaRng() * 6.283, r: 1.1, members: [] };
+    for (let i = 0; i < (QUALITY === 0 ? 4 : 7); i++) pod.members.push({ kind: 5, off: [(seaRng() - .5) * 9, (seaRng() - .5) * 7], p: [0, -1.5, 0], v: [0, 0, 0], L: 1.8 + .25 * seaRng(), ph: seaRng() * 6.28, yaw: 0, pitch: 0, roll: 0, surf: seaRng() * 9, leap: 0, spin: 0, rng: plantRng(i, 5, 77) });
+    { const cx = Math.cos(pod.ang) * 164 * pod.r, cz = Math.sin(pod.ang) * 124 * pod.r; for (const d of pod.members) { d.p = [cx + d.off[0], -1.5, cz + d.off[1]]; d.yaw = Math.atan2(Math.cos(pod.ang) * 124, -Math.sin(pod.ang) * 164); } }
+    const seaStats = { schools: schools.length, fish: schools.reduce((a, s) => a + s.fish.length, 0), sharks: animals.filter((a) => a.kind === 4).length, turtles: animals.filter((a) => a.kind === 6).length, rays: animals.filter((a) => a.kind === 7).length, dolphins: pod.members.length, leaps: 0, breaths: 0 };
+    const splashes = [];
+    function steerTo(a, tx, tz, ty, maxs, turn, dt) {
+      const dx = tx - a.p[0], dz = tz - a.p[2], dy = ty - a.p[1], d = Math.hypot(dx, dz) || 1, want = Math.atan2(dz, dx);
+      let dyaw = want - a.yaw; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw)); const step = Math.max(-turn * dt, Math.min(turn * dt, dyaw)); a.yaw += step;
+      a.roll += (Math.max(-.5, Math.min(.5, -step / Math.max(dt, 1e-3) * .35)) - a.roll) * Math.min(1, dt * 3);
+      const sp = Math.min(maxs, d * .8 + .2); a.v[0] = Math.cos(a.yaw) * sp; a.v[2] = Math.sin(a.yaw) * sp; a.v[1] += (Math.max(-.6, Math.min(.6, dy)) - a.v[1]) * Math.min(1, dt * 1.5);
+      a.pitch += (Math.atan2(a.v[1], sp) * .8 - a.pitch) * Math.min(1, dt * 3);
+      a.p[0] += a.v[0] * dt; a.p[1] += a.v[1] * dt; a.p[2] += a.v[2] * dt; return sp;
+    }
+    function updateSeaLife(dt, time, eye) {
+      const swimmer = mode === "walk" && medium === "swim" ? [player.x, player.z] : null;
+      const sharkPos = animals.filter((a) => a.kind === 4).map((a) => a.p);
+      for (const sc of schools) {
+        sc.wander += dt * .05;
+        const g = [sc.cx + (nz2(sc.wander, 1.3) - .5) * 26, sc.cz + (nz2(sc.wander, 7.9) - .5) * 26];
+        if (inLagoon(g[0], g[1], sc.depthMin)) { sc.tx += (g[0] - sc.tx) * Math.min(1, dt * .3); sc.tz += (g[1] - sc.tz) * Math.min(1, dt * .3); }
+        const sp = seaKinds[sc.kind], cruise = sc.kind === 2 ? 1.1 : sc.kind === 3 ? .45 : .6;
+        let mx = 0, mz = 0, my = 0, vx = 0, vz = 0; for (const f of sc.fish) { mx += f.p[0]; my += f.p[1]; mz += f.p[2]; vx += f.v[0]; vz += f.v[2]; } const nF = sc.fish.length; mx /= nF; my /= nF; mz /= nF; vx /= nF; vz /= nF;
+        for (const f of sc.fish) {
+          let ax = (sc.tx - f.p[0]) * .06 + (mx - f.p[0]) * .35 + (vx - f.v[0]) * .9, az = (sc.tz - f.p[2]) * .06 + (mz - f.p[2]) * .35 + (vz - f.v[2]) * .9, ay = 0;
+          for (const o of sc.fish) { if (o === f) continue; const dx = f.p[0] - o.p[0], dy = f.p[1] - o.p[1], dz = f.p[2] - o.p[2], d2 = dx * dx + dy * dy + dz * dz, r = (f.L + o.L) * 1.4; if (d2 < r * r && d2 > 1e-6) { const k = (r * r - d2) / (r * r) * 3; ax += dx * k / Math.sqrt(d2); ay += dy * k / Math.sqrt(d2); az += dz * k / Math.sqrt(d2); } }
+          ax += (nz2(f.ph * .1 + time * .3, f.L * 40) - .5) * 1.2; az += (nz2(f.ph * .1 + time * .3, f.L * 40 + 9) - .5) * 1.2;
+          let flee = 0; for (const s of sharkPos) { const dx = f.p[0] - s[0], dz = f.p[2] - s[2], d = Math.hypot(dx, dz); if (d < 5) { ax += dx / d * (5 - d) * 2.5; az += dz / d * (5 - d) * 2.5; flee = 1; } }
+          if (swimmer) { const dx = f.p[0] - swimmer[0], dz = f.p[2] - swimmer[1], d = Math.hypot(dx, dz); if (d < 3.5) { ax += dx / d * (3.5 - d) * 3; az += dz / d * (3.5 - d) * 3; flee = 1; } }
+          const floor = seaFloor(f.p[0], f.p[2]), lo = floor + .35, hi = Math.min(-.25, floor + 2.6);
+          if (f.p[1] < lo) ay += (lo - f.p[1]) * 3; if (f.p[1] > hi) ay -= (f.p[1] - hi) * 3; ay += (my - f.p[1]) * .3;
+          const ahx = f.p[0] + f.v[0] * 1.2, ahz = f.p[2] + f.v[2] * 1.2; if (!inLagoon(ahx, ahz, .55)) { ax += (sc.tx - f.p[0]) * .8; az += (sc.tz - f.p[2]) * .8; }
+          // burst and coast: a few tail beats, then a glide
+          f.beatT -= dt; if (f.beatT <= 0) { f.beat = f.beat > .5 && !flee && f.rng() < .55 ? 0 : 1; f.beatT = f.beat ? .3 + f.rng() * .6 : .25 + f.rng() * .5; }
+          const maxs = cruise * (flee ? 3.2 : 1) * (.85 + .3 * f.beat);
+          f.v[0] += ax * dt; f.v[1] += ay * dt; f.v[2] += az * dt; if (!f.beat) { f.v[0] *= Math.exp(-dt * .5); f.v[2] *= Math.exp(-dt * .5); }
+          let s2 = Math.hypot(f.v[0], f.v[2]); if (s2 > maxs) { f.v[0] *= maxs / s2; f.v[2] *= maxs / s2; s2 = maxs; } f.v[1] = Math.max(-.4, Math.min(.4, f.v[1]));
+          f.p[0] += f.v[0] * dt; f.p[1] += f.v[1] * dt; f.p[2] += f.v[2] * dt; f.p[1] = Math.max(floor + .2, Math.min(-.2, f.p[1]));
+          if (s2 > .05) { const want = Math.atan2(f.v[2], f.v[0]); let dy = Math.atan2(Math.sin(want - f.yaw), Math.cos(want - f.yaw)); f.yaw += dy * Math.min(1, dt * 6); f.roll += (Math.max(-.45, Math.min(.45, -dy * 1.2)) - f.roll) * Math.min(1, dt * 4); }
+          f.pitch += (Math.atan2(f.v[1], Math.max(s2, .1)) * .7 - f.pitch) * Math.min(1, dt * 4);
+          f.amp += ((.18 + .5 * s2 / cruise) * (.25 + .75 * f.beat) - f.amp) * Math.min(1, dt * 5); f.ph += dt * 6.283 * (1.8 + s2 * 2.2 / Math.max(.3, f.L * 4)) * (.3 + .7 * f.beat);
+        }
+      }
+      for (const a of animals) {
+        const r = a.rng; a.timer -= dt;
+        const floor = seaFloor(a.p[0], a.p[2]);
+        if (a.kind === 4) { // shark: patrols the lagoon in long loops, dorsal fin out where it is shallow
+          if (a.timer <= 0 || Math.hypot(a.tx - a.p[0], a.tz - a.p[2]) < 3) { const c = findSpot((x, z) => inLagoon(x, z, .9) && Math.hypot(x - a.p[0], z - a.p[2]) < 45, 300); if (c) { a.tx = c[0]; a.tz = c[1]; } a.timer = 14 + r() * 14; }
+          const ty = Math.min(-.08 - a.L * .085, floor + .55); const sp = steerTo(a, a.tx, a.tz, ty, .75, .45, dt); a.amp = .16 + .12 * sp; a.ph += dt * 6.283 * (.55 + .35 * sp);
+        } else if (a.kind === 6) { // turtle: slow glides near the bottom, up to breathe now and then
+          a.breathe -= dt;
+          if (a.state === 0) { if (a.timer <= 0 || Math.hypot(a.tx - a.p[0], a.tz - a.p[2]) < 1.5) { const c = findSpot((x, z) => inLagoon(x, z, 1.2) && Math.hypot(x - a.p[0], z - a.p[2]) < 25, 300); if (c) { a.tx = c[0]; a.tz = c[1]; } a.timer = 12 + r() * 10; } steerTo(a, a.tx, a.tz, floor + .45, .32, .35, dt); if (a.breathe < 0) a.state = 1; }
+          else if (a.state === 1) { steerTo(a, a.p[0] + Math.cos(a.yaw) * 3, a.p[2] + Math.sin(a.yaw) * 3, .02, .25, .2, dt); if (a.p[1] > -.08) { a.state = 2; a.timer = 3 + r() * 2; seaStats.breaths++; splashes.push({ x: a.p[0] + Math.cos(a.yaw) * a.L * .5, z: a.p[2] + Math.sin(a.yaw) * a.L * .5, t: 0, s: .4 }); } }
+          else if (a.state === 2) { a.p[1] += (-.04 - a.p[1]) * Math.min(1, dt * 2); a.pitch += (.18 - a.pitch) * Math.min(1, dt * 2); if (a.timer <= 0) { a.state = 0; a.breathe = 40 + r() * 50; a.timer = 0; } }
+          a.ph += dt * 6.283 * (a.state === 2 ? .15 : .32);
+        } else if (a.kind === 7) { // eagle ray: glides mid-water, flapping slowly
+          if (a.timer <= 0 || Math.hypot(a.tx - a.p[0], a.tz - a.p[2]) < 2) { const c = findSpot((x, z) => inLagoon(x, z, 1.6) && Math.hypot(x - a.p[0], z - a.p[2]) < 30, 300); if (c) { a.tx = c[0]; a.tz = c[1]; } a.timer = 15 + r() * 10; }
+          const sp = steerTo(a, a.tx, a.tz, Math.max(floor + .6, Math.min(-.6, floor * .5)), .6, .3, dt); a.amp = .22; a.ph += dt * 6.283 * (.35 + .2 * sp);
+        }
+        a.p[1] = Math.max(floor + .15, Math.min(.05, a.p[1]));
+      }
+      // dolphin pod: travels round the island outside the reef, surfacing in arcs; now and then one spins out
+      pod.ang += dt * 3.2 / (164 * pod.r);
+      const cx = Math.cos(pod.ang) * 164 * pod.r, cz = Math.sin(pod.ang) * 124 * pod.r, hdg = Math.atan2(Math.cos(pod.ang) * 124, -Math.sin(pod.ang) * 164);
+      for (const d of pod.members) {
+        const c = Math.cos(hdg), s = Math.sin(hdg), tx = cx + c * d.off[0] - s * d.off[1], tz = cz + s * d.off[0] + c * d.off[1];
+        d.surf -= dt; let ty = -1.6 + .25 * Math.sin(time * .4 + d.off[0]);
+        if (d.leap > 0) { d.leap -= dt; const u = 1 - d.leap / 1.15; d.p[1] = -.3 + 4.6 * u * (1 - u) * 1.5; d.spin += dt * 9.5; if (d.leap <= 0) { splashes.push({ x: d.p[0], z: d.p[2], t: 0, s: 1.2 }); d.spin = 0; } }
+        else if (d.surf < 1.6) { const u = 1 - d.surf / 1.6; ty = -1.3 + 1.5 * Math.sin(u * Math.PI); if (d.surf <= 0) { d.surf = 6 + d.rng() * 7; if (d.rng() < .12) { d.leap = 1.15; seaStats.leaps++; splashes.push({ x: d.p[0], z: d.p[2], t: 0, s: .9 }); } } }
+        const save = d.p[1]; steerTo(d, tx + Math.cos(hdg) * 6, tz + Math.sin(hdg) * 6, ty, 3.6, .9, dt); if (d.leap > 0) { d.p[1] = save; d.pitch = (.5 - (1 - d.leap / 1.15)) * 1.6; }
+        d.roll = d.leap > 0 ? d.spin : d.roll; d.amp = .12; d.ph += dt * 6.283 * 1.4;
+      }
+      for (const sp of splashes) sp.t += dt; while (splashes.length && splashes[0].t > 1.6) splashes.shift();
+    }
+    function nz2(a, b) { return noise(a, b); }
+    function drawSeaLife(m, eye, time) {
+      const groups = seaKinds.map(() => []);
+      const push = (k, a, L) => { if (Math.abs(a.p[0] - eye[0]) > (k >= 4 ? 260 : 120) || Math.abs(a.p[2] - eye[2]) > (k >= 4 ? 260 : 120)) return; groups[k].push(a.p[0], a.p[1], a.p[2], L, a.yaw, a.pitch, a.roll, a.ph, a.amp === undefined ? .2 : a.amp, 1, (a.L * 37.1) % 1, 0); };
+      for (const sc of schools) for (const f of sc.fish) push(sc.kind, f, f.L);
+      for (const a of animals) push(a.kind, a, a.L);
+      for (const d of pod.members) push(5, d, d.L);
+      gl.useProgram(SEA); setCommon(SEA); gl.uniformMatrix4fv(pu(SEA, "m"), false, m); gl.uniform3fv(pu(SEA, "eye"), eye); gl.uniform1f(pu(SEA, "time"), time);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(true);
+      for (let k = 0; k < seaKinds.length; k++) { const g = groups[k]; if (!g.length) continue; const K = seaKinds[k]; gl.bindVertexArray(K.vao); gl.bindBuffer(gl.ARRAY_BUFFER, K.inst); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g), gl.DYNAMIC_DRAW); gl.uniform1i(pu(SEA, "kind"), k); gl.drawElementsInstanced(gl.TRIANGLES, K.count, gl.UNSIGNED_INT, 0, g.length / 12); }
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    }
+    function seaTarget(kind) { if (kind <= 3) { const sc = schools.find((q) => q.kind === kind); if (!sc) return null; let x = 0, y = 0, z = 0; for (const f of sc.fish) { x += f.p[0]; y += f.p[1]; z += f.p[2]; } const n = sc.fish.length; return [x / n, y / n, z / n]; } if (kind === 5) return pod.members.length ? pod.members[0].p.slice() : null; const a = animals.find((q) => q.kind === kind); return a ? a.p.slice() : null; }
     // ---- Life: frigatebirds, terns, ghost crabs and drifting coconuts --------
     // Small dynamic meshes rebuilt on the CPU each frame (a few hundred
     // triangles), lit like the rest of the scene and fogged.
@@ -2649,14 +3104,14 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
     const toWorld = (o, r, u, f, q) => [o[0] + r[0] * q[0] + u[0] * q[1] + f[0] * q[2], o[1] + r[1] * q[0] + u[1] * q[1] + f[1] * q[2], o[2] + r[2] * q[0] + u[2] * q[1] + f[2] * q[2]];
     function birdMesh(o, f, bank, flap, kind) {
       const up0 = [0, 1, 0], r0 = norm(cross(up0, f)), u0 = cross(f, r0), cb = Math.cos(bank), sb = Math.sin(bank), r = [r0[0] * cb + u0[0] * sb, r0[1] * cb + u0[1] * sb, r0[2] * cb + u0[2] * sb], u = cross(f, r);
-      const W = (q) => toWorld(o, r, u, f, q), frig = kind === 0, s = frig ? 1 : .38, dark = frig ? [.05, .05, .06] : [.86, .87, .86], wing = frig ? [.06, .06, .07] : [.70, .73, .76];
+      const W = (q) => toWorld(o, r, u, f, q), frig = kind === 0, s = frig ? 1 : .38, dark = frig ? [.05, .05, .06] : [.22, .17, .13], wing = frig ? [.06, .06, .07] : [.17, .13, .10];
       const nose = W([0, 0, .55 * s]), tail0 = W([0, 0, -.32 * s]), lft = W([-.07 * s, 0, .05 * s]), rgt = W([.07 * s, 0, .05 * s]), top = W([0, .05 * s, .05 * s]), bot = W([0, -.04 * s, .05 * s]);
-      for (const [a, b] of [[lft, top], [top, rgt], [rgt, bot], [bot, lft]]) { ctri(nose, a, b, frig ? dark : (a === top || b === top ? [.10, .10, .10] : dark)); ctri(a, tail0, b, dark); }
+      for (const [a, b] of [[lft, top], [top, rgt], [rgt, bot], [bot, lft]]) { ctri(nose, a, b, frig ? dark : (a === top || b === top ? [.80, .80, .78] : dark)); ctri(a, tail0, b, dark); }
       for (const sgn of [-1, 1]) {
         const lift = Math.sin(flap) * sgn, rot = (q) => { const x = q[0], y = q[1]; return [sgn * (Math.abs(x) * Math.cos(flap * .9)), y + Math.abs(x) * Math.sin(flap * .9), q[2]]; };
         const sf = W(rot([.06 * s, 0, .14 * s])), sbk = W(rot([.06 * s, 0, -.08 * s])), wf = W(rot([.55 * s, .07 * s, .12 * s])), wb = W(rot([.52 * s, .06 * s, -.07 * s])), tip = W(rot([(frig ? 1.12 : 1.05) * s, -.02 * s, -.36 * s]));
         ctri(sf, wf, wb, wing); ctri(sf, wb, sbk, wing); ctri(wf, tip, wb, wing); void lift;
-        const tb = W([.02 * sgn * s, 0, -.30 * s]), tt = W([.17 * sgn * s, 0, -(frig ? .88 : .62) * s]), ti = W([0, 0, -.44 * s]);
+        const tb = W([.02 * sgn * s, 0, -.30 * s]), tt = W([(frig ? .17 : .07) * sgn * s, 0, -(frig ? .88 : .58) * s]), ti = W([0, 0, -(frig ? .44 : .60) * s]);
         ctri(tb, tt, ti, dark);
       }
     }
@@ -2700,10 +3155,11 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
         if (Math.hypot(c.bx - eye[0], c.bz - eye[2]) < 26) { const by = gridHeight(c.bx, c.bz) + .006; for (let k = 0; k < 12; k++) { const a0 = k / 12 * 6.283, a1 = (k + 1) / 12 * 6.283; ctri([c.bx, by, c.bz], [c.bx + Math.cos(a1) * .045, by, c.bz + Math.sin(a1) * .045], [c.bx + Math.cos(a0) * .045, by, c.bz + Math.sin(a0) * .045], [.20, .17, .12]); } }
         if (c.state === 2 || Math.hypot(c.x - eye[0], c.z - eye[2]) > 26) continue;
         const y = gridHeight(c.x, c.z), f = [Math.cos(c.yaw - Math.PI * .5), 0, Math.sin(c.yaw - Math.PI * .5)], fwd = [-f[2], 0, f[0]], rgt = f, up = [0, 1, 0], o = [c.x, y, c.z], W = (q) => toWorld(o, rgt, up, fwd, [q[0] * 1.4, q[1] * 1.4, q[2] * 1.4]), body = [.80, .74, .60], shell = [.86, .80, .66];
-        const tl = W([-.028, .028, .02]), tr = W([.028, .028, .02]), bl = W([-.028, .028, -.02]), br = W([.028, .028, -.02]), Tl = W([-.034, .008, .026]), Tr = W([.034, .008, .026]), Bl = W([-.034, .008, -.026]), Br = W([.034, .008, -.026]);
+        const tl = W([-.028, .040, .02]), tr = W([.028, .040, .02]), bl = W([-.028, .040, -.02]), br = W([.028, .040, -.02]), Tl = W([-.034, .020, .026]), Tr = W([.034, .020, .026]), Bl = W([-.034, .020, -.026]), Br = W([.034, .020, -.026]);
         ctri(tl, bl, br, shell); ctri(tl, br, tr, shell); ctri(Tl, tl, tr, body); ctri(Tl, tr, Tr, body); ctri(Tr, tr, br, body); ctri(Tr, br, Br, body); ctri(Br, br, bl, body); ctri(Br, bl, Bl, body); ctri(Bl, bl, tl, body); ctri(Bl, tl, Tl, body);
-        for (const sx of [-1, 1]) { const e0 = W([.012 * sx, .027, .02]), e1 = W([.016 * sx, .047, .024]), e2 = W([.009 * sx, .046, .022]); ctri(e0, e1, e2, [.10, .09, .08]);
-          for (let k = 0; k < 4; k++) { const z0 = .018 - k * .012, sw = Math.sin(c.gait + k * 1.6 + (sx > 0 ? Math.PI : 0)) * .006, a = W([.03 * sx, .014, z0]), kn = W([.056 * sx, .03, z0 * 1.3 + sw]), tp = W([.078 * sx, .001, z0 * 1.55 + sw * 1.8]), w = [0, .004, 0]; ctri(a, kn, padd(kn, w), body); ctri(kn, tp, padd(kn, [0, -.004, .004]), body); } }
+        for (const sx of [-1, 1]) { const e0 = W([.012 * sx, .039, .02]), e1 = W([.016 * sx, .064, .024]), e2 = W([.009 * sx, .063, .022]); ctri(e0, e1, e2, [.10, .09, .08]);
+          for (let k = 0; k < 4; k++) { const z0 = .018 - k * .012, sw = Math.sin(c.gait + k * 1.6 + (sx > 0 ? Math.PI : 0)) * .008, a = W([.03 * sx, .016, z0]), kn = W([.07 * sx, .045, z0 * 1.4 + sw]), tp = W([.105 * sx, -.012, z0 * 1.8 + sw * 1.8]), w = [0, .004, 0]; ctri(a, kn, padd(kn, w), body); ctri(kn, tp, padd(kn, [0, -.004, .004]), body); }
+            const big = sx > 0 ? 1.6 : 1, c0 = W([.022 * sx, .014, .03]), c1 = W([.03 * sx, .02, .048 * big]), c2 = W([.012 * sx, .008, .05 * big]); ctri(c0, c1, c2, shell); ctri(c0, c2, W([.018 * sx, .024, .036]), shell); }
       }
       // Drifting coconuts ride the CPU mirror of the surf surface.
       for (const fl of floaters) {
@@ -3171,7 +3627,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       const fallS=-((x-WATERFALL_LIP[0])+(z-WATERFALL_LIP[1]))*.7071,fallK=((x-WATERFALL_LIP[0])-(z-WATERFALL_LIP[1]))*.7071,poolDistance=Math.hypot(x-WATERFALL_POOL[0],z-WATERFALL_POOL[2]);
       if(fallS>1.18&&fallS<3.7&&Math.abs(fallK)<2.55&&poolDistance<2.35)return WATERFALL_POOL[1];
       const creek=streamSample(x,z);
-      if(creek&&creek.d<.82)return levelAt(streamLevels,streamLengths,creek.s);
+      if(creek&&creek.d<creekHalfWidth(creek.s))return creekWaterAt(creek.s);
       const river=riverSample(x,z),width=river&&1.02+.63*river.q+.10*Math.sin(river.s*.39);
       if(river&&river.q<.87&&river.d<width)return levelAt(riverLevels,riverLengths,river.s);
       return null;
@@ -3196,7 +3652,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
     }
     function updatePlayer(dt) {
       if (mode !== "walk") return;
-      let ground = gridHeight(player.x, player.z), surface = waterSurface(player.x, player.z), depth = Math.max(0, surface - ground);
+      let ground = streamGround(player.x, player.z), surface = waterSurface(player.x, player.z), depth = Math.max(0, surface - ground);
       medium = depth > 0.72 ? "swim" : depth > 0.08 ? "wade" : "sand";
       let forward = (keys.has("w") || keys.has("W") ? 1 : 0) - (keys.has("s") || keys.has("S") ? 1 : 0) - touchMove[1],
         strafe = (keys.has("d") || keys.has("D") ? 1 : 0) - (keys.has("a") || keys.has("A") ? 1 : 0) + touchMove[0],
@@ -3218,7 +3674,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
           else stampFoot(player.x, player.z, player.yaw, medium === "wade");
         }
       }
-      ground = gridHeight(player.x, player.z); surface = waterSurface(player.x, player.z); depth = Math.max(0, surface - ground);
+      ground = streamGround(player.x, player.z); surface = waterSurface(player.x, player.z); depth = Math.max(0, surface - ground);
       medium = depth > 0.72 ? "swim" : depth > 0.08 ? "wade" : "sand";
       player.y = medium === "swim" ? surface + .22 + Math.sin(walkTime * 3.2 + waterClock * 2.) * .045 : ground;
     }
@@ -3570,6 +4026,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       updateLife(dt, t * .001); buildLife(lifeFreeze !== null ? lifeFreeze : t * .001, eye);
       if (critterMesh.n) { gl.useProgram(CR); setCommon(CR); gl.uniformMatrix4fv(pu(CR, "m"), false, m); gl.uniform3fv(pu(CR, "eye"), eye); gl.uniformMatrix4fv(pu(CR, "nearLightM"), false, nearLightM); gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, nearShadowDepth); gl.uniform1i(pu(CR, "nearShadowMap"), 6); gl.bindVertexArray(critterMesh.vao); gl.drawArrays(gl.TRIANGLES, 0, critterMesh.n); }
       gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.useProgram(W);setCommon(W);gl.uniform1f(pu(W,"reflOn"),targets.reflTex?1:0);gl.uniform2f(pu(W,"screenInv"),1/canvas.width,1/canvas.height);gl.activeTexture(gl.TEXTURE14);gl.bindTexture(gl.TEXTURE_2D,targets.reflTex||SKY.tex);gl.uniform1i(pu(W,"reflTex"),14);gl.activeTexture(gl.TEXTURE12);gl.bindTexture(gl.TEXTURE_2D,waveTex);gl.uniform1i(pu(W,"waveTex"),12);gl.uniformMatrix4fv(wU.nearLightM,false,nearLightM);gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,nearShadowDepth);gl.uniform1i(wU.nearShadowMap,6); gl.uniformMatrix4fv(wU.m,false,m); gl.uniform1f(wU.t,t*.001);gl.uniform1f(wU.stormBlend,weather.blend); gl.uniform3fv(wU.eye,eye); gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,groundTex);gl.uniform1i(wU.ground,2);gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,bathy);gl.uniform1i(wU.bathy,4);gl.activeTexture(gl.TEXTURE7);gl.bindTexture(gl.TEXTURE_2D,contactTexture);gl.uniform1i(wU.contactMap,7);gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,reefTex);gl.uniform1i(wU.reefMap,10);gl.activeTexture(gl.TEXTURE9);gl.bindTexture(gl.TEXTURE_2D,shoreTex);gl.uniform1i(wU.shore,9);gl.activeTexture(gl.TEXTURE11);gl.bindTexture(gl.TEXTURE_2D,shelterTex);gl.uniform1i(wU.shelterMap,11); gl.bindVertexArray(waterVAO); gl.drawElements(gl.TRIANGLES,waterI.length,gl.UNSIGNED_INT,0);
+      updateSeaLife(dt, t * .001, eye); drawSeaLife(m, eye, t * .001); gl.useProgram(W);
       // The translucent ribbon comes after the displaced surface.  Terrain
       // depth still hides its back half, so a crest disappears naturally when
       // it crosses the beach rather than painting over sand or footprints.
@@ -3603,6 +4060,10 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       // Falling water is composited from the local density FBO; sprites remain impact-only.\r\n      // Larger, low-opacity froth is born only at the actual impact footprint.
       for(let i=0;i<42;i++){let p=(time*.55+i*.271)%1,a=i*2.399,x=-65.768+Math.cos(a)*p*(.18+.62*p),z=-47.768+Math.sin(a)*p*(.14+.44*p),y=poolNow[1]+.035+p*.18;sp.push(x,y,z,.05+p*.12);sc.push(.76,.91,.93,.68);}
       for(let i=0;i<38;i++){let p=(time*.62+i*.173)%1,seed=Math.sin(i*91.7)*43758.5,u=seed-Math.floor(seed),a=(seed*7.3-Math.floor(seed*7.3))*6.283,r=Math.sqrt(u)*(.12+.55*p),ix=-65.768,iz=-47.768,x=ix+Math.cos(a)*r,z=iz+Math.sin(a)*r,y=poolNow[1]+.05+p*(.36-p*.22);sp.push(x,y,z,.025+(i%5)*.011);sc.push(.78,.93,.94,1.12);}
+      // Splashes where dolphins break the surface or a turtle comes up to breathe.
+      for(const sl of splashes){if(Math.abs(sl.x-eye[0])>160||Math.abs(sl.z-eye[2])>160)continue;for(let k=0;k<10;k++){const a=k*2.399,u=Math.min(1,sl.t/1.2),r=sl.s*(.25+.9*u)*(.6+.4*Math.sin(k*3.7));sp.push(sl.x+Math.cos(a)*r,.05+sl.s*(1.4*u-1.6*u*u)*(.5+.5*Math.sin(k*1.9)),sl.z+Math.sin(a)*r,.12+.35*sl.s*u);sc.push(.94,.97,.98,.75*(1-u));}}
+      // Chute mist over the bigger creek steps.
+      for(const mc of chuteMist){if(Math.abs(mc.x-eye[0])>45||Math.abs(mc.z-eye[2])>45)continue;for(let k=0;k<5;k++){const age=(time*.5+k*.2+mc.x*.37)%1,j=Math.sin(k*12.9+mc.z);sp.push(mc.x+j*.3,mc.y+.1+age*(.5+.4*mc.drop),mc.z+Math.cos(k*7.1)*.3,.25+age*(.6+.3*mc.drop));sc.push(.88,.93,.95,.16*(1-age)*Math.min(1,age*5));}}
       // Waterfall mist: large, faint parcels drifting downstream and rising.
       for(let i=0;i<24;i++){const age=(time*.055+i*.618034)%1,side=Math.sin(i*12.9898)*.5,x=-65.768+mistDir[0]*age*6.5-mistDir[1]*side*age*2.4,z=-47.768+mistDir[1]*age*6.5+mistDir[0]*side*age*2.4,y=poolNow[1]+.25+age*(1.6+.8*Math.sin(i*3.1));sp.push(x,y,z,.9+age*2.8);sc.push(.88,.93,.95,.17*(1-age)*Math.min(1,age*6));}
       // Breaker spray thrown off the lip where the CPU twin of the surf phase says it is breaking.
@@ -3717,7 +4178,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
         sound: { enabled: !!audio.ctx, muted: audio.muted, events: audio.events },
         weather: { on:weather.on, blend:weather.blend, rain:weather.rainCount, ringlets:{active:weather.blend>.015?rainRingField.length/96:0,capacity:rainRingField.length/96}, lightning:weather.lightning, strikes:weather.strikes, thunder:weather.thunder, lastStrike:weather.lastStrike && {...weather.lastStrike}, nextStrike:weather.nextStrike },
         effects: { tracks: tracks.length, grains: grains.length, ripples: ripples.length, splashes: splashCount },
-        landmarks: { falls: fallsPath.length, lava: lavaPath.length, stream: { spring:streamNodes[0].slice(), lip:lip.slice(), pool:pool.slice(), mouth:riverNodes[riverNodes.length-1].slice(), upperMetres:streamLengths[streamLengths.length-1], lowerMetres:riverLengths[riverLengths.length-1], bankCobbles:riverBankCobbles } },
+        landmarks: { falls: fallsPath.length, lava: lavaPath.length, stream: { spring:streamNodes[0].slice(), lip:lip.slice(), pool:pool.slice(), mouth:riverNodes[riverNodes.length-1].slice(), upperMetres:streamLengths[streamLengths.length-1], lowerMetres:riverLengths[riverLengths.length-1], bankCobbles:riverBankCobbles, ...streamStats } },
         view,
         a,
         e,
@@ -3730,7 +4191,7 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
         boulderCount,
         atlasAlpha,
         grassTufts,
-        generationMs: RENDER.generationMs, scree: screeCount, seaRocks: seaRockCount, plants: plantCounts, canopyFillers: canopyFillers.length, vegetationTris: Math.round(vegetation.n / 3), life: { ...lifeStats, hidden: crabs.filter((c) => c.state === 2).length, fleeing: crabs.filter((c) => c.state === 1).length },
+        generationMs: RENDER.generationMs, scree: screeCount, seaRocks: seaRockCount, sea: seaStats, plants: plantCounts, canopyFillers: canopyFillers.length, vegetationTris: Math.round(vegetation.n / 3), life: { ...lifeStats, hidden: crabs.filter((c) => c.state === 2).length, fleeing: crabs.filter((c) => c.state === 1).length },
         erosion: { ms: ERO.ms, minDelta: ERO.delta.reduce((a, b) => Math.min(a, b), 0), maxDelta: ERO.delta.reduce((a, b) => Math.max(a, b), 0), grid: [HGX, HGZ] },
         render: { ...RENDER, post: undefined, width: targets && targets.w, height: targets && targets.h },
       }),
@@ -3747,7 +4208,11 @@ void main(){vec3 N=normalize(normal);if(!gl_FrontFacing)N=-N;vec3 V=normalize(ey
       lookAtBird: (k = 0) => { lifeFreeze = performance.now() * .001; buildLife(lifeFreeze, [player.x, 0, player.z]); const b = k ? lifeStats.tern : lifeStats.frigate, l = Math.hypot(b[0], b[2]) || 1, ux = b[0] / l, uz = b[2] / l; let ex = ux * 60, ez = uz * 60; for (let r = 60; r < 175; r += 1.5) { const sd = shoreline(ux * r, uz * r); if (sd.d < -3) { ex = ux * r; ez = uz * r; break; } } player.x = ex; player.z = ez; setWalk(); const ey = Math.max(gridHeight(ex, ez), 0) + 1.63; player.yaw = Math.atan2(b[0] - ex, -(b[2] - ez)); player.pitch = Math.min(1.1, Math.atan2(b[1] - ey, Math.hypot(b[0] - ex, b[2] - ez))); },
       aimAtBird: (k = 0) => { const b = k ? lifeStats.tern : lifeStats.frigate, e = RENDER.cam ? RENDER.cam.eye : [player.x, 1.6, player.z]; player.yaw = Math.atan2(b[0] - e[0], -(b[2] - e[2])); player.pitch = Math.min(1.1, Math.atan2(b[1] - e[1], Math.hypot(b[0] - e[0], b[2] - e[2]))); },
       holdCrabs: (on = true) => { crabHold = !!on; },
+      seaLife: () => ({ ...seaStats, schools: schools.map((q) => ({ kind: seaKinds[q.kind].name, x: +q.tx.toFixed(1), z: +q.tz.toFixed(1), n: q.fish.length })), animals: animals.map((a) => ({ kind: seaKinds[a.kind].name, x: +a.p[0].toFixed(1), y: +a.p[1].toFixed(2), z: +a.p[2].toFixed(1) })), dolphins: pod.members.map((d) => [+d.p[0].toFixed(1), +d.p[1].toFixed(2), +d.p[2].toFixed(1)]) }),
+      lookAtSea: (kind, dist = 4, az = 2.1) => { const t = seaTarget(kind); if (!t) return false; player.x = t[0] + Math.cos(az) * dist; player.z = t[2] + Math.sin(az) * dist; setWalk(); return true; },
+      aimAtSea: (kind) => { const t = seaTarget(kind), e = RENDER.cam ? RENDER.cam.eye : [player.x, 1.6, player.z]; if (!t) return; player.yaw = Math.atan2(t[0] - e[0], -(t[2] - e[2])); player.pitch = Math.max(-1.1, Math.min(1.1, Math.atan2(t[1] - e[1], Math.hypot(t[0] - e[0], t[2] - e[2])))); },
       groundAt: (x, z) => gridHeight(x, z),
+      creekProfile: () => { const out = []; for (let i = 0; i < streamNodes.length; i++) { const [x, z] = streamNodes[i]; out.push([+x.toFixed(2), +z.toFixed(2), +streamLengths[i].toFixed(2), +streamLevels[i].toFixed(2), +gridHeight(x, z).toFixed(2), +H(x, z).toFixed(2), +baseHeight(x, z).toFixed(2)]); } return out; },
       releaseLife: () => { lifeFreeze = null; },
       orbit: (az, el, dist, target) => { setView(0); a = az; e = el; d = dist; if (target) T = target.slice(); },
       testSpawn: (x, z) => {
