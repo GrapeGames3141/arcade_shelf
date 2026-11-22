@@ -171,7 +171,7 @@
     <ul>
       <li><b>Gather</b> food, wood, stone and gold with your people. Build dwellings to grow the clan.</li>
       <li><b>Changed your mind?</b> Esc or right-click stops placing a building. Select a building that is still going up and press <b>Cancel</b> (or Delete) to get its resources back.</li>
-      <li><b>Every dawn</b> your people eat. Run out of food and they starve. Fields freeze in <b>winter</b>.</li>
+      <li><b>Every dawn</b> your people eat. Run out of food and they starve. Plant <b>fields</b> early: they never run out, and in <b>winter</b> they only grow slowly.</li>
       <li><b>At night</b> wolves hunt anyone outside the firelight. Build braziers and lookouts, or ring the bell to shelter in the Hearth Hall. Every fifth night is a <b>Blood Moon</b>.</li>
       <li><b>Advance</b> from the Ember Age (cavemen) through the Kiln Age to the Forge Age, unlocking bowhunters, outriders and stonehurlers.</li>
       <li><b>Win</b> by burning the rival Hearth Hall. Lose yours and it is over.</li>
@@ -237,9 +237,10 @@ const ERA_NAMES = ['Ember Age', 'Kiln Age', 'Forge Age'];
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const DAY_LEN = 150;           // seconds per day
 const NIGHT_AT = .76, DAWN_END = .05; // about 105 s of daylight and 44 s of night
-const UPKEEP = 4;              // food per head at dawn
+const UPKEEP = 3;              // food per head at dawn
+const WINTER_FIELDS = .35;     // fields keep growing in winter, just slowly
 const CARRY = 10;
-const RATE = { tree: 1.25, berry: 1.35, carcass: 1.9, farm: 1.02, stone: 1.05, gold: 1.02 };
+const RATE = { tree: 1.25, berry: 1.35, carcass: 1.9, farm: 1.18, stone: 1.05, gold: 1.02 };
 const DIFF = [
   { name: 'Easy', gm: .78, firstAtk: 520, every: 190, wave: [3, 5, 6, 8, 10, 12], vill: [12, 16, 20], start: 0 },
   { name: 'Normal', gm: 1.0, firstAtk: 360, every: 160, wave: [4, 6, 9, 12, 15, 18], vill: [14, 22, 28], start: 50 },
@@ -270,7 +271,7 @@ const BLD = {
   barracks: { name: 'War Lodge', w: 3, h: 3, hp: 950, cost: { wood: 150 }, time: 18, trains: ['warrior'], light: 3, sight: 5, desc: 'Trains foot soldiers.' },
   brazier: { name: 'Brazier', w: 1, h: 1, hp: 160, cost: { wood: 20, stone: 10 }, time: 5, light: 5.6, sight: 5, desc: 'Firelight. Wolves will not hunt inside it, except under a Blood Moon.' },
   wall: { name: 'Stake Fence', names: ['Stake Fence', 'Rampart', 'Curtain Wall'], w: 1, h: 1, hp: [260, 480, 720], cost: { wood: 4 }, time: 2.5, sight: 2, wall: 1, desc: 'Blocks raiders. Drag to lay a line. Grows stronger each era.' },
-  farm: { name: 'Field', era: 1, w: 3, h: 3, hp: 140, cost: { wood: 60 }, time: 9, sight: 2, farm: 1, desc: 'Endless food, but nothing grows in winter.' },
+  farm: { name: 'Field', w: 3, h: 3, hp: 140, cost: { wood: 50 }, time: 9, sight: 2, farm: 1, desc: 'Endless food. Grows slowly in winter.' },
   tower: { name: 'Lookout', era: 1, w: 2, h: 2, hp: 950, cost: { wood: 80, stone: 100 }, time: 22, rng: 215, atk: 6, cd: 1.5, light: 5, sight: 10, desc: 'Shoots arrows and lights the night.' },
   range: { name: 'Bow Yard', era: 1, w: 3, h: 3, hp: 950, cost: { wood: 150 }, time: 18, trains: ['archer'], light: 3, sight: 5, desc: 'Trains bowhunters.' },
   smith: { name: 'Smithy', era: 1, w: 3, h: 3, hp: 950, cost: { wood: 140 }, time: 18, techs: ['forge', 'scale', 'cast', 'chain'], light: 3.4, sight: 5, desc: 'Weapon and armor upgrades.' },
@@ -419,7 +420,7 @@ function placeClusterPair(kind, cx, cy, n, spread) {
 // Resources
 // ---------------------------------------------------------------------------
 const RES_KIND = {
-  tree: { give: 'wood', amt: 110, block: 1 }, berry: { give: 'food', amt: 125, block: 1 },
+  tree: { give: 'wood', amt: 110, block: 1 }, berry: { give: 'food', amt: 175, block: 1 },
   stone: { give: 'stone', amt: 320, block: 1 }, gold: { give: 'gold', amt: 320, block: 1 }, carcass: { give: 'food', amt: 150, block: 0 },
 };
 function addRes(kind, tx, ty, px, py) {
@@ -957,7 +958,6 @@ function gather(u, dt) {
   let r = getE(u.tgt);
   if (!r || r.dead || (r.ent === 'b' && (r.team !== u.team || !r.done)) || r.ent === 'u') {
     r = u.gkind ? findRes(u.team, u.gkind, u.x, u.y, 11 * T, u) : null;
-    if (r && r.ent === 'b' && G.winter && u.job) r = null;
     if (!r && u.job && u.carry <= 0 && assignJob(u, u.job)) return;
     if (!r) { if (u.carry > 0) orderDeliver(u); else { const j = u.job; stopUnit(u); u.job = j; u.task = 'Idle — nothing left nearby'; } return; }
     u.tgt = r.id; u.gkind = r.ent === 'b' ? 'farm' : r.kind; goNear(u, r);
@@ -975,7 +975,7 @@ function gather(u, dt) {
   const tm = G.teams[u.team];
   let rate = RATE[isFarm ? 'farm' : r.kind] * tm.gm[isFarm ? 'farm' : give] * (u.team === 1 ? DIFF[G.diff].gm : 1);
   u.task = KIND_LABEL[isFarm ? 'farm' : r.kind];
-  if (isFarm && G.winter) { rate = 0; u.task = 'Fields frozen — waiting for spring'; if (u.job && (G.tick + u.id) % 60 === 0) { const c = u.carry; if (assignJob(u, u.job)) { u.carry = c; return; } } }
+  if (isFarm && G.winter) { rate *= WINTER_FIELDS; u.task = 'Farming · slow in the cold'; }
   if (r.kind === 'berry' && G.winter) rate *= .5;
   if (!isFarm) u.face = r.x < u.x ? -1 : 1;
   if (rate <= 0) return;
@@ -1058,7 +1058,7 @@ function bestSpot(u, kind, load, claims) {
     if (sc < bs) { bs = sc; best = e; }
   };
   if (kind === 'food') {
-    if (!G.winter) for (const b of G.blds) if (b.team === team && b.done && BLD[b.type].farm) consider(b, 1, -T);
+    for (const b of G.blds) if (b.team === team && b.done && BLD[b.type].farm) consider(b, 1, G.winter ? T * 2 : -T);
     for (const r of G.res) if (!r.dead && (r.kind === 'carcass' || r.kind === 'berry')) consider(r, r.kind === 'carcass' ? 4 : 2, r.kind === 'carcass' ? -2 * T : G.winter ? 3 * T : 0);
     for (const d of G.units) if (d.type === 'deer' && !d.dead && (team !== 0 || visAt(d.x, d.y))) consider(d, 2, 3 * T);
   } else {
@@ -1391,8 +1391,8 @@ function dawn() {
     if (Math.abs(u.x - ex) < Math.abs(u.y - ey)) goTo(u, clamp(ex, T / 2, WPX - T / 2), u.y); else goTo(u, u.x, clamp(ey, T / 2, WPX - T / 2));
   }
   const s = SEASONS[G.season];
-  banner(`Day ${G.day}`, G.winter ? 'Winter · the fields are frozen' : G.season === 0 ? 'Spring · the fields thaw' : s);
-  if (G.winter) alertMsg('Winter: fields will not grow and frost bites anyone outside firelight at night.', 'night');
+  banner(`Day ${G.day}`, G.winter ? 'Winter · fields grow slowly' : G.season === 0 ? 'Spring · the fields thaw' : s);
+  if (G.winter) alertMsg('Winter: fields grow slowly and frost bites anyone outside firelight at night. Stock up on food!', 'night');
   if (G.day % 5 === 4) alertMsg('The moon is swelling. Tomorrow night is a Blood Moon.', 'night');
   G.uiDirty = true;
 }
@@ -1566,7 +1566,6 @@ function aiAssign(tm, vills, tc, foodLow) {
   const count = { food: 0, wood: 0, stone: 0, gold: 0 }, byKind = { food: [], wood: [], stone: [], gold: [] };
   const idle = [];
   for (const v of vills) {
-    if (v.st === 'gather' && v.gkind === 'farm' && G.winter) { stopUnit(v); idle.push(v); continue; }
     if (v.st === 'gather' || v.st === 'deliver') { const k = RES_OF[v.gkind] || 'food'; count[k]++; byKind[k].push(v); }
     else if (v.st === 'attack' && v.tgt && getE(v.tgt)?.type === 'deer') count.food++;
     else if (v.st === 'idle') idle.push(v);
@@ -1583,7 +1582,7 @@ function aiAssign(tm, vills, tc, foodLow) {
     for (const k of order) {
       if (frac[k] <= 0) continue;
       if (k === 'food') {
-        if (!G.winter) { const f = findRes(me, 'farm', v.x, v.y, 30 * T); if (f) { orderGather(v, f); done = true; } }
+        { const f = findRes(me, 'farm', v.x, v.y, 30 * T); if (f) { orderGather(v, f); done = true; } }
         if (!done) { const c = findRes(me, 'carcass', tc.x, tc.y, 22 * T); if (c && c.kind === 'carcass') { orderGather(v, c); done = true; } }
         if (!done) { let deer = null, dd = 20 * T; for (const u of G.units) if (u.type === 'deer' && !u.dead) { const d = dist(u.x, u.y, tc.x, tc.y); if (d < dd) { dd = d; deer = u; } } if (deer) { orderAttack(v, deer); done = true; } }
         if (!done) { const r = findRes(me, 'berry', tc.x, tc.y, 24 * T); if (r) { orderGather(v, r); done = true; } }
