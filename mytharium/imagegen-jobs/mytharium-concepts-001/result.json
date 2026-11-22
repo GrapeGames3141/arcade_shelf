@@ -1,0 +1,46 @@
+{
+  "job_id": "mytharium-concepts-001",
+  "status": "complete",
+  "output_files": [
+    {
+      "filename": "mytharium_scene_day.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_scene_day.png",
+      "size_bytes": 3242287,
+      "sha256": "9528DF1D04D8125E9FF2C28FBCF6149A4038F8EF3DE6E1CB1A79AA6926232120"
+    },
+    {
+      "filename": "mytharium_scene_night.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_scene_night.png",
+      "size_bytes": 2607325,
+      "sha256": "956A9D35B171711D2CF351FDC8D9A1DF21A271B9D85113C95B7CB48AD0377472"
+    },
+    {
+      "filename": "mytharium_unicorn.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_unicorn.png",
+      "size_bytes": 2457101,
+      "sha256": "88DEAC9CA5506B3015AD69B625A7620E7EBAC30E526C6FF373E262453F73B059"
+    },
+    {
+      "filename": "mytharium_faerie.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_faerie.png",
+      "size_bytes": 2274337,
+      "sha256": "FB3A0BE4060F95BDBF24541656FF8432E0E8F51A94C4924354F4953D0D72D609"
+    },
+    {
+      "filename": "mytharium_mermaid.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_mermaid.png",
+      "size_bytes": 2363998,
+      "sha256": "8B7E3D55A4D7FB90FFDF45C384E41B29B587FB9EF214E0A8BAC4C845B013FB66"
+    },
+    {
+      "filename": "mytharium_dragon.png",
+      "path": "E:\\html games\\mytharium\\concepts\\mytharium_dragon.png",
+      "size_bytes": 2310376,
+      "sha256": "55D539A33E44EAE3311C73AD78742DBA554F476760AB11E9C2300B6779AF9F95"
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "The mermaid close-up has no unmistakable scale cue, so its requested 10 cm size may not read clearly."
+  ]
+}

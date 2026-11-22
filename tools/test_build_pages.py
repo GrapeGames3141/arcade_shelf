@@ -146,4 +146,19 @@ class PagesTests(unittest.TestCase):
         self.assertFalse((out / 'saltaquarium' / 'parts').exists())
         self.assertFalse((out / 'saltaquarium' / 'test').exists())
 
+    def test_mytharium_authoring_dirs_are_not_packaged(self):
+        game = self.root / 'mytharium'
+        for name in ('parts', 'test', 'concepts', 'imagegen-jobs'):
+            (game / name).mkdir(parents=True, exist_ok=True)
+        (game / 'mytharium.html').write_text('<!doctype html><title>Mytharium</title>', encoding='utf-8')
+        (game / 'game.json').write_text(json.dumps({'title': 'Mytharium', 'category': 'Creative'}), encoding='utf-8')
+        (game / 'parts' / 'author.js').write_text('throw new Error()', encoding='utf-8')
+        (game / 'test' / 'shot.js').write_text('throw new Error()', encoding='utf-8')
+        (game / 'concepts' / 'target.png').write_bytes(b'not-a-runtime-image')
+        (game / 'imagegen-jobs' / 'request.json').write_text('{}', encoding='utf-8')
+        out = builder.build(self.root)
+        self.assertTrue((out / 'mytharium' / 'mytharium.html').exists())
+        for name in ('parts', 'test', 'concepts', 'imagegen-jobs'):
+            self.assertFalse((out / 'mytharium' / name).exists())
+
 if __name__ == '__main__': unittest.main()

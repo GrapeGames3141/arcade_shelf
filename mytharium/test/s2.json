@@ -1,0 +1,7 @@
+[{"step":3},
+ {"eval":"const c=A.get(1);A.cam({target:[c.pos[0],c.pos[1]+4,c.pos[2]],yaw:0.5,pitch:0.15,dist:22});return c.state"},{"shot":"unicorn"},
+ {"eval":"const c=A.get(8);A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:0.6,pitch:0.25,dist:16});return c.state"},{"shot":"dragon"},
+ {"eval":"const c=A.get(7);A.cam({target:[c.pos[0],c.pos[1]+1,c.pos[2]],yaw:0.3,pitch:0.45,dist:20});return [c.state,c.pos]"},{"shot":"mermaid"},
+ {"eval":"const c=A.get(4);A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:0.2,pitch:0.1,dist:9});return [c.state,c.pos]"},{"shot":"faerie"},
+ {"eval":"const c=A.get(9);A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:0.4,pitch:0.12,dist:12});return [c.state,c.pos]"},{"shot":"gnome"}
+]

@@ -1,0 +1,5 @@
+[{"step":2},{"shot":"front"},
+ {"eval":"const c=A.get(1);c.yaw=0.4;A.setState(1,'graze',60);A.step(1);A.cam({target:[c.pos[0],c.pos[1]+5,c.pos[2]],yaw:1.45,pitch:.08,dist:21});return c.state"},{"shot":"unicorn"},
+ {"eval":"const c=A.get(4);c.pos=[2,24,16];A.setState(4,'hover',30);A.step(.5);A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:-0.3,pitch:.05,dist:7.5});return 1"},{"shot":"faerie"},
+ {"eval":"const c=A.get(8);c.pos=[-40,A._eval('topH(-40,-10)'),-10];A.setState(8,'bask',60);A.step(2);A.cam({target:[c.pos[0],c.pos[1]+1.5,c.pos[2]],yaw:.5,pitch:.3,dist:14});return 1"},{"shot":"dragon"},
+ {"eval":"A.time('night');A.step(6);A.cam({target:[0,24,0],yaw:0,pitch:.08,dist:150});return 1"},{"shot":"night"}]

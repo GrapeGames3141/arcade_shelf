@@ -1,0 +1,2 @@
+[{"step":3},{"eval":"const c=A.get(8);A.cam({target:[c.pos[0],c.pos[1]+2,c.pos[2]],yaw:0.6,pitch:0.25,dist:16});return A._eval('JSON.stringify(critColors(crits.find(c=>c.sp===\"dragon\")))')"},{"shot":"dragon"},
+{"eval":"return A._eval('const P=PR.skin;JSON.stringify(Object.keys(P.u))')"}]

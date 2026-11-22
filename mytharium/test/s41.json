@@ -1,0 +1,6 @@
+[{"eval":"document.getElementById('ui').style.display='none';A.time('day');const id=A.studio('mermaid','idle');const c=A.get(id);c.yaw=0;A.step(.3);const h=c.headP;A.cam({target:[h[0],h[1]-1.6,h[2]],yaw:1.2,pitch:.05,dist:9});return 1"},{"shot":"me-torso"},
+ {"eval":"const c=A._eval('STUDIO.c');A.cam({target:[0,c.pos[1]-2,0],yaw:1.0,pitch:.05,dist:7});return 1"},{"shot":"me-scales"},
+ {"eval":"A.studio('mermaid','comb');A.step(.3);const c=A._eval('STUDIO.c');const h=c.headP;A.cam({target:[h[0],h[1]-1.3,h[2]],yaw:1.3,pitch:.1,dist:9});return 1"},{"shot":"me-comb"},
+ {"eval":"const id=A.studio('faerie','stand');const c=A.get(id);c.yaw=0;A.step(.3);const h=c.headP;A.cam({target:[h[0],h[1]-.7,h[2]],yaw:1.2,pitch:.05,dist:4.2});return 1"},{"shot":"fa-torso"},
+ {"eval":"const id=A.studio('dragon','idle');const c=A.get(id);c.yaw=0;A.step(.3);A.cam({target:[1.5,16.2,0],yaw:.5,pitch:.15,dist:9});return 1"},{"shot":"dr-body"},
+ {"eval":"const h=A._eval('STUDIO.c').headP;A.cam({target:h,yaw:1.0,pitch:.1,dist:5});return 1"},{"shot":"dr-head"}]

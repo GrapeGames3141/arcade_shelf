@@ -1,0 +1,2 @@
+[{"step":2},{"shot":"front"},{"eval":"A.view('left');return 1"},{"shot":"left"},{"eval":"A.view('falls');return 1"},{"shot":"falls"},
+ {"eval":"A.view('window');return A.state().errs"},{"shot":"window"}]

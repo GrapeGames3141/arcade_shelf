@@ -12,6 +12,12 @@ EXCLUDED = {"work", "tools", "tests", "assets", "experiments", "design-review", 
 SKIP_DIRS = EXCLUDED | {".git", "__pycache__", "source", "sources", "research"}
 EXTENSIONS = {".html", ".htm", ".js", ".mjs", ".css", ".json", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".avif", ".ico", ".mp3", ".ogg", ".wav", ".mp4", ".webm", ".woff", ".woff2", ".ttf", ".otf", ".wasm", ".glb", ".gltf", ".bin"}
 CURATED = {"prism-swarm": "prism", "appalachian-eagle": "eagle", "splat": "splat", "ashgrove": "ashgrove", "castle-defense": "castle", "broadside": "broadside", "splatcraft": "splatcraft", "dustdevil": "dustdevil", "merlin": "merlin"}
+SOURCE_ONLY_DIRS = {
+    "saltaquarium": {"parts", "test"},
+    "cartastrophe": {"parts", "test"},
+    "lawnchairaces": {"parts", "test"},
+    "mytharium": {"parts", "test", "concepts", "imagegen-jobs"},
+}
 PROMOTED_EXPERIMENTS = (
     Path("experiments/Astra-demo/Astra-demo.html"),
     Path("experiments/demo/demo.html"),
@@ -91,7 +97,7 @@ def runtime_files(folder):
     for path in sorted(folder.rglob("*")):
         rel = path.relative_to(folder)
         if any(part.startswith(".") or part.lower() in SKIP_DIRS for part in rel.parts): continue
-        if folder.name in {"saltaquarium", "cartastrophe", "lawnchairaces"} and any(part.lower() in {"parts", "test"} for part in rel.parts): continue
+        if any(part.lower() in SOURCE_ONLY_DIRS.get(folder.name, set()) for part in rel.parts): continue
         if path.is_symlink() or not path.is_file(): continue
         if path.suffix.lower() in EXTENSIONS and path.name.lower() != "game.json": yield path
 

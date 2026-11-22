@@ -120,7 +120,7 @@
     }
     if (event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey) return;
     const escape = event.key === 'Escape';
-    const pause = (event.code === 'KeyP' && game !== 'tricktype') || event.code === 'Backquote' || event.key === 'Pause';
+    const pause = (event.code === 'KeyP' && game !== 'tricktype' && game !== 'mytharium') || event.code === 'Backquote' || event.key === 'Pause';
     const eagleSpace = game === 'appalachian-eagle' && event.code === 'Space' && document.body && document.body.classList.contains('play') && !editing(event.target);
     if (escape || (pause && !editing(event.target)) || eagleSpace) hide(event);
   }, true);

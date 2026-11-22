@@ -1,0 +1,9 @@
+[{"step":2},{"eval":"A.sheet('care');return 1"},{"shot":"care"},
+ {"eval":"A.sheet('feed');return 1"},{"shot":"feed"},
+ {"eval":"A.sheet('build');return 1"},{"shot":"build"},
+ {"eval":"A._eval('buildTab=\"terrain\";renderSheet()');return 1"},{"shot":"terrain"},
+ {"eval":"A.sheet('creatures');return 1"},{"shot":"creatures"},
+ {"eval":"A.sheet('settings');return 1"},{"shot":"settings"},
+ {"eval":"A._eval('closeSheet()');A.select(1);A.cam({target:A.get(1).pos.map((v,i)=>i==1?v+4:v),dist:30,pitch:.2,yaw:.4});return 1"},{"shot":"select"},
+ {"eval":"A._eval('selectThing(null)');A.step(60);return A.journal()"},{"shot":"journal"},
+ {"eval":"A.journal();A.photo(true);return 1"},{"shot":"photo"}]
