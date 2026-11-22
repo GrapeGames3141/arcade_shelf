@@ -374,8 +374,48 @@ function unlockSpeech() {
   if (!SPEECH || speechTries++ > 0) return;
   try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; SPEECH.speak(u); } catch (e) { /* ignore */ }
 }
+// Recorded voice: every line the game says has an MP3 in voice/, named by a hash of its text.
+const CLIPS = new Set('0014d8e1 003df855 01b22e8f 01d047e3 02026734 021ccb13 02377d59 026d9efb 0318b655 033f5c7f 03b23d21 04071e88 04b54cf9 05f9b7cc 0609d26f 06dfc2ed 06ee4fd0 070b6d91 07418020 0761e99d 0765f997 076b1018 0798fd37 0859e773 0907fa18 0a993f79 0b2f1b83 0c4af9ab 0c5badf7 0c64f6fd 0c7b9b13 0dfe1533 0e11f833 0eb50d59 0f16dbcb 0f72c4d3 0fbaccb9 102930ef 116e1b6f 1172626c 11956517 12751f81 12ea53ad 12f27b33 12ffdff0 130602eb 1382287a 14554c04 156debef 1572e11a 164d05d5 16e9feab 17053b60 17417e6f 17a34123 18d475fb 19059d3a 196557d5 19c67ffb 1a172d15 1bf8a0ce 1c062fe2 1ca10643 1cf20c09 1e0c4ce4 1e98e767 1eef9413 1f3bb83b 1fd34a3b 1ffc3af4 21a736b7 2282f886 23bc4773 241dac2a 247867ed 24cd4558 254da740 256de19b 257307dd 25b13cc3 261a3924 262f6e95 26b1a674 26dda9cb 27fcedef 298c85b1 2ac29443 2b6978de 2b7f2819 2bb93c2e 2c0df7c1 2d18715c 2d1dd4d8 2d2d6811 2d6259a2 2e14930b 2e53f1be 2e8cbb5b 2ec8142c 2f706055 304eb39f 308449eb 30d256c2 31020edc 3103f38e 310870bc 31bbdfc3 34801a63 3549635b 355d601b 35977629 35c7828a 361a1584 362f1018 36f194d8 3739bf24 37b3bfbb 38078932 381a575f 38351db3 38c30b43 3929c5c0 3964af73 3977cede 3997297b 39acb812 39d9b44b 3b1a5c18 3b6a8a8f 3be746ab 3d1fafcf 3d7a30d5 3d7c524a 3d9181ab 3dc4a317 3e546987 3e84d56f 3f504af0 4015acdd 40748ee6 41237be1 41664a13 41870d3f 41a7ca33 423d1ed9 4251e28f 42bfb889 42eec365 43210aac 4324f60c 43387dc4 43afe849 43b7c87b 43c7d218 44aab2d5 451a6bd6 4529eaf6 453f5eb0 45ce73f7 45df38c9 45e42605 4627f4c1 463ac9c9 46614e73 46bdcce6 48403c14 49457872 49b19ceb 49b4c54b 4aef8e09 4bde5426 4c1d8da9 4c830377 4c8c259d 4ce8f83e 4cf0b996 4d2aef82 4defdeab 4e111b75 4e174f5f 4ec9f8aa 4f5792f4 4f8dde3f 5024b9ab 50b8d09c 511e6b7c 51eb9a8c 524da6c3 526ca2d9 52845055 52b87e74 53167121 532e5dd0 537ec477 542510cf 549219b6 5521edc7 55727a72 558b5deb 55ad201f 563d18db 572365dd 577397ef 57e0e29f 583281bc 583421a5 588b68a7 593cc03f 59683331 5a23ed6b 5a251a41 5a3424cb 5a366362 5a45337b 5a66225f 5b4330e8 5b669524 5c769ad6 5d251efa 5d299ae4 5d342984 5d3d9025 5d4754e3 5dac07dc 5dd62d9d 5e10a6bd 608423df 60a67e57 60ec40cb 6179beff 618a10ac 619494a8 619b88c7 62343163 62fe6420 64844c3a 64d7d850 6518813b 6567964f 65810132 67343942 678de671 6799dd41 67f3171b 6887360d 689b2ca5 690e10c3 691b5d03 6950995f 69ccdde3 69ebaf4a 6a44fd9c 6a51ba66 6b3efd82 6b755810 6bd66885 6cacacf5 6cbb42a1 6d712467 6e7f0181 6ee8dcdd 6f0883da 6fc3ebb8 70139bc9 702812ab 7082f965 7089dc3d 7097d154 709ea781 70b48934 7177e8bb 71bdde7a 720cfbb9 72318572 7245e577 72c486d6 72f6c5ac 739859dd 74902d59 74c6725f 74d1876a 74d58f08 759df3cd 7601e293 760df336 76c24713 7706a053 779e33b6 781afd07 781caba3 786e73f7 79cc9f3d 7a6c2f13 7a9223ad 7ac3a9df 7b379a35 7b8d3607 7bea6a67 7c7928ad 7ce9b477 7ceb8a70 7cf265a5 7da72dc5 7dd657a1 7ecd083f 7eef92f7 7f7e3d59 8029cd87 8227dc77 82810ba5 83210b36 83384396 83dfd75b 84547e2e 847700ab 849fea82 84a653d2 85496269 85dd3e15 8613975e 8669e2ab 86765173 8766c409 87e91456 888b59d3 88c2a63f 89cff6b1 8a2085df 8a577a5c 8acd8c03 8ae52330 8aeb264d 8b18a697 8b2546c4 8b4f58ad 8ba8ed1a 8bd3b9d6 8bd65a15 8bf3088f 8bf796af 8c275047 8d7fb67f 8e58129c 8edd1b22 8f75b2df 8f84329d 8fc900e7 90989259 912ff4f2 9165053b 919f98f7 91a6bbab 91dd8fe3 926ea5eb 92f7ec51 936e93fc 939fb1d3 93b914ea 9441fc61 958a610f 958bb900 9642e823 966fc1cf 96841ee6 96faae61 978c0447 97c462c4 98579a94 98db61fd 990e0ee5 9b28ce3e 9b9e48ee 9bb1ee71 9c91fb93 9ca6545d 9d08e57c 9db0c067 9dc15928 9df3f213 9e4ff201 9e9b36ce 9f55c469 9f6fef4a a0729888 a16dca4b a1af1fc1 a264d224 a29d7f03 a2a24ff3 a2d7651b a2efd76a a346e4e7 a4edda38 a5dca773 a5e7df1c a7b0389d a8ed41d5 a9451610 a94f979b a977ed38 aa4a127d aa99bf79 aadb7b84 ab4329dd ab7a3943 aba5d1f3 acc7d817 ad362b99 ad7905cb ad8b6902 ae0abc0d ae4f63b4 ae4f7d97 aee0302a af227a27 b18193f6 b215474b b25d4311 b2bb8ec0 b2c050ef b2d49f2c b2dc388f b33c3be7 b3a3941e b4bd4fcb b5ba067a b5c80fc2 b6242004 b6ad67a8 b6f8b857 b7394aa3 b766d68b b7d9ada7 b7f106c5 b835b8bf b88e6bfd b910f525 b9b48c29 ba893946 bc070513 bc0f3d5b bc374043 bcfdd94c bd9a4a29 be44fd8c bea256d2 bf244b4d c04aade3 c13a5b3a c14e0a57 c168bf54 c16efd37 c22d9429 c24f60c3 c33f0730 c3c4a743 c4fb5731 c54bfb19 c54ebfac c5664d5b c67dbbd9 c6fa17cc c7445b11 c7590a98 c78ffe11 c79b6d85 c7f960d3 c818b961 c86a5b0b c927fdc9 c94bfa57 c9d3e2a1 cb11994d cbb62b61 cc0b92bf cc47aaaf cc60b772 cc70db12 cca2a0c3 ccfcd279 d0fd6566 d139b4c3 d2867389 d2c1f3b7 d443b27c d470f197 d52772aa d5892797 d6708ecf d6e45b63 d823c015 d8fb8713 d9454334 d9e71f8b da0c7d57 da27b5f6 da60d4cb dabab53d dad729b3 dae70fe5 dbbc27d0 dc12e2f3 dc47faa1 dceaef30 dd010c5f dd2e5f6b ddb5f239 de216645 de8741db de9c7279 dea19a67 dee48825 df8217c3 e141d697 e159f52d e15a920d e1770914 e1c535b7 e1f28ea3 e334d0e4 e33de45b e34a3253 e42df202 e48b34cb e50ab063 e52f4ba4 e55233dc e611572a e69218c6 e74676eb e7544fbe e7e17f92 e860c672 e87d7b4b e88e41eb e941d6df e9f041b5 ea218c9d ea75303b eac8a1c2 eb3117ee eb7c44a1 ec3f81e1 ecb055f3 ed001c7a ed8fb596 ed9b5731 ee8d74aa eeb536cd eed6f073 eee6565d ef55b5ec ef84f3cd ef96f4cb efb88c0b f04a96d5 f0ba4530 f0c3408b f194a8a6 f1fcde0b f22ede1c f236aa95 f2bbd14a f304613f f3412176 f36ef71b f407279f f4075d9b f44448a7 f46d246b f4d897bc f4e278dd f50c0832 f510db8b f5256a53 f55a3dad f5691eb2 f65a3ff5 f66552a9 f680616c f682e3bf f6a3905a f6f4903c f7e81644 f8515e23 f8bbd5ae f942a8de f99461a7 fa7f8a33 fb752fc7 fc9f5623 fccbe11f fcf51f83 fd6b424b fd864c2e fe9167ed feddfb48 fee48ee9 ff8dfa4c ffafdc13 ffcc0ae3'.split(' ').filter(Boolean));
+const clipKey = t => { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, '0'); };
+const CLIP_CACHE = new Map();
+let VG = null, VSRC = null, voiceToken = 0;
+window.VOICE_LOG = [];
+function clipBuffer(key) {
+  if (CLIP_CACHE.has(key)) return CLIP_CACHE.get(key);
+  const pr = fetch('voice/' + key + '.mp3').then(r => { if (!r.ok) throw new Error('missing'); return r.arrayBuffer(); })
+    .then(b => new Promise((res, rej) => AC.decodeAudioData(b, res, rej)));
+  CLIP_CACHE.set(key, pr); pr.catch(() => CLIP_CACHE.delete(key));
+  return pr;
+}
+function preload(texts) { if (!AC || TEST) return; for (const t of texts) { const k = clipKey(t.trim()); if (CLIPS.has(k)) clipBuffer(k).catch(() => {}); } }
+function stopVoice() {
+  voiceToken++;
+  if (VSRC) { VSRC.onended = null; try { VSRC.stop(); } catch (e) { /* already stopped */ } VSRC = null; }
+  if (SPEECH && (SPEECH.speaking || SPEECH.pending)) try { SPEECH.cancel(); } catch (e) { /* ignore */ }
+  $('say').classList.remove('talk');
+}
 function speak(text, { rate = 1, onend } = {}) {
-  if (!SPEECH || !S.set.voice || TEST || !text) { if (onend) setTimeout(onend, 10); return; }
+  text = (text || '').trim(); window.VOICE_LOG.push(text);
+  if (!S.set.voice || !text) { if (onend) setTimeout(onend, 10); return; }
+  const key = clipKey(text);
+  if (CLIPS.has(key) && AC && !TEST) {
+    stopVoice(); const tok = voiceToken, say = $('say');
+    if (AC.state !== 'running') AC.resume();
+    clipBuffer(key).then(buf => {
+      if (tok !== voiceToken) return;
+      const src = AC.createBufferSource(); src.buffer = buf; src.playbackRate.value = S.set.rate ? 1.14 : 1;
+      src.connect(VG); VSRC = src; say.classList.add('talk'); $('voiceHelp').hidden = true; speechHeard = true;
+      src.onended = () => { if (VSRC !== src) return; VSRC = null; say.classList.remove('talk'); if (onend) onend(); };
+      src.start();
+    }).catch(() => { if (tok === voiceToken) ttsSpeak(text, { rate, onend }); });
+    return;
+  }
+  ttsSpeak(text, { rate, onend });
+}
+function speakSeq(list, onend) { const next = i => i >= list.length ? onend && onend() : speak(list[i], { onend: () => next(i + 1) }); next(0); }
+// Fallback: the browser's own speech, for any line without a recording
+function ttsSpeak(text, { rate = 1, onend } = {}) {
+  if (!SPEECH || TEST) { if (onend) setTimeout(onend, 10); return; }
   const say = $('say');
   const go = (useVoice) => {
     try {
@@ -403,8 +443,9 @@ const letterName = l => LETTER_NAMES[l] || l;
 // ---------------------------------------------------------------------------
 let AC = null, MG = null, MUS = null;
 function audioInit() {
-  if (AC || TEST) return;
-  try { AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .45; MG.connect(AC.destination); MUS = AC.createGain(); MUS.gain.value = .08; MUS.connect(MG); } catch (e) { AC = null; }
+  if (AC) { if (AC.state !== 'running') AC.resume(); return; }
+  if (TEST) return;
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; AC = new (window.AudioContext || window.webkitAudioContext)(); MG = AC.createGain(); MG.gain.value = .45; MG.connect(AC.destination); MUS = AC.createGain(); MUS.gain.value = .08; MUS.connect(MG); VG = AC.createGain(); VG.gain.value = 1; VG.connect(AC.destination); } catch (e) { AC = null; }
 }
 function tone(f, dur, type = 'sine', vol = .2, delay = 0, f2 = f, out = MG) {
   if (!AC) return;
@@ -630,17 +671,22 @@ function nextWord() {
   });
   markNext(); buildKeys(); applyTileStyle(); layoutBoard(); drawDots(); updHud(); hideRule();
   sayWord(true);
+  preload([repeatText(word, G.parts, S.set.sounds), spelledText(word), ...G.parts.map(p => p.s === '_' ? 'quiet e' : soundText(p)), ...SPOKEN_PRAISE, ...G.rules.map(r => RULES[r].say)]);
 }
 const slotEls = () => [...document.querySelectorAll('#slots .slot')];
 function markNext() { slotEls().forEach((s, i) => s.classList.toggle('next', i === G.pos)); }
 const soundText = p => p.s === '_' ? '' : SOUNDS[p.s] || p.g;
+const TEST_LINE = "Hello! Let's spell cat. kuh... ah... tuh. cat!";
+const END_LINES = ['Perfect round! Amazing spelling!', 'Round complete! Great job!'];
+const SPOKEN_PRAISE = ['Great job!', 'Well done!', 'You did it!', 'Super!'];
+const stretchOf = P => P.filter(p => p.s !== '_').map(soundText).join('... ');
+const introText = (w, P, snd) => `${w}.${snd ? ` Listen to the sounds: ${stretchOf(P)}.` : ''} Can you spell ${w}?`;
+const repeatText = (w, P, snd) => `${w}.${snd ? ` Listen to the sounds: ${stretchOf(P)}.` : ''} ${w}.`;
+const spelledText = w => `${w.split('').map(letterName).join(', ')}. ${w}!`;
+const revealText = l => `This one is ${letterName(l)}.`;
 const stretched = () => G.parts.filter(p => p.s !== '_').map(soundText).join('... ');
 function sayPart(i) { const p = G.parts[i]; if (p) speak(p.s === '_' ? 'quiet e' : soundText(p), { rate: .9 }); }
-function sayWord(first) {
-  sfx('buzz');
-  const sounds = S.set.sounds ? ` Listen to the sounds: ${stretched()}.` : '';
-  speak(first ? `${G.word}.${sounds} Can you spell ${G.word}?` : `${G.word}.${sounds} ${G.word}.`);
-}
+function sayWord(first) { sfx('buzz'); speak(first ? introText(G.word, G.parts, S.set.sounds) : repeatText(G.word, G.parts, S.set.sounds)); }
 function buildKeys() {
   const box = $('tiles'), few = S.set.keys === 'few'; box.innerHTML = ''; box.className = few ? 'few' : 'abc';
   let letters;
@@ -677,14 +723,14 @@ function revealLetter() {
   const need = G.word[G.pos], slot = slotEls()[G.pos];
   if (slot && !slot.textContent) slot.innerHTML = `<span class="ghost">${need}</span>`;
   const k = [...document.querySelectorAll('#tiles [data-l]')].find(x => x.dataset.l === need && !x.classList.contains('used')); if (k) k.classList.add('hint');
-  speak(`This one is ${letterName(need)}.`); G.helped = true;
+  speak(revealText(need)); G.helped = true;
 }
 // A hint that teaches the rule behind the letter the child is stuck on
 function hintFor(part, typed, pi) {
   const st = soundText(part), start = G.parts.slice(0, pi).reduce((a, p) => a + p.g.length, 0), idx = G.pos - start;
   if (part.s === '_') return { say: `Listen: ${G.word}. Can you hear the vowel say its name? That's a magic e word. It ends with a quiet e.`, rule: 'magicE' };
   if (part.g === 'ck') return { say: idx === 0 ? 'After a short vowel, the kuh sound is spelled with two letters.' : 'One more letter for the kuh sound.', rule: 'ck' };
-  if (part.s === 'k' && part.g === 'c' && typed === 'k') return { say: `Good thinking, k can say kuh. But before ${G.word[G.pos + 1] || 'this vowel'}, we use the other kuh letter.`, rule: 'ck_c' };
+  if (part.s === 'k' && part.g === 'c' && typed === 'k') return { say: 'Good thinking, k can say kuh. But before a, o, u, l and r, we use the other kuh letter.', rule: 'ck_c' };
   if (part.s === 'k' && part.g === 'k' && typed === 'c') return { say: 'Good thinking, c can say kuh. But before e and i, we use the other kuh letter.', rule: 'ck_c' };
   if (part.g.length === 2) return { say: idx === 0 ? `This sound is ${st}. It takes two letters.` : `${st} needs one more letter.`, rule: GRAPH_RULE[part.g] };
   if (part.s === 'z' && typed === 'z') return { say: 'Yes, it sounds like zzz! But in this word, another letter makes the zzz sound.', rule: 'sZ' };
@@ -705,7 +751,7 @@ function showRule(id, teach, ondone) {
 }
 function hideRule(soft) { const el = $('rule'); if (soft && !$('bRuleNext').hidden) return; el.hidden = true; }
 function findWord(w) { for (const L of WORDS) for (const e of L) if (e[0] === w) return e; return null; }
-function sayExample(w) { const e = findWord(w); if (!e) return; const P = parseWord(e[2]); speak(`${w}. ${P.filter(p => p.s !== '_').map(soundText).join('... ')}. ${w}.`); }
+function sayExample(w) { const e = findWord(w); if (e) speak(repeatText(w, parseWord(e[2]), true)); }
 function flyTo(tile, slot, l) {
   const a = tile.getBoundingClientRect(), z = slot.getBoundingClientRect(), f = document.createElement('div');
   f.className = 'flyer tile'; f.style.cssText = `left:${a.left}px;top:${a.top}px;width:${a.width}px;height:${a.height}px;margin:0;font-size:${a.width * .56}px`; f.innerHTML = `<span>${l}</span>`;
@@ -729,13 +775,12 @@ function wordDone() {
     if (teach && S.set.rules) { R.shown.add(teach); showRule(teach, true, go); ruleNext = go; if (TEST) go(); }
     else setTimeout(go, TEST ? 0 : 600);
   };
-  const spelled = G.word.split('').map(letterName).join(', ');
-  speak(`${spelled}. ${G.word}! ${pick(['Great job!', 'Well done!', 'You did it!', 'Super!'])}`, { onend: afterSpell });
+  speakSeq([spelledText(G.word), pick(SPOKEN_PRAISE)], afterSpell);
   if (!SPEECH || !S.set.voice || TEST) afterSpell();
 }
 function endRound() {
   const R = G.round; G.mode = 'result'; G.busy = true; hideRule();
-  setTimeout(() => speak(R.res.every(r => r === 'ok') ? 'Perfect round! Amazing spelling!' : 'Round complete! Great job!'), 300);
+  setTimeout(() => speak(END_LINES[R.res.every(r => r === 'ok') ? 0 : 1]), 300);
   const missed = R.res.filter(r => r === 'miss').length, rating = missed === 0 ? 3 : missed <= Math.ceil(R.n * .25) ? 2 : 1;
   const bonus = rating * 5, gem = rating === 3 ? 1 : 0;
   S.stars += R.earned + bonus; S.gems += gem; S.rounds++;
@@ -824,7 +869,7 @@ function buildSettings() {
   const seg = (id, attr, key, num = true) => $(id).querySelectorAll('button').forEach(b => { const v = num ? +b.dataset[attr] : b.dataset[attr]; b.classList.toggle('on', v === S.set[key]); b.onclick = () => { S.set[key] = v; sfx('click'); save(); buildSettings(); }; });
   seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segR', 'r', 'rate');
   for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
-  $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak("Hello! Let's spell cat. Kuh... ah... tuh. Cat!"); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? `Voice: ${VOICE ? VOICE.name : 'device default'}` : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 2500); };
+  $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak(TEST_LINE); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? 'The voice is working.' : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 3000); };
   $('voiceNote').textContent = SPEECH ? 'Kids hear the word, see the picture and spell it from the ABC. Hints teach the rule behind each tricky letter.' : 'This browser can\'t speak, so words are shown with their picture only.';
 }
 function buildRules() {
@@ -900,7 +945,19 @@ window.BW = {
   state() { const R = G.round; return { mode: G.mode, word: G.word, pos: G.pos, stars: S.stars, rules: G.rules, round: R && { i: R.i, n: R.n, res: R.res.join(','), earned: R.earned } }; },
   tapLetter(l) { typeLetter(l, null); return true; },
   spellAll() { const w = G.word, from = G.pos; for (let i = from; i < w.length && G.word === w; i++) typeLetter(w[i], null); },
-  RULES, rulesFor, parseWord, buildRules,
+  RULES, rulesFor, parseWord, buildRules, clipKey,
+  allTexts() {
+    const T = new Set(), add = t => t && T.add(t.trim()), keep = { word: G.word, parts: G.parts, lv: G.lv, rules: G.rules, partOf: G.partOf, pos: G.pos };
+    WORDS.forEach((L, lv) => L.forEach(([w, e, tok]) => {
+      const P = parseWord(tok); Object.assign(G, { word: w, parts: P, lv, rules: rulesFor(P, lv), partOf: [] }); P.forEach((p, i) => { for (let k = 0; k < p.g.length; k++) G.partOf.push(i); });
+      for (const snd of [true, false]) { add(introText(w, P, snd)); add(repeatText(w, P, snd)); }
+      add(spelledText(w)); P.forEach(p => add(p.s === '_' ? 'quiet e' : soundText(p)));
+      for (let pos = 0; pos < w.length; pos++) { G.pos = pos; const pi = G.partOf[pos], part = P[pi]; add(hintFor(part, '', pi).say); for (const l of 'abcdefghijklmnopqrstuvwxyz') if (l !== w[pos]) add(hintFor(part, l, pi).say); add(revealText(w[pos])); }
+    }));
+    Object.assign(G, keep);
+    Object.values(RULES).forEach(r => add(r.say)); SPOKEN_PRAISE.forEach(add); END_LINES.forEach(add); add(TEST_LINE); add('quiet e');
+    return [...T].map(t => ({ key: clipKey(t), text: t }));
+  },
 };
 load(); resize(); seedAmbient(); updWallet();
 requestAnimationFrame(frame);
