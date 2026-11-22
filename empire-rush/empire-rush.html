@@ -97,6 +97,7 @@
   body.inmenu .hud, body.inmenu #topR { visibility:hidden; }
   #placebar { left:50%; transform:translateX(-50%); bottom:calc(var(--placeb, 200px)); display:none; gap:8px; z-index:4; }
   #placebar.show { display:flex; }
+  body.placing #bottom { visibility:hidden; }
   #placebar button { pointer-events:auto; font-size:15px; padding:10px 18px; white-space:nowrap; }
   #selbox { position:fixed; border:1px solid rgba(180,255,170,.9); background:rgba(140,255,130,.09); pointer-events:none; display:none; z-index:2; }
   #touchbar { right:8px; top:56px; display:none; flex-direction:column; gap:6px; z-index:3; }
@@ -669,6 +670,8 @@ function formation(n, x, y, i) { // spiral slots around a point
 }
 function commandUnits(units, wx, wy, target, amove) {
   if (!units.length) return;
+  if (target && target.ent === 'u' && target.team === units[0].team && target.type === 'villager' && !units.includes(target) && units.some(u => u.type === 'villager') && ['gather', 'deliver', 'build', 'attack'].includes(target.st)) { if (helpWorker(units, target)) return; }
+  for (const u of units) u.job = null;
   let n = 0;
   for (const u of units) {
     if (target) smartOrder(u, target);
@@ -772,6 +775,7 @@ function idle(u, dt) {
   } else if (u.type === 'villager') {
     const e = findEnemy(u, 2.5 * T);
     if (e && UNIT[e.type] && (e.team === 2 || UNIT[e.type].mil)) startFlee(u, e);
+    else if (u.job && (u.jobT = (u.jobT || 0) + .5) >= 2) { u.jobT = 0; if (!assignJob(u, u.job)) u.task = `Idle — no ${u.job === 'auto' ? 'work' : JOBS[u.job].toLowerCase()} found`; }
     else u.task = 'Idle';
   }
 }
@@ -894,7 +898,9 @@ function gather(u, dt) {
   let r = getE(u.tgt);
   if (!r || r.dead || (r.ent === 'b' && (r.team !== u.team || !r.done)) || r.ent === 'u') {
     r = u.gkind ? findRes(u.team, u.gkind, u.x, u.y, 11 * T, u) : null;
-    if (!r) { if (u.carry > 0) orderDeliver(u); else { stopUnit(u); u.task = 'Idle — nothing left nearby'; } return; }
+    if (r && r.ent === 'b' && G.winter && u.job) r = null;
+    if (!r && u.job && u.carry <= 0 && assignJob(u, u.job)) return;
+    if (!r) { if (u.carry > 0) orderDeliver(u); else { const j = u.job; stopUnit(u); u.job = j; u.task = 'Idle — nothing left nearby'; } return; }
     u.tgt = r.id; u.gkind = r.ent === 'b' ? 'farm' : r.kind; goNear(u, r);
   }
   const isFarm = r.ent === 'b', give = isFarm ? 'food' : r.give;
@@ -910,7 +916,7 @@ function gather(u, dt) {
   const tm = G.teams[u.team];
   let rate = RATE[isFarm ? 'farm' : r.kind] * tm.gm[isFarm ? 'farm' : give] * (u.team === 1 ? DIFF[G.diff].gm : 1);
   u.task = KIND_LABEL[isFarm ? 'farm' : r.kind];
-  if (isFarm && G.winter) { rate = 0; u.task = 'Fields frozen — waiting for spring'; }
+  if (isFarm && G.winter) { rate = 0; u.task = 'Fields frozen — waiting for spring'; if (u.job && (G.tick + u.id) % 60 === 0) { const c = u.carry; if (assignJob(u, u.job)) { u.carry = c; return; } } }
   if (r.kind === 'berry' && G.winter) rate *= .5;
   if (!isFarm) u.face = r.x < u.x ? -1 : 1;
   if (rate <= 0) return;
@@ -947,8 +953,96 @@ function deliver(u, dt) {
 function backToWork(u) {
   const r = getE(u.back || u.tgt); u.drop = 0; u.back = 0;
   u.st = 'gather'; u.path = null; u.needPath = null;
+  if (u.job === 'auto' && Math.random() < .3 && assignJob(u, 'auto')) return; // auto workers rebalance now and then
   if (r && !r.dead && r.ent !== 'u' && (r.ent !== 'b' || r.team === u.team)) { u.tgt = r.id; goNear(u, r); }
   else u.tgt = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Jobs: send workers to the most efficient spot for a resource and keep them at it
+// ---------------------------------------------------------------------------
+const JOBS = { food: 'Food', wood: 'Wood', stone: 'Stone', gold: 'Gold', auto: 'Auto' };
+function workerLoad(team) { // how many workers are on each target and on each resource
+  const on = new Map(), res = { food: 0, wood: 0, stone: 0, gold: 0 };
+  for (const v of G.units) {
+    if (v.dead || v.team !== team || v.type !== 'villager') continue;
+    if (v.st === 'gather' || v.st === 'deliver' || (v.st === 'attack' && getE(v.tgt)?.type === 'deer')) {
+      const id = v.st === 'deliver' ? (v.back || v.tgt) : v.tgt; if (id) on.set(id, (on.get(id) || 0) + 1);
+      res[v.st === 'attack' ? 'food' : RES_OF[v.gkind] || 'food']++;
+    }
+  }
+  return { on, res };
+}
+function autoPick(team, load) {
+  const tm = G.teams[team], n = Math.max(1, Object.values(load.res).reduce((a, b) => a + b, 0) + 1);
+  const want = Object.assign({}, [{ food: .5, wood: .4, stone: .1, gold: 0 }, { food: .44, wood: .34, stone: .06, gold: .16 }, { food: .4, wood: .32, stone: .07, gold: .21 }][tm.era]);
+  const need = Math.ceil(tm.pop * UPKEEP * tm.upkeepMul);
+  if (tm.res.food < need * 1.5 || (G.season === 2 && tm.res.food < need * 3)) want.food += .25; // feed everyone, and stock up before winter
+  for (const k of RES) if (tm.res[k] > 700) want[k] *= .4;
+  if (G.winter) want.food *= .7;
+  return RES.filter(k => want[k] > 0).sort((a, b) => (want[b] * n - load.res[b]) - (want[a] * n - load.res[a]))[0];
+}
+// Score = walk there + round trips to the nearest drop-off + crowding + danger after dark. Lower is better.
+function bestSpot(u, kind, load, claims) {
+  const team = u.team, give = kind === 'wood' ? 'wood' : kind;
+  const drops = G.blds.filter(b => b.team === team && b.done && BLD[b.type].drop && BLD[b.type].drop.includes(give));
+  const tc = G.teams[team].tc;
+  const dropD = (x, y) => { let d = 1e9; for (const b of drops) d = Math.min(d, dist(x, y, b.x, b.y) - b.w * T / 2); return d < 1e9 ? Math.max(0, d) : tc ? dist(x, y, tc.x, tc.y) + 10 * T : 30 * T; };
+  const night = G.dark > .2 || G.dayT > NIGHT_AT - .08;
+  let best = null, bs = 1e9;
+  const consider = (e, cap, extra = 0) => {
+    if (team === 0 && !expl[tid(clamp((e.x / T) | 0, 0, N - 1), clamp((e.y / T) | 0, 0, N - 1))]) return;
+    const walk = dist(u.x, u.y, e.x, e.y); if (walk > 45 * T) return;
+    const w = (load.on.get(e.id) || 0) + (claims.get(e.id) || 0);
+    if (w >= cap) return;
+    const sc = walk + dropD(e.x, e.y) * 2.2 + w * T * 1.3 + (night && !isLit(e.x, e.y) ? 12 * T : 0) + extra;
+    if (sc < bs) { bs = sc; best = e; }
+  };
+  if (kind === 'food') {
+    if (!G.winter) for (const b of G.blds) if (b.team === team && b.done && BLD[b.type].farm) consider(b, 1, -T);
+    for (const r of G.res) if (!r.dead && (r.kind === 'carcass' || r.kind === 'berry')) consider(r, r.kind === 'carcass' ? 4 : 2, r.kind === 'carcass' ? -2 * T : G.winter ? 3 * T : 0);
+    for (const d of G.units) if (d.type === 'deer' && !d.dead && (team !== 0 || visAt(d.x, d.y))) consider(d, 2, 3 * T);
+  } else {
+    const rk = kind === 'wood' ? 'tree' : kind;
+    for (const r of G.res) if (!r.dead && r.kind === rk) consider(r, rk === 'tree' ? 2 : 4);
+  }
+  return best;
+}
+function assignJob(u, job, load = workerLoad(u.team), claims = new Map()) {
+  const kind = job === 'auto' ? autoPick(u.team, load) : job;
+  let e = bestSpot(u, kind, load, claims);
+  if (!e && job === 'auto') for (const k of RES) if (k !== kind && (e = bestSpot(u, k, load, claims))) break;
+  if (!e) { u.job = job; return false; }
+  claims.set(e.id, (claims.get(e.id) || 0) + 1);
+  const res = e.ent === 'u' ? 'food' : e.ent === 'b' ? 'food' : RES_OF[e.kind];
+  load.res[res]++;
+  if (e.ent === 'u') orderAttack(u, e); else orderGather(u, e);
+  u.job = job;
+  return true;
+}
+function giveJob(units, job) {
+  const vills = units.filter(u => u.type === 'villager'); if (!vills.length) return;
+  const load = workerLoad(0), claims = new Map();
+  let ok = 0; for (const v of vills) if (assignJob(v, job, load, claims)) ok++;
+  if (!ok) alertMsg(job === 'auto' ? 'Nothing to work on nearby.' : `No ${JOBS[job].toLowerCase()} found nearby. Explore to find more.`, 'bad');
+  else { sfx('order'); if (job === 'auto') alertMsg(`Auto: ${ok} worker${ok > 1 ? 's' : ''} sent where the village needs them most.`, 'good'); }
+  G.uiDirty = true;
+}
+// Help: copy what another worker is doing
+function helpWorker(units, t) {
+  const vills = units.filter(u => u.type === 'villager' && u !== t); if (!vills.length) return false;
+  const tg = getE(t.st === 'deliver' ? (t.back || t.tgt) : t.tgt);
+  for (const v of vills) {
+    if (t.st === 'build' && tg && !tg.dead) orderBuild(v, tg);
+    else if ((t.st === 'gather' || t.st === 'deliver') && tg && !tg.dead) orderGather(v, tg);
+    else if (t.st === 'attack' && tg && tg.type === 'deer') orderAttack(v, tg);
+    else if (t.job) { assignJob(v, t.job); continue; }
+    else { orderMove(v, t.x + rr(-14, 14), t.y + rr(-14, 14)); continue; }
+    v.job = t.job || null;
+  }
+  UI.marks.push({ x: t.x, y: t.y, t: G.time, c: 'rgba(150,255,140,A)' }); sfx('order');
+  alertMsg(`${vills.length} worker${vills.length > 1 ? 's' : ''} helping: ${t.task || 'on the move'}.`, 'good');
+  return true;
 }
 // Building
 function build(u, dt) {
@@ -2784,7 +2878,7 @@ function setSel(list, keepPlace) {
   for (const e of SEL) e.sel = false;
   SEL = list.filter(e => e && !e.dead);
   for (const e of SEL) e.sel = true;
-  if (!keepPlace) { UI.place = null; UI.wallLine = null; UI.amove = false; }
+  if (!keepPlace) { UI.place = null; UI.wallLine = null; UI.amove = false; UI.help = false; UI.cmdPage = 'jobs'; }
   G.uiDirty = true;
 }
 function selected() { if (SEL.some(e => e.dead)) setSel(SEL.filter(e => !e.dead), true); return SEL; }
@@ -2863,6 +2957,15 @@ function drawCmdIcon(g, k) {
     g.fillStyle = '#5a3d22'; g.fillRect(-26, 16, 52, 6); g.beginPath(); g.arc(0, 26, 5, 0, TAU); g.fill(); g.fillRect(-3, -34, 6, 9);
     if (k === 'clear') { g.strokeStyle = '#f4ead6'; g.lineWidth = 6; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-2, 8); g.lineTo(12, -10); g.stroke(); }
   }
+  else if (/^j(food|wood|stone|gold)$/.test(k) || k === 'auto' || k === 'help' || k === 'build' || k === 'back') {
+    const lab = { jfood: 'FOOD', jwood: 'WOOD', jstone: 'STONE', jgold: 'GOLD', auto: 'AUTO', help: 'HELP', build: 'BUILD', back: 'BACK' }[k];
+    if (k[0] === 'j') { const tmp = document.createElement('canvas'); tmp.width = tmp.height = 40; resIcon(tmp, k.slice(1)); g.drawImage(tmp, -30, -40, 60, 60); }
+    else if (k === 'auto') { g.strokeStyle = '#e8c46c'; g.lineWidth = 6; g.beginPath(); g.arc(0, -10, 22, -2.6, 1.4); g.stroke(); g.fillStyle = '#e8c46c'; g.beginPath(); g.moveTo(8, 14); g.lineTo(-6, 18); g.lineTo(6, 2); g.fill(); g.fillStyle = '#ffe9a8'; g.beginPath(); g.moveTo(4, -30); g.lineTo(-10, -6); g.lineTo(0, -6); g.lineTo(-4, 10); g.lineTo(12, -14); g.lineTo(2, -14); g.closePath(); g.fill(); }
+    else if (k === 'help') { for (const [x, c] of [[-14, '#8a6a46'], [14, '#2f6fd6']]) { g.fillStyle = '#e3b78f'; g.beginPath(); g.arc(x, -24, 8, 0, TAU); g.fill(); g.fillStyle = c; g.beginPath(); g.moveTo(x - 11, 8); g.lineTo(x + 11, 8); g.lineTo(x + 8, -14); g.lineTo(x - 8, -14); g.closePath(); g.fill(); } g.strokeStyle = '#e3b78f'; g.lineWidth = 5; g.beginPath(); g.moveTo(-6, -6); g.lineTo(6, -6); g.stroke(); }
+    else if (k === 'build') { g.strokeStyle = '#8a6440'; g.lineWidth = 7; g.beginPath(); g.moveTo(-18, 14); g.lineTo(12, -16); g.stroke(); g.fillStyle = '#9aa0a8'; g.save(); g.translate(14, -18); g.rotate(-.8); g.fillRect(-16, -7, 30, 14); g.restore(); }
+    else { g.strokeStyle = '#e8d6ae'; g.lineWidth = 8; g.beginPath(); g.moveTo(18, -12); g.lineTo(-14, -12); g.moveTo(-2, -26); g.lineTo(-16, -12); g.lineTo(-2, 2); g.stroke(); }
+    g.fillStyle = '#f4ead6'; g.font = '800 17px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(lab, 0, 38);
+  }
   else if (k === 'idle') { g.fillStyle = '#e8d6ae'; g.font = '700 30px Georgia'; g.textAlign = 'center'; g.fillText('Zz', 0, 10); }
   g.restore();
 }
@@ -2920,7 +3023,18 @@ function cmdList() {
   if (units.length) {
     const out = [];
     if (units.some(u => u.type === 'villager')) {
-      for (const k of BUILD_MENU) { const d = BLD[k]; out.push({ id: 'b:' + k, icon: iconURL('b', k), lock: d.era && tm.era < d.era ? ERA_NAMES[d.era].split(' ')[0].toUpperCase() : '', poor: !afford(tm, d.cost), on: UI.place === k, tip: { h: k === 'wall' ? BLD.wall.names[tm.era] : d.name, cost: d.cost, p: d.desc }, act: () => startPlace(k) }); }
+      if (UI.cmdPage === 'build') {
+        for (const k of BUILD_MENU) { const d = BLD[k]; out.push({ id: 'b:' + k, icon: iconURL('b', k), lock: d.era && tm.era < d.era ? ERA_NAMES[d.era].split(' ')[0].toUpperCase() : '', poor: !afford(tm, d.cost), on: UI.place === k, tip: { h: k === 'wall' ? BLD.wall.names[tm.era] : d.name, cost: d.cost, p: d.desc }, act: () => startPlace(k) }); }
+        out.push({ id: 'back', icon: iconURL('x', 'back'), tip: { h: 'Back to jobs', p: 'Food, wood, stone, gold, auto and help.' }, act: () => { UI.cmdPage = 'jobs'; UI.place = null; G.uiDirty = true; sfx('click'); } });
+      } else {
+        const vs = units.filter(u => u.type === 'villager'), same = j => vs.every(v => v.job === j);
+        const JT = { food: 'Fields, fresh game, deer or berries — whichever is quickest to bring home.', wood: 'The closest good trees to a stockpile.', stone: 'The quarry with the shortest round trip.', gold: 'The gold seam with the shortest round trip.' };
+        for (const k of RES) out.push({ id: 'j:' + k, icon: iconURL('x', 'j' + k), on: same(k), tip: { h: `${JOBS[k]} job`, p: `${JT[k]} Picks the most efficient spot, avoids crowds and dark places at night, and moves on by itself when it runs out.` }, act: () => giveJob(units, k) });
+        out.push({ id: 'j:auto', icon: iconURL('x', 'auto'), on: same('auto'), tip: { h: 'Auto job', p: 'Works on whatever the village is shortest on, like food before dawn or winter, and rebalances by itself.' }, act: () => giveJob(units, 'auto') });
+        out.push({ id: 'help', icon: iconURL('x', 'help'), on: UI.help, tip: { h: 'Help a worker', p: 'Then click or tap another worker to join what they are doing. Right-clicking a busy worker does the same.' }, act: () => { UI.help = !UI.help; UI.amove = false; G.uiDirty = true; sfx('click'); if (UI.help) alertMsg('Now click or tap the worker to help.'); } });
+        out.push({ id: 'build', icon: iconURL('x', 'build'), on: false, tip: { h: 'Build', p: 'Houses, drop-offs, fields, defences and more.' }, act: () => { UI.cmdPage = 'build'; UI.help = false; G.uiDirty = true; sfx('click'); } });
+        out.push({ id: 'vstop', icon: iconURL('x', 'stop'), tip: { h: 'Stop', p: 'Stop and clear the job.' }, act: () => { for (const u of units) { stopUnit(u); u.job = null; } G.uiDirty = true; } });
+      }
     } else {
       out.push({ id: 'stop', icon: iconURL('x', 'stop'), tip: { h: 'Stop', p: 'Halt and hold this ground.' }, act: () => { for (const u of units) stopUnit(u); } });
       out.push({ id: 'amove', icon: iconURL('x', 'amove'), on: UI.amove, tip: { h: 'Attack-move', p: 'Advance and fight anything on the way. Or Ctrl + right-click.' }, act: () => { UI.amove = !UI.amove; G.uiDirty = true; } });
@@ -2984,10 +3098,11 @@ function showTip(el, id) {
 function updPlacebar() {
   const bar = $('placebar'), on = !!(UI.place && isTouch() && UI.ghostCell && G.started && !G.over);
   bar.classList.toggle('show', on);
+  document.body.classList.toggle('placing', on); // the panels step aside so the map and the bar are easy to reach
   if (on) {
     $('bPlaceOk').textContent = UI.place === 'wall' ? '✓ Place segment' : '✓ Build here';
     $('bPlaceNo').textContent = UI.place === 'wall' ? 'Done' : 'Cancel';
-    const r = $('bottom').getBoundingClientRect(); bar.style.setProperty('--placeb', (VH - r.top + 10) + 'px');
+    bar.style.setProperty('--placeb', '18px');
     $('bPlaceOk').disabled = !canPlace(UI.place, UI.ghostCell[0], UI.ghostCell[1], 0); $('bPlaceOk').style.opacity = $('bPlaceOk').disabled ? .5 : 1;
   }
 }
@@ -3018,7 +3133,7 @@ function updInfo() {
     f = e.hp / e.maxhp;
     stats = `<span>HP <b>${Math.ceil(e.hp)}/${e.maxhp}</b></span><span>Attack <b>${atkOf(e)}</b></span><span>Armor <b>${armOf(e)}</b></span>${stat(e, 'rng') ? `<span>Range <b>${Math.round(stat(e, 'rng') / T)}</b></span>` : ''}`;
     if (e.team === 0) {
-      task = e.task + (e.carry > 0 && e.st !== 'deliver' ? ` · carrying ${Math.floor(e.carry)} ${e.ctype}` : '');
+      task = (e.job ? `<b style="color:var(--gold)">${JOBS[e.job]} job</b> · ` : '') + e.task + (e.carry > 0 && e.st !== 'deliver' ? ` · carrying ${Math.floor(e.carry)} ${e.ctype}` : '');
       if (!e.hidden && G.dark >= .18) firelightStatus = G.bloodNight ? 'Blood Moon · wolves ignore firelight.' : isLit(e.x, e.y) ? 'Inside firelight.' : 'Outside firelight.';
       if (firelightStatus) task += (task ? ' · ' : '') + firelightStatus;
     }
@@ -3201,6 +3316,7 @@ function command(wx, wy, amove) {
 }
 function clickSelect(wx, wy, add, dbl) {
   const e = pickAt(wx, wy, 9 / cam.z);
+  if (UI.help) { UI.help = false; G.uiDirty = true; if (e && e.ent === 'u' && e.team === 0 && e.type === 'villager' && !SEL.includes(e)) { helpWorker(myUnits(), e); return; } }
   if (!e) { if (!add) setSel([]); return; }
   if (dbl && e.ent === 'u' && e.team === 0) {
     const a = toWorld(0, 0), b = toWorld(VW, VH);
@@ -3311,6 +3427,7 @@ function tap(w) {
   }
   if (UI.amove) { command(w.x, w.y, true); return; }
   const e = pickAt(w.x, w.y, 30 / cam.z);
+  if (UI.help) { UI.help = false; G.uiDirty = true; if (e && e.ent === 'u' && e.team === 0 && e.type === 'villager' && !SEL.includes(e)) { helpWorker(myUnits(), e); return; } }
   if (e && e.ent === 'u' && e.team === 0) {
     const now = performance.now();
     if (now - lastClick.t < 350 && SEL.length === 1 && SEL[0] === e) { const a = toWorld(0, 0), b = toWorld(VW, VH); setSel(G.units.filter(u => u.team === 0 && !u.hidden && u.type === e.type && u.x > a.x && u.x < b.x && u.y > a.y && u.y < b.y)); }
@@ -3521,7 +3638,7 @@ window.HF = {
   get G() { return G; }, UNIT, BLD, TECH,
   towerSlices: { atlas: towerSliceAtlas, draw: drawFlatTowerSheet, layout: () => ({ cx: 33, shaftBase: 53, shaftCount: 90, shaftStep: .84, roofBase: -29, roofCount: 58, roofStep: .86 }) },
   revealAll() { expl.fill(1); vis.fill(1); updFog(); },
-  pick: (x, y, r) => pickAt(x, y, r), canPlace, blitOf, spriteHit, unitGap, get drawList() { return drawList; }, toScreen,
+  pick: (x, y, r) => pickAt(x, y, r), canPlace, blitOf, giveJob, helpWorker, workerLoad, cmdList, spriteHit, unitGap, get drawList() { return drawList; }, toScreen,
   bot(attack = true) { aiInit(0); G.ais[0].next = attack ? G.ais[1].next + 20 : 1e9; },
   state() {
     const t = G.teams;
