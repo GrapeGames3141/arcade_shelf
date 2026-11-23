@@ -19,7 +19,7 @@ class Cart {
     this.mass = rider.mass + CART_MASS; this.inv = 1 / this.mass;
     this.I = this.mass * (1.24 * 1.24 + 0.68 * 0.68) / 12 * 0.9; this.invI = 1 / this.I;
     this.input = { throttle: 0, steer: 0, brake: 0, boost: 0, item: 0 };
-    this.stats = { wipeouts: 0, self: 0, deaths: 0, topSpeed: 0, maxAir: 0, items: 0, clears: 0 };
+    this.stats = { wipeouts: 0, self: 0, deaths: 0, topSpeed: 0, maxAir: 0, items: 0, clears: 0, points: 0, finals: 0, samples: 0, lastCart: 0 };
     this.lives = 3; this.out = false; this.item = null; this.lastScoreT = -99;
     this.reset(0, 0, 0);
   }

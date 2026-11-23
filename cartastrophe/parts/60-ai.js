@@ -94,8 +94,40 @@ class AI {
     }
     return dg;
   }
+  // go for the free sample: line up north of the pond ramp, then full boost straight off it
+  sampleRun(now) {
+    const c = this.c, S = GAME.sample, L = this.L;
+    if (this.jump === 'run') {
+      if (!c.onGround) this.jumpAir = true;
+      if ((this.jumpAir && c.onGround) || c.state !== 'drive' || (this.jumpT -= L.think) < -5) return this.endJump();
+      this.goal = c.z > 6 ? [-12, 2] : [S.active ? S.x : -12, -12]; this.charge = false; this.override = null; this.overT = 0;
+      this.thr = 1; this.boost = this.jumpBoost ? 1 : 0; this.brake = 0; this.plan = 'pond jump'; return true;
+    }
+    if (!S.active) return this.endJump();
+    this.jumpT -= L.think; if (this.jumpT < 0) return this.endJump();
+    if (this.jump === 'approach') {
+      this.goal = [-12, 23.5]; this.plan = 'to the ramp';
+      if (Math.hypot(c.x + 12, c.z - 23.5) < 5) this.jump = 'line';
+    } else if (this.jump === 'line') {
+      // pursue a point further down the x=-12 line so the cart curves onto it heading south
+      this.goal = [-12, Math.min(c.z - 5, 18)]; this.plan = 'lining up';
+      const herr = Math.abs(wrapA(Math.PI - c.yaw));
+      if (c.z < 19.5 && herr < 0.3 && Math.abs(c.x + 12) < 1.1 && c.heat < 0.4) { this.jump = 'run'; this.jumpAir = false; this.jumpT = 0; this.jumpBoost = R1() < 0.5 + 0.5 * L.skill; }
+      else if (c.z < 12) return this.endJump();
+      this.charge = false; this.boost = 0; this.thr = herr > 0.5 ? 0.15 : 0.55; this.brake = herr > 1.2 && c.speed() > 5 ? 1 : 0;
+      return true;
+    }
+    this.charge = false; this.thr = this.jump === 'line' ? 0.6 : 1; this.boost = 0; this.brake = 0;
+    return true;
+  }
+  endJump() { this.jump = null; if (GAME.sampleClaim === this) GAME.sampleClaim = null; return false; }
   think(now, carts) {
     const c = this.c, L = this.L, spd = c.speed();
+    const S = GAME.sample;
+    if (!this.jump && S && S.active && L.skill >= 0.6 && !GAME.sampleClaim && !this.charge && Math.hypot(c.x + 12, c.z - 19.5) < 26 && R1() < 0.12) {
+      this.jump = 'approach'; this.jumpT = 9; GAME.sampleClaim = this;
+    }
+    if (this.jump && this.sampleRun(now)) return;
     // ---- choose a target ----
     let best = null, bs = 1e9;
     for (const t of carts) {
@@ -107,6 +139,7 @@ class AI {
       if (c.lastHit.by === t && now - c.lastHit.t < 6) s -= 6;
       if (t === this.target) s -= 4;
       for (const o of GAME.ais) if (o !== this && o.target === t) s += 3.5; // spread out instead of mobbing one cart
+      if (t.lives === 1) s -= 2;            // finishing a cart off is worth an extra point
       if (s < bs) { bs = s; best = t; }
     }
     if (best !== this.target) this.aimOff = R1(-0.25, 0.25);
@@ -202,7 +235,7 @@ class AI {
     const t = this.target;
     if (c.item === 'melon' && t) {
       const dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz); const a = Math.acos(clamp((dx * fx + dz * fz) / (d || 1), -1, 1));
-      if (d > 4 && d < 20 && a < 0.2) use = true;
+      if (d > 4 && d < 26 && a < 0.4) use = true;
     } else if (c.item === 'banana') {
       for (const o of carts) { if (o === c || o.state !== 'drive') continue; const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d < 11 && (dx * fx + dz * fz) / (d || 1) < -0.6) use = true; }
       if (this.itemHold > 14) use = true;

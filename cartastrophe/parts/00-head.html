@@ -85,18 +85,38 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"Se
 #touch .tb{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.35);
   display:flex;align-items:center;justify-content:center;font:900 15px "Segoe UI",Arial;color:#fff;text-shadow:0 1px 2px #000}
 #touch .tb.on{background:rgba(255,210,63,.45)}
-#tL{left:16px;bottom:28px;width:92px;height:92px;font-size:34px!important}
-#tR{left:122px;bottom:28px;width:92px;height:92px;font-size:34px!important}
-#tGo{right:18px;bottom:24px;width:108px;height:108px}
-#tBoost{right:136px;bottom:30px;width:78px;height:78px}
-#tItem{right:40px;bottom:146px;width:70px;height:70px}
-#tBrake{right:126px;bottom:124px;width:66px;height:66px}
+#tZone{position:absolute;left:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tSwipe{position:absolute;right:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tStick{position:absolute;width:150px;height:56px;border-radius:28px;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);transform:translate(-50%,-50%);display:none;pointer-events:none}
+#tStick.on{display:block}
+#tKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,210,63,.55);border:2px solid #fff;transform:translate(-50%,-50%)}
+#touch .tb{z-index:2}
+#tL{left:max(14px,env(safe-area-inset-left));bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tR{left:calc(max(14px,env(safe-area-inset-left)) + 116px);bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tGo{right:max(16px,env(safe-area-inset-right));bottom:20px;width:112px;height:112px}
+#tBoost{right:calc(max(16px,env(safe-area-inset-right)) + 124px);bottom:26px;width:84px;height:84px}
+#tItem{right:calc(max(16px,env(safe-area-inset-right)) + 22px);bottom:146px;width:76px;height:76px}
+#tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 120px);bottom:124px;width:70px;height:70px}
+body.autorocket #tGo{display:none}
+body.autorocket #tBoost{right:max(16px,env(safe-area-inset-right));bottom:20px;width:116px;height:116px;font-size:17px}
+body.autorocket #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 130px);bottom:28px;width:84px;height:84px}
+body.autorocket #tItem{right:calc(max(16px,env(safe-area-inset-right)) + 24px);bottom:150px}
+body.steer-drag #tL,body.steer-drag #tR,body.steer-tilt #tL,body.steer-tilt #tR{display:none}
+body.steer-buttons #tZone,body.steer-tilt #tZone{display:none}
+body.lefty #tZone{left:auto;right:0}body.lefty #tSwipe{right:auto;left:0}
+body.lefty #tL{left:auto;right:calc(max(14px,env(safe-area-inset-right)) + 116px)}body.lefty #tR{left:auto;right:max(14px,env(safe-area-inset-right))}
+body.lefty #tGo,body.lefty.autorocket #tBoost{right:auto;left:max(16px,env(safe-area-inset-left))}
+body.lefty #tBoost{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 124px)}
+body.lefty #tItem,body.lefty.autorocket #tItem{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 22px)}
+body.lefty #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 120px)}
+body.lefty.autorocket #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 130px)}
 #tPause{right:212px;top:10px;width:46px;height:46px;border-radius:12px!important}
 #pause{background:rgba(5,8,14,.7)}
 .plab{font-weight:700;font-size:13px;color:#ffe9a8;margin-right:4px}
 #pause .panel{min-width:300px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
-#end{background:rgba(5,8,14,.55)}
-.receipt{background:#fbfaf3;color:#222;font:14px/1.35 "Courier New",Consolas,monospace;width:min(380px,92vw);padding:20px 22px 26px;
+#end{background:rgba(5,8,14,.55);align-items:flex-start;overflow:auto;padding:12px 0}
+#end>div{margin:auto}
+.receipt{background:#fbfaf3;color:#222;font:13px/1.28 "Courier New",Consolas,monospace;width:min(380px,92vw);padding:20px 22px 26px;
   box-shadow:0 10px 40px rgba(0,0,0,.6);transform:rotate(-1.5deg);position:relative;
   -webkit-mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x;
   mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x}
@@ -115,7 +135,8 @@ body.touchmode #spect{bottom:150px}
 @media (max-height:520px){#mini{width:130px;height:103px}#feed{top:118px;max-width:40vw}.fd{font-size:11px;padding:3px 7px}
   .bd{min-width:120px;font-size:11px;padding:2px 7px 2px 4px}.bd .sw{width:12px;height:12px}#timer{font-size:24px}#callout{top:30%}
   body.touchmode #feed{top:auto;bottom:auto;right:50%;transform:translateX(50%);top:62px;align-items:center;max-width:60vw}
-  #tL,#tR{width:80px!important;height:80px!important}#tR{left:106px}#tPause{right:152px}#tGo{width:96px!important;height:96px!important}
+  #tL,#tR{width:86px!important;height:86px!important}#tR{left:calc(max(14px,env(safe-area-inset-left)) + 98px)}#tPause{right:152px}
+  body.autorocket #tBoost{width:100px;height:100px}body.autorocket #tItem{bottom:128px}body.autorocket #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 112px)}#tGo{width:96px!important;height:96px!important}
   #title{padding:2vh 3vw}#title .logo{font-size:min(60px,11vw)}.panel{padding:8px 10px}.row{margin:3px 0}}
 @media (max-width:760px){#title{background:rgba(10,14,24,.72)}.row>label{width:100%}#mini{width:140px;height:110px}#feed{top:126px}.bd{min-width:130px;font-size:11px}}
 </style>
@@ -141,12 +162,15 @@ body.touchmode #spect{bottom:150px}
 </div>
 
 <div id="touch" class="hidden">
+  <div id="tZone"></div>
+  <div id="tSwipe"></div>
+  <div id="tStick"><div id="tKnob"></div></div>
   <div class="tb" id="tL">&#9664;</div>
   <div class="tb" id="tR">&#9654;</div>
   <div class="tb" id="tGo">ROCKET</div>
   <div class="tb" id="tBoost">BOOST</div>
   <div class="tb" id="tItem">ITEM</div>
-  <div class="tb" id="tBrake">BRAKE</div>
+  <div class="tb" id="tBrake">DRIFT</div>
   <div class="tb" id="tPause">II</div>
 </div>
 
@@ -162,7 +186,7 @@ body.touchmode #spect{bottom:150px}
         <button class="btn ghost arrow" id="rNext">&#9654;</button>
       </div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="play">PLAY</button><button class="btn ghost" id="howb">How to play</button></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="play">PLAY</button><button class="btn ghost" id="howb">How to play</button><button class="btn ghost" id="fsb">Fullscreen</button></div>
     <div class="panel" id="settings">
       <div class="row"><label>Opponents</label><div class="seg" data-k="opp"></div></div>
       <div class="row"><label>Lives</label><div class="seg" data-k="lives"></div></div>
@@ -170,10 +194,13 @@ body.touchmode #spect{bottom:150px}
       <div class="row"><label>Quality</label><div class="seg" data-k="quality"></div></div>
       <div class="row"><label>Sound</label><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
       <div class="row"><label>Touch buttons</label><div class="seg" data-k="touch"></div></div>
+      <div class="row"><label>Touch steering</label><div class="seg" data-k="steer"></div></div>
+      <div class="row"><label>Touch extras</label><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
     </div>
     <div class="panel how" id="how">
       Shove the other carts into the <b>store wall</b>, <b>parked cars</b>, <b>lamp posts</b>, the <b>cart corral</b>, the <b>duck pond</b> or <b>off the cliff</b>.
-      A cart that was just shoved wipes out at low speed. Crash on your own at full tilt and it's a <b>SELF-CHECKOUT</b>. Last cart rolling wins.
+      A cart that was just shoved wipes out at low speed. <b>Most points wins</b>: +1 per takedown, +1 more for knocking a cart out of the match, +2 for the last cart rolling, -1 for a <b>SELF-CHECKOUT</b> (crashing on your own at full tilt).
+      A <b>free sample</b> (extra life) sometimes floats over the duck pond: boost off the pond ramp to grab it.
       <div class="keys">
         <span>W / &uarr;</span><span>Rocket</span>
         <span>A D / &larr; &rarr;</span><span>Pull the steering ropes</span>
@@ -193,6 +220,7 @@ body.touchmode #spect{bottom:150px}
     <div class="row" style="justify-content:center"><span class="plab">Quality</span><div class="seg" data-k="quality"></div></div>
     <div class="row" style="justify-content:center"><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
     <div class="row" style="justify-content:center"><span class="plab">Touch buttons</span><div class="seg" data-k="touch"></div></div>
+    <div class="row" style="justify-content:center"><span class="plab">Steering</span><div class="seg" data-k="steer"></div><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
     <button class="btn big" id="resume">RESUME</button>
     <div style="display:flex;gap:10px"><button class="btn ghost" id="restart">Restart</button><button class="btn ghost" id="quit">Quit to title</button></div>
   </div>

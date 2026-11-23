@@ -85,18 +85,38 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"Se
 #touch .tb{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.35);
   display:flex;align-items:center;justify-content:center;font:900 15px "Segoe UI",Arial;color:#fff;text-shadow:0 1px 2px #000}
 #touch .tb.on{background:rgba(255,210,63,.45)}
-#tL{left:16px;bottom:28px;width:92px;height:92px;font-size:34px!important}
-#tR{left:122px;bottom:28px;width:92px;height:92px;font-size:34px!important}
-#tGo{right:18px;bottom:24px;width:108px;height:108px}
-#tBoost{right:136px;bottom:30px;width:78px;height:78px}
-#tItem{right:40px;bottom:146px;width:70px;height:70px}
-#tBrake{right:126px;bottom:124px;width:66px;height:66px}
+#tZone{position:absolute;left:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tSwipe{position:absolute;right:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tStick{position:absolute;width:150px;height:56px;border-radius:28px;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);transform:translate(-50%,-50%);display:none;pointer-events:none}
+#tStick.on{display:block}
+#tKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,210,63,.55);border:2px solid #fff;transform:translate(-50%,-50%)}
+#touch .tb{z-index:2}
+#tL{left:max(14px,env(safe-area-inset-left));bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tR{left:calc(max(14px,env(safe-area-inset-left)) + 116px);bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tGo{right:max(16px,env(safe-area-inset-right));bottom:20px;width:112px;height:112px}
+#tBoost{right:calc(max(16px,env(safe-area-inset-right)) + 124px);bottom:26px;width:84px;height:84px}
+#tItem{right:calc(max(16px,env(safe-area-inset-right)) + 22px);bottom:146px;width:76px;height:76px}
+#tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 120px);bottom:124px;width:70px;height:70px}
+body.autorocket #tGo{display:none}
+body.autorocket #tBoost{right:max(16px,env(safe-area-inset-right));bottom:20px;width:116px;height:116px;font-size:17px}
+body.autorocket #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 130px);bottom:28px;width:84px;height:84px}
+body.autorocket #tItem{right:calc(max(16px,env(safe-area-inset-right)) + 24px);bottom:150px}
+body.steer-drag #tL,body.steer-drag #tR,body.steer-tilt #tL,body.steer-tilt #tR{display:none}
+body.steer-buttons #tZone,body.steer-tilt #tZone{display:none}
+body.lefty #tZone{left:auto;right:0}body.lefty #tSwipe{right:auto;left:0}
+body.lefty #tL{left:auto;right:calc(max(14px,env(safe-area-inset-right)) + 116px)}body.lefty #tR{left:auto;right:max(14px,env(safe-area-inset-right))}
+body.lefty #tGo,body.lefty.autorocket #tBoost{right:auto;left:max(16px,env(safe-area-inset-left))}
+body.lefty #tBoost{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 124px)}
+body.lefty #tItem,body.lefty.autorocket #tItem{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 22px)}
+body.lefty #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 120px)}
+body.lefty.autorocket #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 130px)}
 #tPause{right:212px;top:10px;width:46px;height:46px;border-radius:12px!important}
 #pause{background:rgba(5,8,14,.7)}
 .plab{font-weight:700;font-size:13px;color:#ffe9a8;margin-right:4px}
 #pause .panel{min-width:300px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
-#end{background:rgba(5,8,14,.55)}
-.receipt{background:#fbfaf3;color:#222;font:14px/1.35 "Courier New",Consolas,monospace;width:min(380px,92vw);padding:20px 22px 26px;
+#end{background:rgba(5,8,14,.55);align-items:flex-start;overflow:auto;padding:12px 0}
+#end>div{margin:auto}
+.receipt{background:#fbfaf3;color:#222;font:13px/1.28 "Courier New",Consolas,monospace;width:min(380px,92vw);padding:20px 22px 26px;
   box-shadow:0 10px 40px rgba(0,0,0,.6);transform:rotate(-1.5deg);position:relative;
   -webkit-mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x;
   mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x}
@@ -115,7 +135,8 @@ body.touchmode #spect{bottom:150px}
 @media (max-height:520px){#mini{width:130px;height:103px}#feed{top:118px;max-width:40vw}.fd{font-size:11px;padding:3px 7px}
   .bd{min-width:120px;font-size:11px;padding:2px 7px 2px 4px}.bd .sw{width:12px;height:12px}#timer{font-size:24px}#callout{top:30%}
   body.touchmode #feed{top:auto;bottom:auto;right:50%;transform:translateX(50%);top:62px;align-items:center;max-width:60vw}
-  #tL,#tR{width:80px!important;height:80px!important}#tR{left:106px}#tPause{right:152px}#tGo{width:96px!important;height:96px!important}
+  #tL,#tR{width:86px!important;height:86px!important}#tR{left:calc(max(14px,env(safe-area-inset-left)) + 98px)}#tPause{right:152px}
+  body.autorocket #tBoost{width:100px;height:100px}body.autorocket #tItem{bottom:128px}body.autorocket #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 112px)}#tGo{width:96px!important;height:96px!important}
   #title{padding:2vh 3vw}#title .logo{font-size:min(60px,11vw)}.panel{padding:8px 10px}.row{margin:3px 0}}
 @media (max-width:760px){#title{background:rgba(10,14,24,.72)}.row>label{width:100%}#mini{width:140px;height:110px}#feed{top:126px}.bd{min-width:130px;font-size:11px}}
 </style>
@@ -141,12 +162,15 @@ body.touchmode #spect{bottom:150px}
 </div>
 
 <div id="touch" class="hidden">
+  <div id="tZone"></div>
+  <div id="tSwipe"></div>
+  <div id="tStick"><div id="tKnob"></div></div>
   <div class="tb" id="tL">&#9664;</div>
   <div class="tb" id="tR">&#9654;</div>
   <div class="tb" id="tGo">ROCKET</div>
   <div class="tb" id="tBoost">BOOST</div>
   <div class="tb" id="tItem">ITEM</div>
-  <div class="tb" id="tBrake">BRAKE</div>
+  <div class="tb" id="tBrake">DRIFT</div>
   <div class="tb" id="tPause">II</div>
 </div>
 
@@ -162,7 +186,7 @@ body.touchmode #spect{bottom:150px}
         <button class="btn ghost arrow" id="rNext">&#9654;</button>
       </div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="play">PLAY</button><button class="btn ghost" id="howb">How to play</button></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="play">PLAY</button><button class="btn ghost" id="howb">How to play</button><button class="btn ghost" id="fsb">Fullscreen</button></div>
     <div class="panel" id="settings">
       <div class="row"><label>Opponents</label><div class="seg" data-k="opp"></div></div>
       <div class="row"><label>Lives</label><div class="seg" data-k="lives"></div></div>
@@ -170,10 +194,13 @@ body.touchmode #spect{bottom:150px}
       <div class="row"><label>Quality</label><div class="seg" data-k="quality"></div></div>
       <div class="row"><label>Sound</label><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
       <div class="row"><label>Touch buttons</label><div class="seg" data-k="touch"></div></div>
+      <div class="row"><label>Touch steering</label><div class="seg" data-k="steer"></div></div>
+      <div class="row"><label>Touch extras</label><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
     </div>
     <div class="panel how" id="how">
       Shove the other carts into the <b>store wall</b>, <b>parked cars</b>, <b>lamp posts</b>, the <b>cart corral</b>, the <b>duck pond</b> or <b>off the cliff</b>.
-      A cart that was just shoved wipes out at low speed. Crash on your own at full tilt and it's a <b>SELF-CHECKOUT</b>. Last cart rolling wins.
+      A cart that was just shoved wipes out at low speed. <b>Most points wins</b>: +1 per takedown, +1 more for knocking a cart out of the match, +2 for the last cart rolling, -1 for a <b>SELF-CHECKOUT</b> (crashing on your own at full tilt).
+      A <b>free sample</b> (extra life) sometimes floats over the duck pond: boost off the pond ramp to grab it.
       <div class="keys">
         <span>W / &uarr;</span><span>Rocket</span>
         <span>A D / &larr; &rarr;</span><span>Pull the steering ropes</span>
@@ -193,6 +220,7 @@ body.touchmode #spect{bottom:150px}
     <div class="row" style="justify-content:center"><span class="plab">Quality</span><div class="seg" data-k="quality"></div></div>
     <div class="row" style="justify-content:center"><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
     <div class="row" style="justify-content:center"><span class="plab">Touch buttons</span><div class="seg" data-k="touch"></div></div>
+    <div class="row" style="justify-content:center"><span class="plab">Steering</span><div class="seg" data-k="steer"></div><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
     <button class="btn big" id="resume">RESUME</button>
     <div style="display:flex;gap:10px"><button class="btn ghost" id="restart">Restart</button><button class="btn ghost" id="quit">Quit to title</button></div>
   </div>
@@ -1060,6 +1088,17 @@ function buildPropMeshes() {
   // wreck piece (bent wire panel) - reuse cart mesh for the wreck itself
   // cardboard box (dynamic)
   b = new MB(); b.col(0xb88c55).par(0.95); b.box(0.5, 0.4, 0.4); b.col(0x8a6738).push().tr(0, 0.201, 0).box(0.08, 0.002, 0.41).pop(); MESH.cbox = b.build({ name: 'cbox' });
+  // free sample: a glowing heart on a paper sample cup
+  b = new MB(); b.col(0xff2d55).par(0.25, 0, 1.4);
+  for (const s of [-1, 1]) b.push().tr(s * 0.13, 0.09, 0).sc(1, 1, 0.6).sph(0.2, 14, 10).pop();
+  b.push().tr(0, 0.12, 0).rx(Math.PI).sc(1, 1, 0.6).cyl(0.29, 0.0, 0.46, 18, true).pop();
+  b.col(0xffffff).par(0.3, 0, 2.5); b.push().tr(-0.13, 0.2, 0.1).sph(0.05, 8, 6).pop();
+  b.col(0xf4f1e8).par(0.8); b.push().tr(0, -0.62, 0).cyl(0.06, 0.1, 0.16, 12, true).pop();
+  MESH.heart = b.build({ name: 'heart' });
+  // watermelon juice puddle (flat, unlit-ish red)
+  b = new MB(); b.col(0x9a0c22).par(0.12, 0, 0); b.cyl(1, 1, 0.01, 20, true);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.4; b.push().tr(Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95).cyl(0.28, 0.28, 0.01, 10, true).pop(); }
+  MESH.puddle = b.build({ name: 'puddle', cast: false });
   // sliding glass door panel (centered)
   b = new MB(); b.col(0x5a5f66).par(0.35, 0.9); b.push().tr(0, 1.22, 0).box(1.7, 0.08, 0.06).pop(); b.push().tr(0, -1.22, 0).box(1.7, 0.08, 0.06).pop();
   b.push().tr(0.83, 0, 0).box(0.06, 2.5, 0.06).pop(); b.push().tr(-0.83, 0, 0).box(0.06, 2.5, 0.06).pop();
@@ -1618,7 +1657,7 @@ class Cart {
     this.mass = rider.mass + CART_MASS; this.inv = 1 / this.mass;
     this.I = this.mass * (1.24 * 1.24 + 0.68 * 0.68) / 12 * 0.9; this.invI = 1 / this.I;
     this.input = { throttle: 0, steer: 0, brake: 0, boost: 0, item: 0 };
-    this.stats = { wipeouts: 0, self: 0, deaths: 0, topSpeed: 0, maxAir: 0, items: 0, clears: 0 };
+    this.stats = { wipeouts: 0, self: 0, deaths: 0, topSpeed: 0, maxAir: 0, items: 0, clears: 0, points: 0, finals: 0, samples: 0, lastCart: 0 };
     this.lives = 3; this.out = false; this.item = null; this.lastScoreT = -99;
     this.reset(0, 0, 0);
   }
@@ -2182,8 +2221,40 @@ class AI {
     }
     return dg;
   }
+  // go for the free sample: line up north of the pond ramp, then full boost straight off it
+  sampleRun(now) {
+    const c = this.c, S = GAME.sample, L = this.L;
+    if (this.jump === 'run') {
+      if (!c.onGround) this.jumpAir = true;
+      if ((this.jumpAir && c.onGround) || c.state !== 'drive' || (this.jumpT -= L.think) < -5) return this.endJump();
+      this.goal = c.z > 6 ? [-12, 2] : [S.active ? S.x : -12, -12]; this.charge = false; this.override = null; this.overT = 0;
+      this.thr = 1; this.boost = this.jumpBoost ? 1 : 0; this.brake = 0; this.plan = 'pond jump'; return true;
+    }
+    if (!S.active) return this.endJump();
+    this.jumpT -= L.think; if (this.jumpT < 0) return this.endJump();
+    if (this.jump === 'approach') {
+      this.goal = [-12, 23.5]; this.plan = 'to the ramp';
+      if (Math.hypot(c.x + 12, c.z - 23.5) < 5) this.jump = 'line';
+    } else if (this.jump === 'line') {
+      // pursue a point further down the x=-12 line so the cart curves onto it heading south
+      this.goal = [-12, Math.min(c.z - 5, 18)]; this.plan = 'lining up';
+      const herr = Math.abs(wrapA(Math.PI - c.yaw));
+      if (c.z < 19.5 && herr < 0.3 && Math.abs(c.x + 12) < 1.1 && c.heat < 0.4) { this.jump = 'run'; this.jumpAir = false; this.jumpT = 0; this.jumpBoost = R1() < 0.5 + 0.5 * L.skill; }
+      else if (c.z < 12) return this.endJump();
+      this.charge = false; this.boost = 0; this.thr = herr > 0.5 ? 0.15 : 0.55; this.brake = herr > 1.2 && c.speed() > 5 ? 1 : 0;
+      return true;
+    }
+    this.charge = false; this.thr = this.jump === 'line' ? 0.6 : 1; this.boost = 0; this.brake = 0;
+    return true;
+  }
+  endJump() { this.jump = null; if (GAME.sampleClaim === this) GAME.sampleClaim = null; return false; }
   think(now, carts) {
     const c = this.c, L = this.L, spd = c.speed();
+    const S = GAME.sample;
+    if (!this.jump && S && S.active && L.skill >= 0.6 && !GAME.sampleClaim && !this.charge && Math.hypot(c.x + 12, c.z - 19.5) < 26 && R1() < 0.12) {
+      this.jump = 'approach'; this.jumpT = 9; GAME.sampleClaim = this;
+    }
+    if (this.jump && this.sampleRun(now)) return;
     // ---- choose a target ----
     let best = null, bs = 1e9;
     for (const t of carts) {
@@ -2195,6 +2266,7 @@ class AI {
       if (c.lastHit.by === t && now - c.lastHit.t < 6) s -= 6;
       if (t === this.target) s -= 4;
       for (const o of GAME.ais) if (o !== this && o.target === t) s += 3.5; // spread out instead of mobbing one cart
+      if (t.lives === 1) s -= 2;            // finishing a cart off is worth an extra point
       if (s < bs) { bs = s; best = t; }
     }
     if (best !== this.target) this.aimOff = R1(-0.25, 0.25);
@@ -2290,7 +2362,7 @@ class AI {
     const t = this.target;
     if (c.item === 'melon' && t) {
       const dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz); const a = Math.acos(clamp((dx * fx + dz * fz) / (d || 1), -1, 1));
-      if (d > 4 && d < 20 && a < 0.2) use = true;
+      if (d > 4 && d < 26 && a < 0.4) use = true;
     } else if (c.item === 'banana') {
       for (const o of carts) { if (o === c || o.state !== 'drive') continue; const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d < 11 && (dx * fx + dz * fz) / (d || 1) < -0.6) use = true; }
       if (this.itemHold > 14) use = true;
@@ -2312,14 +2384,14 @@ class AI {
 // ---------- game state, items, wipeouts, camera, rendering, HUD, input ----------
 const QS = new URLSearchParams(location.search);
 const TEST = QS.has('test');
-const SETTINGS_DEF = { opp: 3, lives: 3, ai: 'normal', quality: 'high', sound: true, muzak: true, voice: true, touch: 'auto', rider: 0 };
+const SETTINGS_DEF = { opp: 3, lives: 3, ai: 'normal', quality: 'high', sound: true, muzak: true, voice: true, touch: 'auto', rider: 0, steer: 'drag', autorocket: true, assist: true, lefty: false };
 let SET = { ...SETTINGS_DEF };
 try { const s = JSON.parse(localStorage.getItem('cartastrophe.settings') || '{}'); SET = { ...SET, ...s }; } catch (e) { }
 if (QS.get('q')) SET.quality = QS.get('q');
 function saveSettings() { try { localStorage.setItem('cartastrophe.settings', JSON.stringify(SET)); } catch (e) { } }
 
 const ITEMS = {
-  melon: { icon: '🍉', name: 'WATERMELON', w: 3 }, banana: { icon: '🍌', name: 'BANANAS', w: 3 },
+  melon: { icon: '🍉', name: 'WATERMELONS', w: 3 }, banana: { icon: '🍌', name: 'BANANAS', w: 3 },
   blower: { icon: '💨', name: 'LEAF BLOWER', w: 2.5 }, mega: { icon: '🚀', name: 'MEGA ROCKET', w: 2.5 }
 };
 const KO_TEXT = { store: 'STORE CLOSED!', wall: 'WALLED!', dock: 'DOCKED!', car: 'PARKED!', pole: 'LAMPPOSTED!', corral: 'RETURNED!', dumpster: 'TRASHED!', bollard: 'BOLLARDED!', fence: 'FENCED!', pond: 'SPLASHDOWN!', cliff: 'CLIFFED!', flop: 'BELLY FLOP!' };
@@ -2350,14 +2422,16 @@ function newMatch(attract) {
   const spots = START_SPOTS.slice();
   for (let i = 0; i < n; i++) {
     const c = new Cart(i, RIDERS[riders[i]], !attract && i === 0);
-    c.lives = attract ? 99 : SET.lives;
+    c.lives = attract ? 99 : (SET.lives || 9999);
     const [x, z, yaw] = spots[i]; c.reset(x, z, yaw);
     GAME.carts.push(c);
     if (!c.isPlayer || QS.has('auto')) GAME.ais.push(new AI(c, attract ? 'normal' : SET.ai));
   }
   GAME.player = attract ? null : GAME.carts[0];
   GAME.spectate = 0;
-  GAME.now = 0; GAME.timer = attract ? 9999 : 240; GAME.endT = -1; GAME.timeScale = 1; GAME.slowT = 0;
+  GAME.now = 0; GAME.timer = attract ? 9999 : (SET.lives ? 240 : 180); GAME.endT = -1; GAME.timeScale = 1; GAME.slowT = 0;
+  GAME.puddles = []; GAME.sample = { active: false, t: R1(12, 25), x: 0, y: 0, z: 0 }; GAME.sampleClaim = null; GAME.lastStanding = null;
+  GAME.startLives = SET.lives || 9999;
   GAME.countT = attract ? 0 : 3.2;
   GAME.mode = attract ? 'title' : 'countdown';
   GAME.pickups = PICKUP_SPOTS.map(([x, z]) => ({ x, z, active: true, t: 0 }));
@@ -2375,10 +2449,30 @@ function newMatch(attract) {
 function pickItem() { let tot = 0; for (const k in ITEMS) tot += ITEMS[k].w; let r = R1(0, tot); for (const k in ITEMS) { r -= ITEMS[k].w; if (r <= 0) return k; } return 'melon'; }
 
 function useItem(c, now) {
-  const it = c.item; if (!it) return; c.item = null; c.stats.items++;
+  const it = c.item; if (!it) return;
+  if (now - (c.itemT || -9) < 0.45) return;
+  c.itemT = now;
+  c.itemN = (c.itemN || 1) - 1; if (c.itemN <= 0) { c.item = null; c.itemN = 0; }
+  c.stats.items++;
   const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
   if (it === 'melon') {
-    GAME.melons.push({ x: c.x + fx * 0.8, y: c.y + 1.15, z: c.z + fz * 0.8, vx: c.vx + fx * 17, vy: 2.6, vz: c.vz + fz * 17, owner: c, t: 0, spin: 0 });
+    // aim assist: lob at the best cart in front (with lead), otherwise a flat forward lob
+    let tgt = null, best = 1e9;
+    for (const o of GAME.carts) {
+      if (o === c || o.state !== 'drive' || o.ghostT > 0) continue;
+      const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d < 2.5 || d > 32) continue;
+      const a = Math.acos(clamp((dx * fx + dz * fz) / d, -1, 1)); if (a > 0.5) continue;
+      const sc = d * (1 + a * 2.5); if (sc < best) { best = sc; tgt = o; }
+    }
+    const y0 = c.y + 1.15, hs = Math.max(8, c.vx * fx + c.vz * fz) + 17;
+    let dirx = fx, dirz = fz, vy = 2.6;
+    if (tgt) {
+      let d = Math.hypot(tgt.x - c.x, tgt.z - c.z), T = d / hs;
+      const lx = tgt.x + tgt.vx * T, lz = tgt.z + tgt.vz * T; d = Math.hypot(lx - c.x, lz - c.z); T = d / hs;
+      dirx = (lx - c.x) / d; dirz = (lz - c.z) / d;
+      vy = clamp((tgt.y + 0.7 - y0 + 0.5 * G * T * T) / T, 0.5, 9);
+    }
+    GAME.melons.push({ x: c.x + fx * 0.8, y: y0, z: c.z + fz * 0.8, vx: dirx * hs, vy, vz: dirz * hs, owner: c, t: 0, spin: 0, tgt });
     AUD.whoosh(c, 0.6);
   } else if (it === 'banana') {
     const rx = -fz, rz = fx;
@@ -2390,16 +2484,42 @@ function useItem(c, now) {
   GAME.events.push({ t: 'item', c, it });
 }
 
+function melonBoom(m, hit, now) {
+  const R = 4.2; const hs = Math.hypot(m.vx, m.vz) || 1;
+  let n = 0;
+  for (const o of GAME.carts) {
+    if (o.state !== 'drive' || o.ghostT > 0) continue;
+    const direct = hit.c === o;
+    let dx = o.x - m.x, dz = o.z - m.z; const d = Math.hypot(dx, dz);
+    if (!direct && (d > R || Math.abs(o.y - m.y) > 2.5)) continue;
+    if (direct || d < 0.3) { dx = m.vx / hs; dz = m.vz / hs; } else { dx /= d; dz /= d; }
+    const k = (direct ? 12 : 0) + 9 * (1 - Math.min(d, R) / R);
+    const sc = k * 80 / o.mass;
+    o.vx += dx * sc; o.vz += dz * sc; o.w += (R1() < 0.5 ? -1 : 1) * R1(3, 7) * (direct ? 1.5 : 1);
+    o.spinT = Math.max(o.spinT, direct ? 1.2 : 0.6);
+    if (direct && o.onGround) { o.onGround = false; o.vy = 3.2; o.airT = 0; o.rollW += R1(-1.5, 1.5); }
+    if (o !== m.owner) o.lastHit = { by: m.owner, t: now };
+    n++;
+  }
+  const gy = hit.c ? hit.c.y : (m.x > CLIFF_X ? LAKE_Y : groundH(m.x, m.z));
+  if (!hit.water && m.x < CLIFF_X) GAME.puddles.push({ x: hit.c ? hit.c.x : m.x, z: hit.c ? hit.c.z : m.z, r: 2.1, t: 0, life: 20, owner: m.owner, yaw: R1(0, TAU) });
+  while (GAME.puddles.length > 8) GAME.puddles.shift();
+  GAME.events.push({ t: hit.c ? 'melonHit' : 'melonSplat', c: hit.c, by: m.owner, x: m.x, y: Math.max(m.y, gy + 0.2), z: m.z, water: hit.water, n });
+}
+
 // ---------- wipeouts ----------
 function knockOut(c, kind, info) {
   if (c.state !== 'drive') return;
+  if (GAME.mode === 'end') return; // the match is over: carts coasting into things after the whistle don't count
   const now = GAME.now;
   c.state = 'ko'; c.koT = 0; c.koKind = kind;
   if (GAME.mode !== 'title') c.lives--;
   c.stats.deaths++;
   let by = (now - c.lastHit.t < CREDIT_WINDOW) ? c.lastHit.by : null;
   if (by === c) by = null;
-  if (by) { by.stats.wipeouts++; } else c.stats.self++;
+  const final = c.lives <= 0 && GAME.mode !== 'title';
+  // scoring: takedowns win games, not hiding. +1 takedown, +1 more for knocking someone out of the match, -1 self-checkout
+  if (by) { by.stats.wipeouts++; by.stats.points++; if (final) { by.stats.finals++; by.stats.points++; } } else { c.stats.self++; c.stats.points--; }
   const bogo = by && now - by.lastScoreT < 6;
   if (by) by.lastScoreT = now;
   GAME.koLog.push({ t: now, victim: c.name, by: by ? by.name : null, kind });
@@ -2428,6 +2548,8 @@ function knockOut(c, kind, info) {
   if (by) sub = `${by.name} ➜ ${c.name}`;
   else { sub = `${c.name}: self-checkout (${KO_WHERE[kind]})`; if (c.isPlayer) main = 'SELF-CHECKOUT!'; }
   if (bogo) { main = 'BOGO!'; sub = `${by.name}: buy one, get one`; }
+  if (final && by) { sub += '  ·  FINAL TAKEDOWN +2'; }
+  else if (by) sub += '  ·  +1';
   feed(by ? `${by.name} ➜ ${c.name} · ${KO_TEXT[kind]}` : `${c.name} · SELF-CHECKOUT (${KO_WHERE[kind]})`);
   const focus = camTargetCart();
   const near = focus && Math.hypot(focus.x - c.x, focus.z - c.z) < 22;
@@ -2465,7 +2587,7 @@ function physicsStep(dt) {
   for (const c of carts) {
     if (c.state === 'drive') {
       // pickups
-      if (!c.item) for (const p of GAME.pickups) if (p.active && Math.hypot(p.x - c.x, p.z - c.z) < 1.2) { p.active = false; p.t = 10; c.item = pickItem(); GAME.events.push({ t: 'pickup', c, it: c.item }); break; }
+      if (!c.item) for (const p of GAME.pickups) if (p.active && Math.hypot(p.x - c.x, p.z - c.z) < 1.2) { p.active = false; p.t = 10; c.item = pickItem(); c.itemN = c.item === 'melon' ? 2 : 1; GAME.events.push({ t: 'pickup', c, it: c.item }); break; }
       // banana peels
       if (c.ghostT <= 0) for (let i = GAME.peels.length - 1; i >= 0; i--) {
         const p = GAME.peels[i]; if (p.t < 0.4 && p.owner === c) continue;
@@ -2502,25 +2624,59 @@ function physicsStep(dt) {
       if (c.koT > 3.0) { if (c.out) { c.state = 'out'; } else respawn(c); }
     }
   }
-  // melons in flight
+  // melons in flight: gentle homing, then a juicy explosion on any impact
   for (let i = GAME.melons.length - 1; i >= 0; i--) {
-    const m = GAME.melons[i]; m.t += dt; m.vy -= G * dt; m.x += m.vx * dt; m.y += m.vy * dt; m.z += m.vz * dt; m.spin += dt * 9;
-    let hit = false;
+    const m = GAME.melons[i]; m.t += dt;
+    if (m.tgt && m.tgt.state === 'drive') {
+      const hs = Math.hypot(m.vx, m.vz) || 1; const want = Math.atan2(m.tgt.x - m.x, m.tgt.z - m.z), cur = Math.atan2(m.vx, m.vz);
+      const da = clamp(wrapA(want - cur), -1.3 * dt, 1.3 * dt); const na = cur + da; m.vx = Math.sin(na) * hs; m.vz = Math.cos(na) * hs;
+    }
+    m.vy -= G * dt; m.x += m.vx * dt; m.y += m.vy * dt; m.z += m.vz * dt; m.spin += dt * 9;
+    let hit = null;
     for (const o of carts) {
       if (o === m.owner && m.t < 0.4) continue; if (o.state !== 'drive' || o.ghostT > 0) continue;
-      if (Math.hypot(o.x - m.x, o.z - m.z) < 0.9 && m.y > o.y - 0.1 && m.y < o.y + 1.9) {
-        const hl = Math.hypot(m.vx, m.vz) || 1; const k = 7.5 * 80 / o.mass;
-        o.vx += m.vx / hl * k; o.vz += m.vz / hl * k; o.w += R1(-5, 5); o.vy = 0;
-        if (o !== m.owner) o.lastHit = { by: m.owner, t: now };
-        GAME.events.push({ t: 'melonHit', c: o, by: m.owner, x: m.x, y: m.y, z: m.z }); hit = true; break;
-      }
+      if (Math.hypot(o.x - m.x, o.z - m.z) < 1.0 && m.y > o.y - 0.1 && m.y < o.y + 1.9) { hit = { c: o }; break; }
     }
     if (!hit) {
       const g = m.x > CLIFF_X ? LAKE_Y : groundH(m.x, m.z);
-      if (m.y < g + 0.15) { hit = true; GAME.events.push({ t: 'melonSplat', x: m.x, y: g + 0.1, z: m.z, water: pondSD(m.x, m.z) < 0 }); }
-      else for (const s of STATICS) { if (m.y > s.y1) continue; if (staticClosest(s, m.x, m.z)[2] < 0.15) { hit = true; GAME.events.push({ t: 'melonSplat', x: m.x, y: m.y, z: m.z }); break; } }
+      if (m.y < g + 0.15) hit = { ground: true, water: pondSD(m.x, m.z) < 0 || m.x > CLIFF_X };
+      else for (const st of STATICS) { if (m.y > st.y1) continue; if (staticClosest(st, m.x, m.z)[2] < 0.15) { hit = { wall: true }; break; } }
     }
-    if (hit || m.t > 6) GAME.melons.splice(i, 1);
+    if (hit) { melonBoom(m, hit, now); GAME.melons.splice(i, 1); }
+    else if (m.t > 6) GAME.melons.splice(i, 1);
+  }
+  // juice puddles: slick, spins carts out, counts as a shove by the thrower
+  for (let i = GAME.puddles.length - 1; i >= 0; i--) { const pd = GAME.puddles[i]; pd.t += dt; if (pd.t > pd.life) GAME.puddles.splice(i, 1); }
+  for (const c of carts) {
+    if (c.state !== 'drive' || !c.onGround || c.ghostT > 0) continue;
+    for (const pd of GAME.puddles) {
+      if (Math.hypot(pd.x - c.x, pd.z - c.z) > pd.r) continue;
+      if (now - (c.juiceT || -9) > 1.4) { c.juiceT = now; c.spinT = Math.max(c.spinT, 1.1); c.w += (R1() < 0.5 ? -1 : 1) * R1(4, 7); if (pd.owner !== c) c.lastHit = { by: pd.owner, t: now }; GAME.events.push({ t: 'slip', c, juice: true }); }
+      else c.spinT = Math.max(c.spinT, 0.25);
+      break;
+    }
+  }
+  // free sample (extra life) floating over the duck pond: only a pond jump reaches it
+  const S = GAME.sample;
+  if (!S.active) {
+    S.t -= dt;
+    if (S.t <= 0) {
+      S.active = true; S.z = R1(-10, -4.5); S.x = -12 + R1(-0.7, 0.7);
+      S.y = lerp(3.0, 3.3, (-S.z - 4.5) / 5.5) + 0.7 + R1(-0.15, 0.15);
+      GAME.events.push({ t: 'sampleUp' });
+    }
+  } else {
+    for (const c of carts) {
+      if (c.state !== 'drive') continue;
+      if (Math.hypot(c.x - S.x, c.z - S.z) < 1.5 && Math.abs(c.y + 0.7 - S.y) < 1.1) {
+        S.active = false; S.t = R1(25, 45); c.stats.samples = (c.stats.samples || 0) + 1;
+        let gave = 'life';
+        if (c.lives < GAME.startLives + 2 && GAME.mode !== 'title' && SET.lives) c.lives++;
+        else { c.stats.points++; gave = 'point'; }
+        GAME.events.push({ t: 'sample', c, gave, x: S.x, y: S.y, z: S.z });
+        break;
+      }
+    }
   }
   for (const p of GAME.peels) p.t += dt;
   for (const p of GAME.pickups) if (!p.active) { p.t -= dt; if (p.t <= 0) p.active = true; }
@@ -2537,7 +2693,10 @@ function physicsStep(dt) {
   if (GAME.mode === 'play') {
     GAME.timer -= dt;
     const alive = carts.filter(c => !c.out);
-    if (GAME.endT < 0 && (alive.length <= 1 || GAME.timer <= 0 || (GAME.player && GAME.player.out && alive.length <= 1))) GAME.endT = 2.6;
+    if (GAME.endT < 0 && ((SET.lives && alive.length <= 1) || GAME.timer <= 0)) {
+      GAME.endT = 2.6;
+      if (SET.lives && alive.length === 1 && GAME.timer > 0) { const w = alive[0]; w.stats.lastCart = 2; w.stats.points += 2; GAME.lastStanding = w; feed(`${w.name} is the last cart rolling! +2`); }
+    }
   }
   if (GAME.endT > 0) { GAME.endT -= dt; if (GAME.endT <= 0) endMatch(); }
   if (GAME.mode === 'title') for (const c of carts) if (c.out) { c.out = false; c.lives = 99; }
@@ -2578,6 +2737,7 @@ function processEvents() {
     switch (e.t) {
       case 'cartHit': {
         fxSparks(e.x, e.y + 0.4, e.z, Math.min(25, 4 + e.imp * 3));
+        if ((e.a.isPlayer || e.b.isPlayer) && e.imp > 2) buzz(Math.min(60, 10 + e.imp * 6));
         AUD.clang(e.x, e.z, Math.min(1, e.imp / 6), 0.8 + F1(0, 0.4));
         if (e.imp > 4) shakeAt(e.x, e.z, e.imp * 0.05);
         break;
@@ -2613,15 +2773,23 @@ function processEvents() {
           shakeAt(x, z, 0.5);
         }
         AUD.scream(c);
-        if (e.by && e.by.isPlayer) AUD.score();
+        if (e.by && e.by.isPlayer) { AUD.score(); buzz([30, 40, 60]); }
+        if (c.isPlayer) buzz(220);
         break;
       }
       case 'respawn': AUD.ding(DOORS[e.door], 31); if (e.c.isPlayer) subText('Back from the store. Go get them.'); break;
       case 'pickup': AUD.pickup(e.c); if (e.c.isPlayer) subText(`${ITEMS[e.it].icon}  ${ITEMS[e.it].name}`); break;
       case 'item': if (e.c.isPlayer || e.c === camC) { /* sound handled in useItem */ } break;
-      case 'slip': AUD.slip(e.c); if (e.c.isPlayer) subText('BANANA!'); break;
-      case 'melonHit': fxMelon(e.x, e.y, e.z); AUD.splat(e.x, e.z); if (e.by && e.by.isPlayer) subText('DIRECT HIT!'); else if (e.c.isPlayer) subText('MELONED!'); break;
-      case 'melonSplat': if (e.water) fxSplash(e.x, e.z, 20, 0.6); else fxMelon(e.x, e.y, e.z); AUD.splat(e.x, e.z, 0.6); break;
+      case 'slip': AUD.slip(e.c); if (e.c.isPlayer) subText(e.juice ? 'JUICED!' : 'BANANA!'); break;
+      case 'melonHit': fxMelon(e.x, e.y, e.z); fxMelon(e.x, e.y + 0.3, e.z); AUD.splat(e.x, e.z); shakeAt(e.x, e.z, 0.35);
+        if (e.by && e.by.isPlayer) subText(e.n > 1 ? `DIRECT HIT! +${e.n - 1} SPLASHED` : 'DIRECT HIT!'); else if (e.c && e.c.isPlayer) { subText('MELONED!'); buzz(80); } break;
+      case 'melonSplat': if (e.water) fxSplash(e.x, e.z, 20, 0.6); else { fxMelon(e.x, e.y, e.z); if (e.n && e.by && e.by.isPlayer) subText(`SPLASH DAMAGE x${e.n}`); } AUD.splat(e.x, e.z, 0.7); break;
+      case 'sampleUp': feed('Free sample over the duck pond! Jump the pond ramp to grab an extra life.', true); AUD.ding(-12, -6); break;
+      case 'sample': fxConfetti(e.x, e.y, e.z, 60); AUD.cheer(); AUD.pickup(e.c);
+        feed(`${e.c.name} grabbed the free sample! ${e.gave === 'life' ? '+1 ♥' : '+1 ★'}`);
+        if (e.c.isPlayer || e.c === camC) callout('FREE SAMPLE!', e.gave === 'life' ? `${e.c.name}: +1 life` : `${e.c.name}: +1 point (lives full)`, e.c.isPlayer ? 2 : 1);
+        if (e.c.isPlayer) buzz(40);
+        break;
       case 'prop': AUD.thunk(e.d.x, e.d.z, e.d.prop); break;
       case 'overheat': fxSmoke(e.c.x, e.c.y + 0.4, e.c.z, 0, 1, 0, 0.5, 1.5, 0.15, 0.8); AUD.sputter(e.c); if (e.c.isPlayer) subText('ROCKET OVERHEATED!'); break;
       case 'lakeSplash': fxSplash(e.x, e.z, 50, 2.0, LAKE_Y); AUD.splash(e.x, e.z, 0.7); break;
@@ -2630,6 +2798,7 @@ function processEvents() {
     }
   }
 }
+function buzz(p) { if (!INPUT.touchOn || !navigator.vibrate) return; try { navigator.vibrate(p); } catch (e) { } }
 function carAlarm(car) { if (!car) return; if (car.alarm <= 0) AUD.alarm(car); car.alarm = 4; }
 function shakeAt(x, z, s) { const f = camTargetCart(); const d = f ? Math.hypot(f.x - x, f.z - z) : 10; GAME.shake = Math.min(1, GAME.shake + s / (1 + d * 0.15)); }
 
@@ -2656,7 +2825,7 @@ function feed(msg, pa) {
 function endMatch() {
   if (GAME.mode !== 'play') return;
   GAME.mode = 'end';
-  const carts = GAME.carts.slice().sort((a, b) => (b.lives - a.lives) || (b.stats.wipeouts - a.stats.wipeouts) || (a.stats.deaths - b.stats.deaths));
+  const carts = GAME.carts.slice().sort((a, b) => (b.stats.points - a.stats.points) || (b.stats.wipeouts - a.stats.wipeouts) || (b.lives - a.lives) || (a.stats.deaths - b.stats.deaths));
   const win = carts[0];
   if (win.state === 'drive') fxConfetti(win.x, win.y + 1.5, win.z, 120);
   AUD.cheer(); if (win.isPlayer) AUD.score();
@@ -2862,6 +3031,13 @@ function drawScene(t) {
     const B = r3Y(t * 1.6 + p.x); const glow = 0.6 + 0.4 * Math.sin(t * 6 + p.z);
     glPush(MESH.bag, m4basis(new Float32Array(16), B, p.x, 0.25 + Math.sin(t * 2.5 + p.x) * 0.12, p.z), 1, 0.85 * glow + 0.15, 0.1, 1);
   }
+  for (const pd of GAME.puddles) { const sc = pd.r * (pd.t < 0.25 ? pd.t / 0.25 : 1) * (pd.t > pd.life - 2 ? Math.max(0.01, (pd.life - pd.t) / 2) : 1); glPush(MESH.puddle, m4basis(new Float32Array(16), r3Y(pd.yaw), pd.x, groundH(pd.x, pd.z) + 0.02, pd.z, sc * 0.75, 1, sc * 0.75), 1, 1, 1, 1); }
+  const S = GAME.sample;
+  if (S && S.active) {
+    glPush(MESH.heart, m4basis(new Float32Array(16), r3Y(t * 2.2), S.x, S.y + Math.sin(t * 3) * 0.12, S.z, 1.25, 1.25, 1.25), 1, 1, 1, 1);
+    if (F1() < 0.5) particle({ x: S.x + F1(-0.6, 0.6), y: S.y - 0.6, z: S.z + F1(-0.6, 0.6), vx: 0, vy: F1(0.5, 1.4), vz: 0, life: 1.2, s0: 0.07, s1: 0.02, r: 1, g: 0.45, b: 0.6, a: 1, kind: 1, add: true, drag: 0.5, grav: 0, rot: 0, rv: 0 });
+    if (F1() < 0.15) particle({ x: S.x, y: S.y, z: S.z, vx: 0, vy: 0, vz: 0, life: 0.6, s0: 1.4, s1: 2.2, r: 1, g: 0.3, b: 0.45, a: 0.25, kind: 1, add: true, drag: 0, grav: 0, rot: 0, rv: 0 });
+  }
   for (const p of GAME.peels) glPush(MESH.peel, m4basis(new Float32Array(16), r3Y(p.yaw), p.x, groundH(p.x, p.z) + 0.015, p.z), 1, 1, 1, 1);
   for (const m of GAME.melons) glPush(MESH.watermelon, m4basis(new Float32Array(16), r3YPR(Math.atan2(m.vx, m.vz), -m.spin, 0), m.x, m.y, m.z), 1, 1, 1, 1);
   for (const d of GAME.ducks) {
@@ -2916,8 +3092,8 @@ const HUD = {
     if (GAME.mode === 'title') return;
     GAME.carts.forEach((c, i) => {
       const r = HUD.rows[i]; if (!r) return;
-      r.children[2].textContent = c.lives > 5 ? '♥×' + c.lives : '♥'.repeat(Math.max(0, c.lives));
-      r.children[3].textContent = '💥' + c.stats.wipeouts;
+      r.children[2].textContent = c.lives > 999 ? '♥∞' : c.lives > 5 ? '♥×' + c.lives : '♥'.repeat(Math.max(0, c.lives));
+      r.children[3].textContent = '★' + c.stats.points;
       r.classList.toggle('out', c.out);
     });
     const tm = Math.max(0, GAME.timer); document.getElementById('timer').textContent = Math.floor(tm / 60) + ':' + String(Math.floor(tm % 60)).padStart(2, '0');
@@ -2931,7 +3107,7 @@ const HUD = {
       document.getElementById('heatw').classList.toggle('hot', p.heat > 0.75 || p.overT > 0);
       const it = p.item ? ITEMS[p.item] : null;
       document.getElementById('itemi').textContent = it ? it.icon : '';
-      document.getElementById('itemn').textContent = it ? it.name : 'NO ITEM';
+      document.getElementById('itemn').textContent = it ? (p.itemN > 1 ? it.name + ' x' + p.itemN : it.name.replace(/S$/, p.item === 'melon' ? '' : 'S')) : 'NO ITEM';
       document.getElementById('item').classList.toggle('has', !!it);
     }
     const cnt = document.getElementById('count');
@@ -2941,8 +3117,9 @@ const HUD = {
     if (p && p.out && GAME.mode === 'play') sp.textContent = `You're out. Watching ${c ? c.name : ''} · ◀ ▶ switch · hold E to fast-forward · R restart`;
     else if (p && p.state === 'ko') sp.textContent = p.lives > 0 ? 'Walking back to the store...' : ''; else sp.textContent = '';
     const hint = document.getElementById('hint');
-    if (GAME.mode === 'play' && GAME.playT < 9) hint.textContent = INPUT.touchOn ? 'ROCKET to go · ◀ ▶ pull the ropes · BOOST · ITEM' : 'W rocket · A D pull the ropes · Shift boost · S drag feet · E item';
-    else if (p && p.item && p.state === 'drive') hint.textContent = (INPUT.touchOn ? 'ITEM' : 'E') + ' to use ' + ITEMS[p.item].name.toLowerCase();
+    const steerHint = SET.steer === 'tilt' ? 'tilt to steer' : SET.steer === 'buttons' ? '◀ ▶ pull the ropes' : 'drag the left side to steer';
+    if (GAME.mode === 'play' && GAME.playT < 9) hint.textContent = INPUT.touchOn ? `${steerHint} · ${SET.autorocket ? 'the rocket fires itself' : 'hold ROCKET'} · BOOST · DRIFT · swipe up or ITEM` : 'W rocket · A D pull the ropes · Shift boost · S drag feet · E item · knock carts out to score';
+    else if (p && p.item && p.state === 'drive') hint.textContent = (INPUT.touchOn ? 'ITEM or swipe up' : 'E') + ' to use ' + ITEMS[p.item].name.toLowerCase();
     else hint.textContent = '';
     if ((HUD.mm = (HUD.mm || 0) + 1) % 2 === 0 || TEST) HUD.minimap();
   },
@@ -2960,6 +3137,7 @@ const HUD = {
     for (const s of STATICS) if (s.kind === 'car' || s.kind === 'corral' || s.kind === 'dumpster') { g.save(); g.translate(X(s.x), Z(s.z)); g.rotate(s.ang); g.fillRect(-s.hx * sx, -s.hz * sz, s.hx * 2 * sx, s.hz * 2 * sz); g.restore(); }
     g.fillStyle = '#c8a26b'; for (const r of RAMPS) { g.save(); g.translate(X(r.x + r.fx * r.L / 2), Z(r.z + r.fz * r.L / 2)); g.rotate(-r.ang); g.fillRect(-r.W / 2 * sx, -r.L / 2 * sz, r.W * sx, r.L * sz); g.restore(); }
     g.fillStyle = '#ffd23f'; for (const p of GAME.pickups) if (p.active) { g.beginPath(); g.arc(X(p.x), Z(p.z), 4, 0, TAU); g.fill(); }
+    if (GAME.sample && GAME.sample.active) { g.font = 'bold 22px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ff3d6e'; g.fillText('♥', X(GAME.sample.x), Z(GAME.sample.z)); }
     for (const c of GAME.carts) {
       if (c.state !== 'drive') continue;
       g.save(); g.translate(X(c.x), Z(c.z)); g.rotate(-c.yaw + Math.PI);
@@ -2972,22 +3150,27 @@ const HUD = {
     const d = new Date();
     const ln = (a, b) => `<div class="ln"><span>${a}</span><span>${b}</span></div>`;
     let h = `<h2>CLIFFTOP FOODS</h2><div class="c">Store #0042 · Lane 7 · Parking Lot</div><div class="c">${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><hr>`;
-    h += `<div class="win">${win.isPlayer ? 'YOU WIN!' : 'WINNER: ' + win.name.toUpperCase()}</div><hr>`;
+    h += `<div class="win">${win.isPlayer ? 'YOU WIN!' : 'WINNER: ' + win.name.toUpperCase()}</div><div class="c">most points: ${win.stats.points} ★</div><hr>`;
     if (p) {
       const s = p.stats;
       h += `<div><b>${p.rider.icon} ${p.name.toUpperCase()} (YOU)</b></div>`;
-      h += ln('WIPEOUTS CAUSED  x' + s.wipeouts, (s.wipeouts * 3).toFixed(2));
-      h += ln('SELF-CHECKOUTS   x' + s.self, s.self ? '-' + s.self.toFixed(2) : '0.00');
-      h += ln('TIMES WIPED OUT  x' + s.deaths, '0.00');
-      h += ln('POND CLEARANCES  x' + s.clears, (s.clears * 2).toFixed(2));
+      h += ln('TAKEDOWNS        x' + s.wipeouts, '+' + s.wipeouts);
+      h += ln('FINAL TAKEDOWNS  x' + s.finals, '+' + s.finals);
+      if (s.lastCart) h += ln('LAST CART ROLLING', '+2');
+      if (s.samples && !SET.lives) h += ln('FREE SAMPLES     x' + s.samples, '+' + s.samples);
+      h += ln('SELF-CHECKOUTS   x' + s.self, s.self ? '-' + s.self : '0');
+      h += ln('<b>POINTS</b>', '<b>' + s.points + '</b>');
+      h += `<hr>`;
+      h += ln('TIMES WIPED OUT', String(s.deaths));
+      h += ln('FREE SAMPLES', String(s.samples || 0));
+      h += ln('POND CLEARANCES', String(s.clears));
       h += ln('TOP SPEED', Math.round(s.topSpeed * 2.237) + ' MPH');
       h += ln('BIGGEST AIR', s.maxAir.toFixed(1) + ' s');
-      h += ln('ITEMS USED', String(s.items));
       h += `<hr>`;
     }
-    sorted.forEach((c, i) => { h += ln(`${i + 1}. ${c.name}${c.isPlayer ? ' (you)' : ''}`, `💥${c.stats.wipeouts}  ♥${Math.max(0, c.lives)}`); });
-    const total = p ? p.stats.wipeouts * 3 - p.stats.self + p.stats.clears * 2 : 0;
-    h += `<hr>${ln('<b>TOTAL</b>', '<b>' + total.toFixed(2) + ' PTS</b>')}<hr><div class="c">THANK YOU FOR SHOPPING<br>NO REFUNDS · NO RETURNS<br>CARTS MUST BE RETURNED (EVENTUALLY)</div><div class="bc"></div><div class="c">*** ${String(GAME.matchId).padStart(4, '0')}${Math.floor(total * 7 + 1000)} ***</div>`;
+    sorted.forEach((c, i) => { h += ln(`${i + 1}. ${c.name}${c.isPlayer ? ' (you)' : ''}`, `★${c.stats.points}  💥${c.stats.wipeouts}`); });
+    const total = p ? p.stats.points : 0;
+    h += `<hr>${ln('<b>TOTAL</b>', '<b>' + total + ' PTS</b>')}<hr><div class="c">THANK YOU FOR SHOPPING<br>NO REFUNDS · NO RETURNS<br>CARTS MUST BE RETURNED (EVENTUALLY)</div><div class="bc"></div><div class="c">*** ${String(GAME.matchId).padStart(4, '0')}${Math.floor(Math.abs(total) * 7 + 1000)} ***</div>`;
     document.getElementById('receipt').innerHTML = h;
     setTimeout(() => { if (GAME.mode === 'end') document.getElementById('end').classList.remove('hidden'); }, 1400);
   }
@@ -2995,7 +3178,8 @@ const HUD = {
 
 // ---------- menus ----------
 const SEGS = {
-  opp: [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], lives: [[1, '1'], [3, '3'], [5, '5']],
+  opp: [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], lives: [[1, '1'], [3, '3'], [5, '5'], [0, '∞ (3 min)']],
+  steer: [['drag', 'Drag'], ['buttons', 'Buttons'], ['tilt', 'Tilt']], autorocket: [[true, 'Auto rocket']], assist: [[true, 'Smart steering']], lefty: [[true, 'Left-handed']],
   ai: [['easy', 'Easy'], ['normal', 'Normal'], ['mean', 'Mean']], quality: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['max', 'MAX']],
   sound: [[true, '🔊 Sound']], muzak: [[true, '🎵 Muzak']], voice: [[true, '📣 Announcer']], touch: [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']]
 };
@@ -3023,6 +3207,7 @@ function buildMenus() {
   const how = document.getElementById('how'); how.classList.add('hidden');
   document.getElementById('howb').onclick = () => how.classList.toggle('hidden');
   document.getElementById('play').onclick = () => startGame();
+  document.getElementById('fsb').onclick = () => toggleFullscreen();
   document.getElementById('resume').onclick = () => setPause(false);
   document.getElementById('restart').onclick = () => { setPause(false); startGame(); };
   document.getElementById('quit').onclick = () => { setPause(false); toTitle(); };
@@ -3032,10 +3217,21 @@ function buildMenus() {
 function onSetting(k) {
   if (k === 'quality') applyQuality();
   if (k === 'sound' || k === 'muzak' || k === 'voice') AUD.apply();
-  if (k === 'touch') INPUT.applyTouch();
+  if (k === 'touch' || k === 'steer' || k === 'autorocket' || k === 'lefty') INPUT.applyTouch();
+  if (k === 'steer' && SET.steer === 'tilt') INPUT.askTilt();
+}
+function toggleFullscreen() {
+  try {
+    if (!document.fullscreenElement) {
+      const r = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      if (r && r.then) r.then(() => { try { screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } }).catch(() => { });
+    } else document.exitFullscreen();
+  } catch (e) { }
 }
 function startGame() {
   AUD.init();
+  if (INPUT.touchOn && SET.steer === 'tilt') INPUT.askTilt();
+  INPUT.tiltZero = null;
   document.getElementById('title').classList.add('hidden'); document.getElementById('end').classList.add('hidden');
   newMatch(false); GAME.playT = 0;
   INPUT.applyTouch();
@@ -3050,8 +3246,13 @@ function setPause(on) {
 }
 
 // ---------- input ----------
+// Touch follows what popular mobile kart games do: the rocket fires itself (auto-accelerate), steering is a choice of
+// drag-anywhere on the left (Mario Kart Tour), big left/right buttons (KartRider Rush+) or tilt (Asphalt 9), the right
+// thumb gets big BOOST / DRIFT / ITEM buttons plus swipe-up for items, optional smart steering keeps you off the cliff
+// and out of the pond, and a left-handed mirror swaps the sides.
 const INPUT = {
   keys: {}, touch: {}, touchOn: false, steer: 0, itemEdge: false, prevPadItem: false, prevPadStart: false,
+  drag: null, dragSteer: 0, tiltRaw: null, tiltZero: null, swipe: null,
   init() {
     addEventListener('keydown', e => {
       if (e.repeat) { if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault(); return; }
@@ -3065,22 +3266,64 @@ const INPUT = {
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', e => { INPUT.keys[e.code] = false; });
-    addEventListener('blur', () => { INPUT.keys = {}; });
+    addEventListener('blur', () => { INPUT.keys = {}; INPUT.touch = {}; INPUT.drag = null; INPUT.dragSteer = 0; });
     document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
     const bind = (id, k) => {
       const el = document.getElementById(id);
-      const on = e => { e.preventDefault(); INPUT.touch[k] = true; el.classList.add('on'); AUD.init(); if (k === 'item') INPUT.itemEdge = true; if (k === 'pause') setPause(GAME.mode !== 'paused'); if (GAME.player && GAME.player.out) { if (k === 'left') GAME.spectate--; if (k === 'right') GAME.spectate++; } try { el.setPointerCapture(e.pointerId); } catch (_) { } };
+      const on = e => { e.preventDefault(); e.stopPropagation(); INPUT.touch[k] = true; el.classList.add('on'); AUD.init(); if (k === 'item') INPUT.itemEdge = true; if (k === 'pause') setPause(GAME.mode !== 'paused'); if (GAME.player && GAME.player.out) { if (k === 'left') GAME.spectate--; if (k === 'right') GAME.spectate++; } try { el.setPointerCapture(e.pointerId); } catch (_) { } };
       const off = e => { INPUT.touch[k] = false; el.classList.remove('on'); };
       el.addEventListener('pointerdown', on); el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); el.addEventListener('lostpointercapture', off);
     };
     bind('tL', 'left'); bind('tR', 'right'); bind('tGo', 'go'); bind('tBoost', 'boost'); bind('tItem', 'item'); bind('tBrake', 'brake'); bind('tPause', 'pause');
+    // floating drag stick: put a thumb down anywhere on the steering side, slide left/right
+    const zone = document.getElementById('tZone'), stick = document.getElementById('tStick'), knob = document.getElementById('tKnob');
+    const range = () => clamp(innerWidth * 0.075, 45, 85);
+    zone.addEventListener('pointerdown', e => {
+      e.preventDefault(); AUD.init(); if (INPUT.drag) return;
+      INPUT.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: 0 }; INPUT.dragSteer = 0;
+      try { zone.setPointerCapture(e.pointerId); } catch (_) { }
+      stick.style.left = e.clientX + 'px'; stick.style.top = e.clientY + 'px'; stick.classList.add('on'); knob.style.transform = 'translate(-50%,-50%)';
+    });
+    zone.addEventListener('pointermove', e => {
+      const d = INPUT.drag; if (!d || d.id !== e.pointerId) return;
+      const R = range(); let dx = e.clientX - d.x0;
+      if (Math.abs(dx) > R * 1.25) { d.x0 += dx - Math.sign(dx) * R * 1.25; dx = Math.sign(dx) * R * 1.25; stick.style.left = d.x0 + 'px'; }
+      d.moved = Math.max(d.moved, Math.abs(dx));
+      const dz = 5; const v = Math.abs(dx) < dz ? 0 : (Math.abs(dx) - dz) / (R - dz) * Math.sign(dx);
+      INPUT.dragSteer = clamp(v, -1, 1);
+      knob.style.transform = `translate(calc(-50% + ${clamp(dx, -R, R)}px),-50%)`;
+    });
+    const endDrag = e => {
+      const d = INPUT.drag; if (!d || d.id !== e.pointerId) return;
+      if (d.moved < 10 && GAME.player && GAME.player.out) GAME.spectate += e.clientX > innerWidth / 4 ? 1 : -1;
+      INPUT.drag = null; INPUT.dragSteer = 0; stick.classList.remove('on');
+    };
+    zone.addEventListener('pointerup', endDrag); zone.addEventListener('pointercancel', endDrag); zone.addEventListener('lostpointercapture', endDrag);
+    // swipe up/down on the action side to use the item (Mario Kart Tour style)
+    const sw = document.getElementById('tSwipe');
+    sw.addEventListener('pointerdown', e => { e.preventDefault(); AUD.init(); INPUT.swipe = { id: e.pointerId, y0: e.clientY, t0: performance.now(), done: false }; try { sw.setPointerCapture(e.pointerId); } catch (_) { } });
+    sw.addEventListener('pointermove', e => { const s = INPUT.swipe; if (!s || s.id !== e.pointerId || s.done) return; if (Math.abs(e.clientY - s.y0) > 45 && performance.now() - s.t0 < 600) { s.done = true; INPUT.itemEdge = true; } });
+    const endSw = e => { if (INPUT.swipe && INPUT.swipe.id === e.pointerId) INPUT.swipe = null; };
+    sw.addEventListener('pointerup', endSw); sw.addEventListener('pointercancel', endSw);
+    // tilt
+    addEventListener('deviceorientation', e => {
+      if (e.beta === null || e.gamma === null) return;
+      const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+      INPUT.tiltRaw = ang === 90 ? e.beta : (ang === -90 || ang === 270) ? -e.beta : e.gamma;
+    });
     INPUT.applyTouch();
+  },
+  askTilt() {
+    try { if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().catch(() => { }); } catch (e) { }
   },
   applyTouch() {
     const coarse = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
     INPUT.touchOn = SET.touch === 'on' || (SET.touch === 'auto' && coarse);
     document.getElementById('touch').classList.toggle('hidden', !INPUT.touchOn || GAME.mode === 'title' || GAME.mode === 'end');
-    document.body.classList.toggle('touchmode', INPUT.touchOn);
+    const b = document.body.classList;
+    b.toggle('touchmode', INPUT.touchOn);
+    for (const m of ['drag', 'buttons', 'tilt']) b.toggle('steer-' + m, SET.steer === m);
+    b.toggle('autorocket', !!SET.autorocket); b.toggle('lefty', !!SET.lefty);
   },
   poll(dt) {
     const k = INPUT.keys, t = INPUT.touch;
@@ -3104,12 +3347,49 @@ const INPUT = {
       const st = gp.buttons[9] && gp.buttons[9].pressed; if (st && !INPUT.prevPadStart) { if (GAME.mode === 'title') startGame(); else setPause(GAME.mode !== 'paused'); } INPUT.prevPadStart = st;
       AUD.init();
     }
-    if (analog !== null) INPUT.steer = analog;
+    if (INPUT.touchOn) {
+      if (SET.steer === 'drag' && INPUT.drag) analog = INPUT.dragSteer;
+      if (SET.steer === 'tilt' && INPUT.tiltRaw !== null) {
+        if (INPUT.tiltZero === null) INPUT.tiltZero = INPUT.tiltRaw;
+        const d = INPUT.tiltRaw - INPUT.tiltZero; analog = clamp((Math.abs(d) < 2 ? 0 : d - Math.sign(d) * 2) / 22, -1, 1);
+      }
+      if (SET.autorocket && !brake) thr = 1;
+    }
+    if (analog !== null) INPUT.steer += (analog - INPUT.steer) * Math.min(1, dt * 18);
     else { const rate = tgt === 0 ? 9 : (Math.sign(tgt) !== Math.sign(INPUT.steer) ? 12 : 5.5); INPUT.steer += clamp(tgt - INPUT.steer, -rate * dt, rate * dt); }
     INPUT.ff = !!(k.KeyE || k.KeyF || t.item);
     return { throttle: thr, steer: INPUT.steer, brake, boost, item };
   }
 };
+
+// Smart steering (touch only, optional): if the cart is about to roll into the pond or off the cliff, or slam a wall hard
+// enough to self-checkout, nudge the ropes away and ease off. It stays out of the way on ramps (pond jump) and in the air.
+function smartSteer(c, pin) {
+  if (!c.onGround || c.megaT > 0) return pin;
+  const sp = c.speed(); if (sp < 2.5) return pin;
+  let hitT = 0;
+  for (const tt of [0.25, 0.45, 0.7, 0.95]) {
+    const x = c.x + c.vx * tt, z = c.z + c.vz * tt;
+    if (rampAt(x, z)[0] > 0.01) return pin;           // heading for a jump: let them
+    let bad = isLethal(x, z);
+    if (!bad && sp > SELF_KO_SPEED * 0.85 && GAME.now - c.lastHit.t > SHOVE_WINDOW) {
+      for (const st of STATICS) { if (!KINDS[st.kind].hazard) continue; const ddx = x - st.x, ddz = z - st.z, rr = (st.shape === 'circ' ? st.r : Math.max(st.hx, st.hz)) + 1.5; if (ddx * ddx + ddz * ddz > rr * rr) continue; if (staticClosest(st, x, z)[2] < 0.7) { bad = true; break; } }
+    }
+    if (bad) { hitT = tt; break; }
+  }
+  if (!hitT) return pin;
+  // which way is safer? test the velocity direction rotated each way
+  const va = Math.atan2(c.vx, c.vz); let best = 0, bestD = -1;
+  for (const s of [-1, 1]) {
+    const a = va - s * 0.6; let ok = 0;
+    for (const tt of [0.3, 0.6, 0.9]) { const x = c.x + Math.sin(a) * sp * tt, z = c.z + Math.cos(a) * sp * tt; if (!isLethal(x, z)) ok++; }
+    if (ok > bestD) { bestD = ok; best = s; }
+  }
+  const out = { ...pin };
+  out.steer = clamp(pin.steer * 0.35 + best * 0.9, -1, 1);
+  if (hitT <= 0.45) { out.boost = 0; out.throttle = Math.min(out.throttle, 0.3); if (hitT <= 0.25 && isLethal(c.x + c.vx * 0.25, c.z + c.vz * 0.25)) out.brake = 1; }
+  return out;
+}
 
 // ---------- main loop ----------
 let lastTS = 0, fpsAcc = 0, fpsN = 0, fpsShow = 0, frameAvg = 16;
@@ -3130,6 +3410,7 @@ function tick(realDt) {
   const pin = INPUT.poll(realDt);
   const p = GAME.player;
   if (p && !GAME.ais.some(a => a.c === p)) {
+    if (p.state === 'drive' && SET.assist && INPUT.touchOn) Object.assign(pin, smartSteer(p, pin));
     if (p.state === 'drive') { p.input.throttle = pin.throttle; p.input.steer = pin.steer; p.input.brake = pin.brake; p.input.boost = pin.boost; if (pin.item && GAME.mode === 'play') useItem(p, GAME.now); }
     else { p.input.throttle = 0; p.input.steer = 0; }
   }

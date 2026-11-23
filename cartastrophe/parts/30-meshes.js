@@ -272,6 +272,17 @@ function buildPropMeshes() {
   // wreck piece (bent wire panel) - reuse cart mesh for the wreck itself
   // cardboard box (dynamic)
   b = new MB(); b.col(0xb88c55).par(0.95); b.box(0.5, 0.4, 0.4); b.col(0x8a6738).push().tr(0, 0.201, 0).box(0.08, 0.002, 0.41).pop(); MESH.cbox = b.build({ name: 'cbox' });
+  // free sample: a glowing heart on a paper sample cup
+  b = new MB(); b.col(0xff2d55).par(0.25, 0, 1.4);
+  for (const s of [-1, 1]) b.push().tr(s * 0.13, 0.09, 0).sc(1, 1, 0.6).sph(0.2, 14, 10).pop();
+  b.push().tr(0, 0.12, 0).rx(Math.PI).sc(1, 1, 0.6).cyl(0.29, 0.0, 0.46, 18, true).pop();
+  b.col(0xffffff).par(0.3, 0, 2.5); b.push().tr(-0.13, 0.2, 0.1).sph(0.05, 8, 6).pop();
+  b.col(0xf4f1e8).par(0.8); b.push().tr(0, -0.62, 0).cyl(0.06, 0.1, 0.16, 12, true).pop();
+  MESH.heart = b.build({ name: 'heart' });
+  // watermelon juice puddle (flat, unlit-ish red)
+  b = new MB(); b.col(0x9a0c22).par(0.12, 0, 0); b.cyl(1, 1, 0.01, 20, true);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + 0.4; b.push().tr(Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95).cyl(0.28, 0.28, 0.01, 10, true).pop(); }
+  MESH.puddle = b.build({ name: 'puddle', cast: false });
   // sliding glass door panel (centered)
   b = new MB(); b.col(0x5a5f66).par(0.35, 0.9); b.push().tr(0, 1.22, 0).box(1.7, 0.08, 0.06).pop(); b.push().tr(0, -1.22, 0).box(1.7, 0.08, 0.06).pop();
   b.push().tr(0.83, 0, 0).box(0.06, 2.5, 0.06).pop(); b.push().tr(-0.83, 0, 0).box(0.06, 2.5, 0.06).pop();
