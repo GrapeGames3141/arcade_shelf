@@ -42,7 +42,7 @@ The cart adds 18 kg. Thrust is the same for everyone, so light riders accelerate
 - Watermelons (two per bag): auto-aimed lob that explodes on impact, blasting every cart within 4 m away and spinning them
   out, then leaves a slick juice puddle for 20 s. Everything it touches counts as your shove.
 - Bananas: three peels behind you; driving over one spins you out for 1.5 s.
-- Leaf blower: 3 s cone gust (15 m) that pushes carts away; great for nudging someone off the cliff.
+- Leaf blower: 3.5 s gust out to 20 m in a wide cone; carts caught in it lose grip and skate 15-35 m. Point it at someone near the cliff.
 - Mega Rocket: 2.2 s of huge thrust with no heat; rams with it get the biggest shove bonus.
 
 ## Match

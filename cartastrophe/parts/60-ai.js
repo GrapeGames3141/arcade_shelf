@@ -243,7 +243,7 @@ class AI {
       const dx = t.x - c.x, dz = t.z - c.z, d = Math.hypot(dx, dz); const a = Math.acos(clamp((dx * fx + dz * fz) / (d || 1), -1, 1));
       const hz = hazardsNear(t.x, t.z)[0];
       const hd = Math.hypot(hz.px - t.x, hz.pz - t.z) || 1; const beyond = ((hz.px - t.x) * dx + (hz.pz - t.z) * dz) / (hd * (d || 1));
-      if (d < 12 && a < 0.35 && ((hz.d < 9 && beyond > 0.4) || d < 5)) use = true;
+      if (d < 16 && a < 0.5 && ((hz.d < 12 && beyond > 0.3) || d < 7)) use = true;
       if (this.itemHold > 18) use = true;
     } else if (c.item === 'mega') {
       if (this.plan === 'ram' && t) { const d = Math.hypot(t.x - c.x, t.z - c.z); if (d > 4 && d < 16 && Math.abs(this.steerOut) < 0.3) use = true; }

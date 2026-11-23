@@ -65,7 +65,7 @@ Ramps: pond jump at (-12,6) heading south, east ramp (28.5,-3) heading west, wes
   (leads the target, solves the lob height), homes 1.3 rad/s in flight. Any impact explodes: direct hit adds 12 m/s and
   a hop; everything within 4.2 m gets up to 9 m/s pushed away (scaled by weight) and a spin-out; all count as shoves. Leaves a
   juice puddle (r 2.1 m, 20 s) that spins carts out and credits the thrower.
-- Bananas: 3 peels behind, spin-out 1.5 s, credit the dropper. Leaf blower: 3 s cone push. Mega Rocket: 2.2 s of x2.7 thrust.
+- Bananas: 3 peels behind, spin-out 1.5 s, credit the dropper. Leaf blower: 3.5 s gust, 20 m range, ~39 degree cone, up to 4200 N (sqrt range falloff, 45% at the cone edge), and victims' tyre grip drops to 35% while in it, so they skate; pushes 16-35 m (test/blower.py). Mega Rocket: 2.2 s of x2.7 thrust.
 
 ## Touch controls (70-game.js `INPUT`, `smartSteer`; CSS in 00-head.html)
 Modelled on Mario Kart Tour (auto-accelerate, drag steering, swipe for items, Smart Steering), KartRider Rush+ (big

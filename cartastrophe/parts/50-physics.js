@@ -7,7 +7,7 @@ const RIDERS = [
   { name: 'Big Deb', helmet: 'pot', shirt: 0xa64bd6, pants: 0x3a2a4f, skin: 0xc68b5e, mass: 100, icon: '🍲', voice: 1.25, desc: 'Heavy. Hard to shove. Slow off the line.' },
   { name: 'Tiny Tim', helmet: 'cone', shirt: 0x2bb8e0, pants: 0x33363b, skin: 0xf5d0b0, mass: 55, icon: '🚧', voice: 1.55, desc: 'Light and zippy. Goes very far when shoved.' },
   { name: 'Nana Rocket', helmet: 'bowl', shirt: 0xff6fa8, pants: 0x6a5a8c, skin: 0xe8b896, mass: 66, icon: '🥗', voice: 1.35, desc: 'Salad bowl helmet. Has done this before.' },
-  { name: 'Chad', helmet: 'bucket', shirt: 0xe0402b, pants: 0x2b2b2b, skin: 0xd9a07a, mass: 86, icon: '🪣', voice: 0.85, desc: 'Bucket helmet. Lifts. Never brakes.' },
+  { name: 'Chad', helmet: 'bucket', shirt: 0xe0402b, pants: 0x2b2b2b, skin: 0xd9a07a, mass: 86, icon: "<svg viewBox='0 0 24 24' width='1em' height='1em' style='vertical-align:-0.15em'><path d='M5 4 Q12 -1 19 4' fill='none' stroke='#555' stroke-width='1.6'/><path d='M4 7h16l-2 14H6z' fill='#e0402b' stroke='#7b1d12' stroke-width='1.2'/><path d='M4 7h16' stroke='#ff8a75' stroke-width='2'/></svg>", voice: 0.85, desc: 'Bucket helmet. Lifts. Never brakes.' },
   { name: 'Box Kid', helmet: 'box', shirt: 0xf2c230, pants: 0x2a4f7a, skin: 0x8d5a3b, mass: 60, icon: '📦', voice: 1.45, desc: 'Cardboard box with eye holes. Fearless.' }
 ];
 const CART_MASS = 18, THRUST = 600, DRAG = 2.3, LAT_K = 620;
@@ -57,6 +57,7 @@ function cartStep(c, dt, now) {
     const muOf = slip => lerp(muS, muK, smoothstep(0.14, 0.32, Math.abs(slip) / vref));
     let gF = 1, gR = inp.brake ? 0.45 : 1;
     if (c.spinT > 0) { gF *= 0.2; gR *= 0.2; }
+    if (c.blownT > 0) { c.blownT -= dt; gF *= 0.35; gR *= 0.35; }   // caught in a leaf-blower gust: tyres skate
     const N = c.mass * G / 2, a = 0.36, b = 0.37;
     const sd = Math.sin(c.delta), cd = Math.cos(c.delta);
     const latF = -sd * vf + cd * (vr - c.w * a);

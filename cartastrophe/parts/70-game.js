@@ -222,13 +222,15 @@ function physicsStep(dt) {
         const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
         for (const o of carts) {
           if (o === c || o.state !== 'drive' || o.ghostT > 0) continue;
-          const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d > 15 || d < 0.3) continue;
-          const cosA = (dx * fx + dz * fz) / d; if (cosA < 0.88) continue;
-          const f = 1500 * (1 - d / 15) * (cosA - 0.88) / 0.12;
+          const dx = o.x - c.x, dz = o.z - c.z, d = Math.hypot(dx, dz); if (d > 20 || d < 0.3) continue;
+          const cosA = (dx * fx + dz * fz) / d; if (cosA < 0.78) continue;   // ~39 degree half-angle cone
+          // strong gust: falls off gently with range, still decent at the cone edge, and the victim's tyres lose grip
+          const f = 4200 * Math.sqrt(1 - d / 20) * (0.45 + 0.55 * (cosA - 0.78) / 0.22);
           o.vx += dx / d * f * o.inv * dt; o.vz += dz / d * f * o.inv * dt;
+          o.blownT = 0.25;
           o.lastHit = { by: c, t: now };
         }
-        for (const d of GAME.props) { const dx = d.x - c.x, dz = d.z - c.z, dd = Math.hypot(dx, dz); if (dd < 12 && (dx * fx + dz * fz) / (dd || 1) > 0.88) { d.rest = false; d.vx += dx / dd * 8 * dt; d.vz += dz / dd * 8 * dt; d.vy += 3 * dt; d.av = 6; } }
+        for (const d of GAME.props) { const dx = d.x - c.x, dz = d.z - c.z, dd = Math.hypot(dx, dz); if (dd < 16 && (dx * fx + dz * fz) / (dd || 1) > 0.78) { d.rest = false; d.vx += dx / dd * 8 * dt; d.vz += dz / dd * 8 * dt; d.vy += 3 * dt; d.av = 6; } }
       }
       // knock props
       for (const d of GAME.props) {
@@ -474,9 +476,10 @@ function stepEffects(dt) {
     if (c.braking && sp > 2 && F1() < 22 * dt * q) { const f = localToWorld(c, B, [F1(-0.15, 0.15), 0.05, 0.75]); fxDust(f[0], f[1], f[2], 1, 0.6); }
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw); const lat = Math.abs(c.vx * -fz + c.vz * fx);
     if (c.onGround && lat > 2.5 && F1() < lat * 4 * dt * q) { const f = localToWorld(c, B, [F1(-0.25, 0.25), 0.03, -0.35]); fxDust(f[0], f[1], f[2], 1, 0.5); }
-    if (c.blowerT > 0 && F1() < 40 * dt * q) {
-      const m = localToWorld(c, B, [0.3, 1.0, 0.6]);
-      particle({ x: m[0], y: m[1], z: m[2], vx: c.vx + fx * F1(10, 16) + F1(-1.5, 1.5), vy: F1(-0.5, 1), vz: c.vz + fz * F1(10, 16) + F1(-1.5, 1.5), life: F1(0.5, 1.0), s0: 0.06, s1: 0.06, r: F1(0.6, 0.9), g: F1(0.4, 0.6), b: 0.15, a: 1, kind: 3, add: false, drag: 1.2, grav: 0.1, rot: F1(0, 6), rv: F1(-10, 10) });
+    if (c.blowerT > 0) for (let k = 0; k < 2; k++) if (F1() < 40 * dt * q) {
+      const m = localToWorld(c, B, [0.3, 1.0, 0.6]); const sa = F1(-0.6, 0.6), sp2 = F1(11, 18), ca = Math.cos(sa), sn = Math.sin(sa);
+      const gx = fx * ca - fz * sn, gz = fz * ca + fx * sn;
+      particle({ x: m[0], y: m[1], z: m[2], vx: c.vx + gx * sp2, vy: F1(-0.5, 1.2), vz: c.vz + gz * sp2, life: F1(0.5, 1.0), s0: 0.06, s1: 0.06, r: F1(0.6, 0.9), g: F1(0.4, 0.6), b: 0.15, a: 1, kind: 3, add: false, drag: 1.2, grav: 0.1, rot: F1(0, 6), rv: F1(-10, 10) });
       if (F1() < 0.5) fxSmoke(m[0], m[1], m[2], c.vx + fx * 8, 0.2, c.vz + fz * 8, 0.2, 0.8, 0.9, 0.2);
     }
     if (pondSD(c.x, c.z) < 0.4 && sp > 3 && c.onGround && F1() < 0.3) fxSplash(c.x, c.z, 2, 0.3);
@@ -815,7 +818,7 @@ function buildMenus() {
   });
   const showRider = () => {
     const r = RIDERS[SET.rider];
-    document.getElementById('rSw').style.background = hexCss(r.shirt); document.getElementById('rSw').textContent = r.icon;
+    document.getElementById('rSw').style.background = hexCss(r.shirt); document.getElementById('rSw').innerHTML = r.icon;
     document.getElementById('rName').textContent = r.name; document.getElementById('rDesc').textContent = r.desc;
     document.getElementById('rW').style.width = ((r.mass - 45) / 60 * 100) + '%';
     document.getElementById('rZ').style.width = ((1 / (r.mass + CART_MASS) - 1 / 125) / (1 / 70 - 1 / 125) * 100) + '%';
