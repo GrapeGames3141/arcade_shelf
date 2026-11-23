@@ -1,0 +1,21 @@
+<div id="onl" class="panel">
+  <div class="onh">PLAY ONLINE <span class="beta">prototype · 2 players · private rooms</span></div>
+  <div class="row"><label>Your name</label><input id="oName" class="oin" maxlength="14" placeholder="Shopper" autocomplete="off"></div>
+  <div class="row"><label>Lives (new room)</label><div class="seg" data-k="olives"></div></div>
+  <div class="row orow"><button class="btn" id="oCreate">Create room</button><span class="or">or</span><input id="oCode" class="oin code" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters"><button class="btn ghost" id="oJoin">Join</button></div>
+  <div id="oStatus"></div>
+</div>
+<div id="lobby" class="screen hidden">
+  <div class="panel lob">
+    <div class="ltitle">ROOM</div>
+    <div id="lCode" class="lcode">-----</div>
+    <div class="ltip">Send this code to your opponent. They open this page, type it and press Join.</div>
+    <div class="row" style="justify-content:center"><button class="btn ghost" id="lCopy">Copy invite link</button></div>
+    <div id="lPlayers"></div>
+    <div class="row" style="justify-content:center;gap:12px"><button class="btn big" id="lReady">READY</button><button class="btn ghost" id="lLeave">Leave room</button></div>
+    <div id="lInfo"></div>
+  </div>
+</div>
+<div id="netlost" class="screen hidden"><div class="panel" style="text-align:center"><div class="ltitle" style="font-size:28px">CONNECTION LOST</div><div id="nlMsg">Reconnecting...</div><button class="btn ghost" id="nlLeave" style="margin-top:12px">Back to title</button></div></div>
+<div id="netbar" class="hidden"></div>
+<div id="endnet" class="hidden"></div>

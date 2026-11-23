@@ -1,0 +1,15 @@
+{
+  "name": "cartastrophe-online",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cartastrophe 2-player online prototype: Cloudflare Worker + SQLite-backed Durable Object per room",
+  "scripts": {
+    "build": "python build.py",
+    "dev": "python build.py && wrangler dev --port 8787",
+    "check": "python build.py && wrangler deploy --dry-run --outdir dist"
+  },
+  "devDependencies": {
+    "wrangler": "4.166.0"
+  },
+  "type": "module"
+}

@@ -1,0 +1,69 @@
+name: Deploy Cartastrophe Online
+
+on:
+  workflow_dispatch:
+    inputs:
+      workers_free_confirmed:
+        description: Confirm Cloudflare account 3aed6802cc84d155b5f7940960ebd115 is on Workers Free before deployment.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cartastrophe-online-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Workers Free confirmation
+        if: ${{ inputs.workers_free_confirmed != true }}
+        run: |
+          echo "::error::An account administrator must explicitly confirm this exact account is on Workers Free."
+          exit 1
+      - name: Check out the release
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check deploy token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Set the CLOUDFLARE_API_TOKEN organization secret before a manual release."
+            exit 1
+          fi
+      - name: Install pinned dependencies
+        working-directory: experiments/cartastrophe-online
+        env:
+          CI: "true"
+          WRANGLER_SEND_METRICS: "false"
+        run: npm ci
+      - name: Build and test authoritative simulation
+        working-directory: experiments/cartastrophe-online
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          npm run build
+          node test/sim-node.mjs
+      - name: Validate Worker upload without publishing
+        working-directory: experiments/cartastrophe-online
+        env:
+          CLOUDFLARE_ACCOUNT_ID: 3aed6802cc84d155b5f7940960ebd115
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: "false"
+        run: ./node_modules/.bin/wrangler deploy --dry-run --outdir dist
+      - name: Publish Cartastrophe Online
+        working-directory: experiments/cartastrophe-online
+        env:
+          # This is the established Pages account; the workflow never discovers or changes accounts.
+          CLOUDFLARE_ACCOUNT_ID: 3aed6802cc84d155b5f7940960ebd115
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_SEND_METRICS: "false"
+        run: ./node_modules/.bin/wrangler deploy

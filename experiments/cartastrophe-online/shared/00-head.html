@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Cartastrophe</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hidden{display:none!important}
+.logo{font-family:Impact,"Arial Black","Franklin Gothic Heavy",sans-serif;letter-spacing:2px;line-height:.9;
+  color:#ffd23f;text-shadow:0 4px 0 #c0392b,0 8px 0 #7b1d12,0 10px 18px rgba(0,0,0,.6);transform:rotate(-3deg)}
+.btn{font:800 16px/1 "Segoe UI",Arial,sans-serif;color:#fff;background:#e2412f;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;
+  box-shadow:0 4px 0 #8c2116;transition:transform .06s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #8c2116}
+.btn.big{font-size:26px;padding:16px 34px;border-radius:14px;box-shadow:0 6px 0 #8c2116}
+.btn.ghost{background:rgba(255,255,255,.14);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20}
+#title{background:linear-gradient(90deg,rgba(10,14,24,.88) 0,rgba(10,14,24,.55) 46%,rgba(10,14,24,0) 70%);justify-content:flex-start;align-items:flex-start;padding:3vh 4vw;overflow:auto}
+.tcol{width:min(560px,92vw);display:flex;flex-direction:column;gap:12px;margin:auto 0}
+#title .logo{font-size:min(88px,15vw)}
+.tag{font-weight:700;color:#cfe3ff;font-size:17px;margin:6px 0 4px 6px;text-shadow:0 2px 3px #000}
+.panel{background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+.row>label{width:118px;font-weight:700;font-size:14px;color:#ffe9a8}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{font:700 13px "Segoe UI",Arial;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 10px;cursor:pointer}
+.seg button.on{background:#ffd23f;color:#2a1a00;border-color:#ffd23f}
+.rider{display:flex;align-items:center;gap:12px}
+.rider .arrow{font-size:22px;padding:8px 14px}
+.rcard{flex:1;display:flex;gap:12px;align-items:center;min-height:74px}
+.rsw{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:30px;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25)}
+.rname{font:900 22px Impact,"Arial Black",sans-serif;letter-spacing:1px}
+.rdesc{font-size:12.5px;color:#d7e4f5;margin-top:2px}
+.bars{display:grid;grid-template-columns:52px 1fr;gap:3px 8px;font-size:11px;font-weight:700;color:#ffe9a8;margin-top:5px}
+.bar{height:8px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden;align-self:center}
+.bar i{display:block;height:100%;background:#ffd23f}
+.how{font-size:13.5px;line-height:1.45;color:#dfe9f7}
+.how b{color:#ffd23f}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px;margin-top:6px;color:#cfdcec}
+.keys span:nth-child(odd){font-weight:800;color:#fff;white-space:nowrap}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;font-weight:800}
+#board{position:absolute;left:12px;top:10px;display:flex;flex-direction:column;gap:4px}
+.bd{display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.45);border-radius:8px;padding:4px 9px 4px 5px;font-size:13px;min-width:170px}
+.bd .sw{width:16px;height:16px;border-radius:4px}
+.bd .nm{flex:1;white-space:nowrap}
+.bd .lv{color:#ff6b6b;letter-spacing:1px}
+.bd .ko{color:#ffd23f;min-width:26px;text-align:right}
+.bd.out{opacity:.4;text-decoration:line-through}
+.bd.me{outline:2px solid #ffd23f}
+#topc{position:absolute;left:50%;top:10px;transform:translateX(-50%);text-align:center;text-shadow:0 2px 4px #000}
+#timer{font:900 30px Impact,"Arial Black",sans-serif;letter-spacing:1px}
+#left{font-size:13px;color:#cfe3ff}
+#mini{position:absolute;right:12px;top:10px;width:190px;height:150px;border-radius:10px;background:rgba(0,0,0,.35)}
+#feed{position:absolute;right:12px;top:168px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;max-width:46vw}
+.fd{background:rgba(0,0,0,.5);padding:4px 9px;border-radius:7px;font-size:13px;animation:fin .25s ease-out}
+.fd.pa{color:#bfe7ff;font-style:italic;font-weight:600}
+@keyframes fin{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+#callout{position:absolute;left:50%;top:27%;transform:translate(-50%,-50%);font:900 min(76px,13vw) Impact,"Arial Black",sans-serif;letter-spacing:2px;
+  color:#ffd23f;text-shadow:0 4px 0 #c0392b,0 8px 0 #6d160d,0 12px 20px rgba(0,0,0,.6);white-space:nowrap;opacity:0;pointer-events:none}
+#callout.pop{animation:pop 1.9s ease-out forwards}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(.2) rotate(-12deg);opacity:0}10%{transform:translate(-50%,-50%) scale(1.18) rotate(3deg);opacity:1}
+  18%{transform:translate(-50%,-50%) scale(1) rotate(-2deg)}80%{opacity:1}100%{transform:translate(-50%,-62%) scale(1.04) rotate(-2deg);opacity:0}}
+#sub{position:absolute;left:50%;top:37%;transform:translateX(-50%);font-size:20px;text-shadow:0 2px 4px #000;white-space:nowrap;opacity:0}
+#sub.pop{animation:fade 1.9s ease-out forwards}
+@keyframes fade{0%,8%{opacity:0}15%,80%{opacity:1}100%{opacity:0}}
+#dash{position:absolute;right:14px;bottom:14px;display:flex;align-items:flex-end;gap:12px}
+#spd{text-align:right;text-shadow:0 2px 4px #000}
+#spd b{font:900 46px Impact,"Arial Black",sans-serif;display:block;line-height:1}
+#spd span{font-size:12px;color:#cfe3ff}
+#heatw{width:22px;height:110px;border-radius:8px;background:rgba(0,0,0,.45);position:relative;overflow:hidden;border:2px solid rgba(255,255,255,.25)}
+#heat{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,#ffd23f,#ff7b2f 60%,#ff2d2d)}
+#heatw.hot{animation:blink .25s infinite alternate}
+@keyframes blink{to{border-color:#ff3030}}
+#heatl{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:10px;color:#cfe3ff}
+#item{width:86px;height:86px;border-radius:16px;background:rgba(0,0,0,.45);border:3px solid rgba(255,255,255,.25);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:42px}
+#item small{font-size:10px;font-weight:800;color:#ffe9a8;margin-top:2px}
+#item.has{border-color:#ffd23f;animation:glow 1s infinite alternate}
+@keyframes glow{to{box-shadow:0 0 18px #ffd23f}}
+#hint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);font-size:14px;color:#e5eefb;text-shadow:0 2px 3px #000;text-align:center}
+#spect{position:absolute;left:50%;bottom:60px;transform:translateX(-50%);font-size:18px;text-shadow:0 2px 3px #000}
+#count{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);font:900 120px Impact,"Arial Black",sans-serif;color:#fff;text-shadow:0 6px 0 #c0392b,0 12px 24px #000}
+#touch{position:fixed;inset:0;z-index:15;pointer-events:none}
+#touch .tb{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.35);
+  display:flex;align-items:center;justify-content:center;font:900 15px "Segoe UI",Arial;color:#fff;text-shadow:0 1px 2px #000}
+#touch .tb.on{background:rgba(255,210,63,.45)}
+#tZone{position:absolute;left:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tSwipe{position:absolute;right:0;top:16%;bottom:0;width:48%;pointer-events:auto}
+#tStick{position:absolute;width:150px;height:56px;border-radius:28px;border:2px solid rgba(255,255,255,.35);background:rgba(255,255,255,.08);transform:translate(-50%,-50%);display:none;pointer-events:none}
+#tStick.on{display:block}
+body.steer-stick #tStick{width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.04) 0,rgba(255,255,255,.12) 70%)}
+body.steer-stick #tStick::before,body.steer-stick #tStick::after{position:absolute;left:50%;transform:translateX(-50%);font:900 16px sans-serif;color:rgba(255,255,255,.55)}
+body.steer-stick #tStick::before{content:'▲';top:6px}body.steer-stick #tStick::after{content:'▼';bottom:6px}
+body.steer-stick #tKnob{width:62px;height:62px}
+#tKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,210,63,.55);border:2px solid #fff;transform:translate(-50%,-50%)}
+#touch .tb{z-index:2}
+#tL{left:max(14px,env(safe-area-inset-left));bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tR{left:calc(max(14px,env(safe-area-inset-left)) + 116px);bottom:22px;width:104px;height:104px;font-size:38px!important;border-radius:26px!important}
+#tGo{right:max(16px,env(safe-area-inset-right));bottom:20px;width:112px;height:112px}
+#tBoost{right:calc(max(16px,env(safe-area-inset-right)) + 124px);bottom:26px;width:84px;height:84px}
+#tItem{right:calc(max(16px,env(safe-area-inset-right)) + 22px);bottom:146px;width:76px;height:76px}
+#tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 120px);bottom:124px;width:70px;height:70px}
+body.nogo #tGo{display:none}
+body.nogo #tBoost{right:max(16px,env(safe-area-inset-right));bottom:20px;width:116px;height:116px;font-size:17px}
+body.nogo #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 130px);bottom:28px;width:84px;height:84px}
+body.nogo #tItem{right:calc(max(16px,env(safe-area-inset-right)) + 24px);bottom:150px}
+body.steer-drag #tL,body.steer-drag #tR,body.steer-tilt #tL,body.steer-tilt #tR{display:none}
+body.steer-buttons #tZone,body.steer-tilt #tZone{display:none}
+body.steer-stick #tL,body.steer-stick #tR{display:none}
+body.steer-stick #tBrake{display:none}
+body.steer-stick #tItem{right:calc(max(16px,env(safe-area-inset-right)) + 132px);bottom:30px;width:80px;height:80px}
+body.lefty.steer-stick #tItem{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 132px)}
+body.lefty #tZone{left:auto;right:0}body.lefty #tSwipe{right:auto;left:0}
+body.lefty #tL{left:auto;right:calc(max(14px,env(safe-area-inset-right)) + 116px)}body.lefty #tR{left:auto;right:max(14px,env(safe-area-inset-right))}
+body.lefty #tGo,body.lefty.nogo #tBoost{right:auto;left:max(16px,env(safe-area-inset-left))}
+body.lefty #tBoost{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 124px)}
+body.lefty #tItem,body.lefty.nogo #tItem{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 22px)}
+body.lefty #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 120px)}
+body.lefty.nogo #tBrake{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 130px)}
+#tPause{right:212px;top:10px;width:46px;height:46px;border-radius:12px!important}
+#pause{background:rgba(5,8,14,.7)}
+.plab{font-weight:700;font-size:13px;color:#ffe9a8;margin-right:4px}
+#pause .panel{min-width:300px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+#end{background:rgba(5,8,14,.55);align-items:flex-start;overflow:auto;padding:12px 0}
+#end>div{margin:auto}
+.receipt{background:#fbfaf3;color:#222;font:13px/1.28 "Courier New",Consolas,monospace;width:min(380px,92vw);padding:20px 22px 26px;
+  box-shadow:0 10px 40px rgba(0,0,0,.6);transform:rotate(-1.5deg);position:relative;
+  -webkit-mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x;
+  mask:linear-gradient(#000,#000) top/100% calc(100% - 10px) no-repeat, radial-gradient(circle at 6px 0,transparent 5px,#000 5.5px) bottom/12px 10px repeat-x}
+.receipt h2{text-align:center;font:900 22px "Courier New",monospace;letter-spacing:2px}
+.receipt .c{text-align:center}
+.receipt hr{border:0;border-top:2px dashed #999;margin:8px 0}
+.receipt .ln{display:flex;justify-content:space-between;gap:8px}
+.receipt .win{font-size:20px;font-weight:900;text-align:center;margin:6px 0}
+.receipt .bc{height:42px;margin:10px auto 4px;width:80%;background:repeating-linear-gradient(90deg,#222 0 2px,transparent 2px 4px,#222 4px 7px,transparent 7px 8px,#222 8px 9px,transparent 9px 12px)}
+.endbtns{display:flex;gap:10px;justify-content:center;margin-top:16px}
+#err{position:fixed;left:10px;bottom:10px;right:10px;color:#ff8080;font:12px monospace;z-index:99;white-space:pre-wrap;pointer-events:none}
+#fps{position:fixed;left:50%;bottom:2px;transform:translateX(-50%);font:11px monospace;color:#9fb3c8;z-index:11;pointer-events:none}
+body.touchmode #dash{right:auto;left:50%;transform:translateX(-50%) scale(.85);transform-origin:bottom center;bottom:8px}
+body.touchmode #hint{bottom:118px}
+body.touchmode #spect{bottom:150px}
+@media (max-height:520px){#mini{width:130px;height:103px}#feed{top:118px;max-width:40vw}.fd{font-size:11px;padding:3px 7px}
+  .bd{min-width:120px;font-size:11px;padding:2px 7px 2px 4px}.bd .sw{width:12px;height:12px}#timer{font-size:24px}#callout{top:30%}
+  body.touchmode #feed{top:auto;bottom:auto;right:50%;transform:translateX(50%);top:62px;align-items:center;max-width:60vw}
+  #tL,#tR{width:86px!important;height:86px!important}#tR{left:calc(max(14px,env(safe-area-inset-left)) + 98px)}#tPause{right:152px}
+  body.nogo #tBoost{width:100px;height:100px}body.nogo #tItem{bottom:128px}body.steer-stick #tItem{bottom:26px;right:calc(max(16px,env(safe-area-inset-right)) + 114px);width:72px;height:72px}body.lefty.steer-stick #tItem{right:auto;left:calc(max(16px,env(safe-area-inset-left)) + 114px)}body.nogo #tBrake{right:calc(max(16px,env(safe-area-inset-right)) + 112px)}#tGo{width:96px!important;height:96px!important}
+  #title{padding:2vh 3vw}#title .logo{font-size:min(60px,11vw)}.panel{padding:8px 10px}.row{margin:3px 0}}
+@media (max-width:760px){#title{background:rgba(10,14,24,.72)}.row>label{width:100%}#mini{width:140px;height:110px}#feed{top:126px}.bd{min-width:130px;font-size:11px}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="board"></div>
+  <div id="topc"><div id="timer">3:00</div><div id="left"></div></div>
+  <canvas id="mini" width="380" height="300"></canvas>
+  <div id="feed"></div>
+  <div id="callout"></div>
+  <div id="sub"></div>
+  <div id="count"></div>
+  <div id="spect"></div>
+  <div id="hint"></div>
+  <div id="dash">
+    <div id="spd"><b>0</b><span>MPH</span></div>
+    <div id="heatw"><div id="heat"></div><div id="heatl">HEAT</div></div>
+    <div id="item"><span id="itemi"></span><small id="itemn">NO ITEM</small></div>
+  </div>
+</div>
+
+<div id="touch" class="hidden">
+  <div id="tZone"></div>
+  <div id="tSwipe"></div>
+  <div id="tStick"><div id="tKnob"></div></div>
+  <div class="tb" id="tL">&#9664;</div>
+  <div class="tb" id="tR">&#9654;</div>
+  <div class="tb" id="tGo">ROCKET</div>
+  <div class="tb" id="tBoost">BOOST</div>
+  <div class="tb" id="tItem">ITEM</div>
+  <div class="tb" id="tBrake">DRIFT</div>
+  <div class="tb" id="tPause">II</div>
+</div>
+
+<div id="title" class="screen">
+  <div class="tcol">
+    <div class="logo">CARTASTROPHE</div>
+    <div class="tag">Rocket carts. Rope steering. No refunds.</div>
+    <div class="panel">
+      <div class="rider">
+        <button class="btn ghost arrow" id="rPrev">&#9664;</button>
+        <div class="rcard"><div class="rsw" id="rSw"></div><div style="flex:1"><div class="rname" id="rName"></div><div class="rdesc" id="rDesc"></div>
+          <div class="bars"><span>WEIGHT</span><div class="bar"><i id="rW"></i></div><span>ZIP</span><div class="bar"><i id="rZ"></i></div></div></div></div>
+        <button class="btn ghost arrow" id="rNext">&#9654;</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="play">PLAY</button><button class="btn ghost" id="howb">How to play</button><button class="btn ghost" id="fsb">Fullscreen</button></div>
+    <div class="panel" id="settings">
+      <div class="row"><label>Opponents</label><div class="seg" data-k="opp"></div></div>
+      <div class="row"><label>Lives</label><div class="seg" data-k="lives"></div></div>
+      <div class="row"><label>Other drivers</label><div class="seg" data-k="ai"></div></div>
+      <div class="row"><label>Quality</label><div class="seg" data-k="quality"></div></div>
+      <div class="row"><label>Sound</label><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
+      <div class="row"><label>Touch buttons</label><div class="seg" data-k="touch"></div></div>
+      <div class="row"><label>Touch steering</label><div class="seg" data-k="steer"></div></div>
+      <div class="row"><label>Touch extras</label><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
+    </div>
+    <div class="panel how" id="how">
+      Shove the other carts into the <b>store wall</b>, <b>parked cars</b>, <b>lamp posts</b>, the <b>cart corral</b>, the <b>duck pond</b> or <b>off the cliff</b>.
+      A cart that was just shoved wipes out at low speed. <b>Most points wins</b>: +1 per takedown, +1 more for knocking a cart out of the match, +2 for the last cart rolling, -1 for a <b>SELF-CHECKOUT</b> (crashing on your own at full tilt).
+      A <b>free sample</b> (extra life) sometimes floats over the duck pond: boost off the pond ramp to grab it.
+      <div class="keys">
+        <span>W / &uarr;</span><span>Rocket</span>
+        <span>A D / &larr; &rarr;</span><span>Pull the steering ropes</span>
+        <span>Shift / Space</span><span>Boost (watch the heat)</span>
+        <span>S / &darr;</span><span>Drag your feet (brake, drift, paddle backwards)</span>
+        <span>E / F / Enter</span><span>Use item</span>
+        <span>C</span><span>Camera &nbsp;&nbsp;<b>Esc / P</b> Pause</span>
+        <span>Gamepad</span><span>Stick steers, RT rocket, LT brake, A boost, X item</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:52px">PAUSED</div>
+    <div class="row" style="justify-content:center"><span class="plab">Quality</span><div class="seg" data-k="quality"></div></div>
+    <div class="row" style="justify-content:center"><div class="seg" data-k="sound"></div><div class="seg" data-k="muzak"></div><div class="seg" data-k="voice"></div></div>
+    <div class="row" style="justify-content:center"><span class="plab">Touch buttons</span><div class="seg" data-k="touch"></div></div>
+    <div class="row" style="justify-content:center"><span class="plab">Steering</span><div class="seg" data-k="steer"></div><div class="seg" data-k="autorocket"></div><div class="seg" data-k="assist"></div><div class="seg" data-k="lefty"></div></div>
+    <button class="btn big" id="resume">RESUME</button>
+    <div style="display:flex;gap:10px"><button class="btn ghost" id="restart">Restart</button><button class="btn ghost" id="quit">Quit to title</button></div>
+  </div>
+</div>
+
+<div id="end" class="screen hidden">
+  <div>
+    <div class="receipt" id="receipt"></div>
+    <div class="endbtns"><button class="btn big" id="again">PLAY AGAIN</button><button class="btn ghost" id="endq">Title</button></div>
+  </div>
+</div>
+<div id="fps"></div>
+<div id="err"></div>
