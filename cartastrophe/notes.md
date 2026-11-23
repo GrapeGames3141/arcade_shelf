@@ -59,7 +59,7 @@ smoke, car alarms, ducks scattering, PA announcements in the feed ("the duck pon
 player is involved, a bossa-nova muzak loop, optional spoken callouts (speechSynthesis), and the receipt.
 
 ## Touch
-Auto rocket, drag / buttons / tilt steering, BOOST + DRIFT + ITEM on the right, swipe up for items, smart steering,
+Round floating joystick by default (up = rocket, down = brake, sideways = steer), or drag / buttons / tilt with optional auto rocket, BOOST on the right, tap the right half for items (DRIFT only in the non-joystick modes), smart steering,
 left-handed layout, fullscreen. See AGENTS.md for details and the games it borrows from.
 
 ## Possible next steps

@@ -70,11 +70,15 @@ Ramps: pond jump at (-12,6) heading south, east ramp (28.5,-3) heading west, wes
 ## Touch controls (70-game.js `INPUT`, `smartSteer`; CSS in 00-head.html)
 Modelled on Mario Kart Tour (auto-accelerate, drag steering, swipe for items, Smart Steering), KartRider Rush+ (big
 left/right buttons, dedicated drift button, left/right-handed layouts) and Asphalt 9 (tilt steering option).
-- Steering setting: Drag (floating stick: put a thumb anywhere on the left 48% and slide; the base follows the thumb if it
-  goes past the range), Buttons (two 104 px arrows), Tilt (device orientation, zeroed at match start; iOS asks permission).
-- Auto rocket (default on): the rocket fires unless DRIFT is held; the right thumb gets BOOST (big), DRIFT and ITEM.
-  Off: a ROCKET button appears.
-- Swipe up or down on the right side uses the item. Left-handed mirrors everything. Fullscreen button on the title
+- Steering setting: Joystick (default, the user's choice: a round floating stick appears wherever the left thumb lands;
+  up = rocket like W, analog from 18% to 68% of the radius; down past 42% = drag feet like S; sideways = steer with a 14%
+  dead zone; the base follows a thumb that wanders past 1.35x the radius; letting go cuts the rocket), Drag (horizontal-only
+  floating slider), Buttons (two 104 px arrows), Tilt (device orientation, zeroed at match start; iOS asks permission).
+- Auto rocket (default off since controls v2; `SET.ctlv` migrates old saved settings to Joystick + auto rocket off): fires
+  the rocket unless DRIFT is held. The right thumb gets BOOST (big), ITEM and (except with the Joystick) DRIFT; a ROCKET button appears only for
+  Drag/Buttons/Tilt with auto rocket off (`body.nogo` hides it). BOOST is the same as Shift/Space on PC.
+- Tap anywhere on the right half (outside the buttons) to use the item; holding it fast-forwards while spectating.
+  With the Joystick there is no DRIFT button (pull the stick down instead); ITEM moves to where DRIFT was. Left-handed mirrors everything. Fullscreen button on the title
   (also tries to lock landscape). Vibration on hits and wipeouts where supported.
 - Smart steering (touch only, default on): looks 0.25-0.95 s along the velocity; if that path is lethal (pond, cliff) or a
   self-checkout wall hit, it pulls the ropes toward the safer side, eases off, and brakes when very close. It never

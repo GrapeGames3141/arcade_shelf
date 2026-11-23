@@ -2,6 +2,6 @@
   "title": "Cartastrophe",
   "description": "Rocket-powered shopping carts steered with ropes tied to the front wheels. Shove the other carts into the store, parked cars, lamp posts, the duck pond or off the cliff. Most takedowns wins.",
   "category": "Action",
-  "controls": "W rocket, A/D pull the steering ropes, Shift boost (watch the heat), S drag your feet, E use item, C camera, Esc pause. Touch: the rocket fires itself, drag the left side to steer (or buttons or tilt), BOOST/DRIFT/ITEM on the right, swipe up for items. Gamepad supported.",
+  "controls": "W rocket, A/D pull the steering ropes, Shift boost (watch the heat), S drag your feet, E use item, C camera, Esc pause. Touch: joystick on the left (up = rocket, down = brake, sideways = steer), BOOST/DRIFT/ITEM on the right, swipe up for items. Gamepad supported.",
   "requirements": "WebGL2 browser"
 }

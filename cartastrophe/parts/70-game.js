@@ -1,9 +1,11 @@
 // ---------- game state, items, wipeouts, camera, rendering, HUD, input ----------
 const QS = new URLSearchParams(location.search);
 const TEST = QS.has('test');
-const SETTINGS_DEF = { opp: 3, lives: 3, ai: 'normal', quality: 'high', sound: true, muzak: true, voice: true, touch: 'auto', rider: 0, steer: 'drag', autorocket: true, assist: true, lefty: false };
+const SETTINGS_DEF = { opp: 3, lives: 3, ai: 'normal', quality: 'high', sound: true, muzak: true, voice: true, touch: 'auto', rider: 0, steer: 'stick', autorocket: false, assist: true, lefty: false, ctlv: 2 };
 let SET = { ...SETTINGS_DEF };
 try { const s = JSON.parse(localStorage.getItem('cartastrophe.settings') || '{}'); SET = { ...SET, ...s }; } catch (e) { }
+// controls v2: the floating joystick replaced auto rocket as the touch default
+if (SET.ctlv !== 2) { SET.steer = 'stick'; SET.autorocket = false; SET.ctlv = 2; }
 if (QS.get('q')) SET.quality = QS.get('q');
 function saveSettings() { try { localStorage.setItem('cartastrophe.settings', JSON.stringify(SET)); } catch (e) { } }
 
@@ -734,9 +736,9 @@ const HUD = {
     if (p && p.out && GAME.mode === 'play') sp.textContent = `You're out. Watching ${c ? c.name : ''} · ◀ ▶ switch · hold E to fast-forward · R restart`;
     else if (p && p.state === 'ko') sp.textContent = p.lives > 0 ? 'Walking back to the store...' : ''; else sp.textContent = '';
     const hint = document.getElementById('hint');
-    const steerHint = SET.steer === 'tilt' ? 'tilt to steer' : SET.steer === 'buttons' ? '◀ ▶ pull the ropes' : 'drag the left side to steer';
-    if (GAME.mode === 'play' && GAME.playT < 9) hint.textContent = INPUT.touchOn ? `${steerHint} · ${SET.autorocket ? 'the rocket fires itself' : 'hold ROCKET'} · BOOST · DRIFT · swipe up or ITEM` : 'W rocket · A D pull the ropes · Shift boost · S drag feet · E item · knock carts out to score';
-    else if (p && p.item && p.state === 'drive') hint.textContent = (INPUT.touchOn ? 'ITEM or swipe up' : 'E') + ' to use ' + ITEMS[p.item].name.toLowerCase();
+    const steerHint = SET.steer === 'stick' ? 'left thumb: up = rocket, down = brake, sideways = steer' : SET.steer === 'tilt' ? 'tilt to steer' : SET.steer === 'buttons' ? '◀ ▶ pull the ropes' : 'drag the left side to steer';
+    if (GAME.mode === 'play' && GAME.playT < 9) hint.textContent = INPUT.touchOn ? `${steerHint} · ${SET.steer === 'stick' ? '' : SET.autorocket ? 'the rocket fires itself · ' : 'hold ROCKET · '}BOOST · ${SET.steer === 'stick' ? '' : 'DRIFT · '}tap the right side for items` : 'W rocket · A D pull the ropes · Shift boost · S drag feet · E item · knock carts out to score';
+    else if (p && p.item && p.state === 'drive') hint.textContent = (INPUT.touchOn ? 'Tap the right side' : 'E') + ' to use ' + ITEMS[p.item].name.toLowerCase();
     else hint.textContent = '';
     if ((HUD.mm = (HUD.mm || 0) + 1) % 2 === 0 || TEST) HUD.minimap();
   },
@@ -796,7 +798,7 @@ const HUD = {
 // ---------- menus ----------
 const SEGS = {
   opp: [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], lives: [[1, '1'], [3, '3'], [5, '5'], [0, '∞ (3 min)']],
-  steer: [['drag', 'Drag'], ['buttons', 'Buttons'], ['tilt', 'Tilt']], autorocket: [[true, 'Auto rocket']], assist: [[true, 'Smart steering']], lefty: [[true, 'Left-handed']],
+  steer: [['stick', 'Joystick'], ['drag', 'Drag'], ['buttons', 'Buttons'], ['tilt', 'Tilt']], autorocket: [[true, 'Auto rocket']], assist: [[true, 'Smart steering']], lefty: [[true, 'Left-handed']],
   ai: [['easy', 'Easy'], ['normal', 'Normal'], ['mean', 'Mean']], quality: [['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['max', 'MAX']],
   sound: [[true, '🔊 Sound']], muzak: [[true, '🎵 Muzak']], voice: [[true, '📣 Announcer']], touch: [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']]
 };
@@ -894,16 +896,29 @@ const INPUT = {
     bind('tL', 'left'); bind('tR', 'right'); bind('tGo', 'go'); bind('tBoost', 'boost'); bind('tItem', 'item'); bind('tBrake', 'brake'); bind('tPause', 'pause');
     // floating drag stick: put a thumb down anywhere on the steering side, slide left/right
     const zone = document.getElementById('tZone'), stick = document.getElementById('tStick'), knob = document.getElementById('tKnob');
-    const range = () => clamp(innerWidth * 0.075, 45, 85);
+    const range = () => SET.steer === 'stick' ? clamp(Math.min(innerWidth, innerHeight * 1.8) * 0.075, 42, 70) : clamp(innerWidth * 0.075, 45, 85);
     zone.addEventListener('pointerdown', e => {
       e.preventDefault(); AUD.init(); if (INPUT.drag) return;
-      INPUT.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: 0 }; INPUT.dragSteer = 0;
+      INPUT.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: 0 }; INPUT.dragSteer = 0; INPUT.stickThr = 0; INPUT.stickBrake = 0;
       try { zone.setPointerCapture(e.pointerId); } catch (_) { }
       stick.style.left = e.clientX + 'px'; stick.style.top = e.clientY + 'px'; stick.classList.add('on'); knob.style.transform = 'translate(-50%,-50%)';
     });
     zone.addEventListener('pointermove', e => {
       const d = INPUT.drag; if (!d || d.id !== e.pointerId) return;
-      const R = range(); let dx = e.clientX - d.x0;
+      const R = range(); let dx = e.clientX - d.x0, dy = e.clientY - d.y0;
+      if (SET.steer === 'stick') {
+        // round floating joystick: x steers, up = rocket (W), down = drag feet (S); the base follows a thumb that wanders off
+        let len = Math.hypot(dx, dy);
+        if (len > R * 1.35) { const k = (len - R * 1.35) / len; d.x0 += dx * k; d.y0 += dy * k; dx -= dx * k; dy -= dy * k; len = R * 1.35; stick.style.left = d.x0 + 'px'; stick.style.top = d.y0 + 'px'; }
+        d.moved = Math.max(d.moved, len);
+        const nx = dx / R, ny = dy / R, dzn = 0.14;
+        INPUT.dragSteer = clamp(Math.abs(nx) < dzn ? 0 : (nx - Math.sign(nx) * dzn) / (1 - dzn), -1, 1);
+        INPUT.stickThr = clamp((-ny - 0.18) / 0.5, 0, 1);
+        INPUT.stickBrake = ny > 0.42 ? 1 : 0;
+        const kl = Math.min(1, R / (len || 1));
+        knob.style.transform = `translate(calc(-50% + ${dx * kl}px),calc(-50% + ${dy * kl}px))`;
+        return;
+      }
       if (Math.abs(dx) > R * 1.25) { d.x0 += dx - Math.sign(dx) * R * 1.25; dx = Math.sign(dx) * R * 1.25; stick.style.left = d.x0 + 'px'; }
       d.moved = Math.max(d.moved, Math.abs(dx));
       const dz = 5; const v = Math.abs(dx) < dz ? 0 : (Math.abs(dx) - dz) / (R - dz) * Math.sign(dx);
@@ -913,15 +928,14 @@ const INPUT = {
     const endDrag = e => {
       const d = INPUT.drag; if (!d || d.id !== e.pointerId) return;
       if (d.moved < 10 && GAME.player && GAME.player.out) GAME.spectate += e.clientX > innerWidth / 4 ? 1 : -1;
-      INPUT.drag = null; INPUT.dragSteer = 0; stick.classList.remove('on');
+      INPUT.drag = null; INPUT.dragSteer = 0; INPUT.stickThr = 0; INPUT.stickBrake = 0; stick.classList.remove('on');
     };
     zone.addEventListener('pointerup', endDrag); zone.addEventListener('pointercancel', endDrag); zone.addEventListener('lostpointercapture', endDrag);
-    // swipe up/down on the action side to use the item (Mario Kart Tour style)
+    // tap anywhere on the action half of the screen to use the item (holding it fast-forwards while spectating)
     const sw = document.getElementById('tSwipe');
-    sw.addEventListener('pointerdown', e => { e.preventDefault(); AUD.init(); INPUT.swipe = { id: e.pointerId, y0: e.clientY, t0: performance.now(), done: false }; try { sw.setPointerCapture(e.pointerId); } catch (_) { } });
-    sw.addEventListener('pointermove', e => { const s = INPUT.swipe; if (!s || s.id !== e.pointerId || s.done) return; if (Math.abs(e.clientY - s.y0) > 45 && performance.now() - s.t0 < 600) { s.done = true; INPUT.itemEdge = true; } });
-    const endSw = e => { if (INPUT.swipe && INPUT.swipe.id === e.pointerId) INPUT.swipe = null; };
-    sw.addEventListener('pointerup', endSw); sw.addEventListener('pointercancel', endSw);
+    sw.addEventListener('pointerdown', e => { e.preventDefault(); AUD.init(); INPUT.itemEdge = true; INPUT.touch.item = true; try { sw.setPointerCapture(e.pointerId); } catch (_) { } });
+    const endSw = () => { INPUT.touch.item = false; };
+    sw.addEventListener('pointerup', endSw); sw.addEventListener('pointercancel', endSw); sw.addEventListener('lostpointercapture', endSw);
     // tilt
     addEventListener('deviceorientation', e => {
       if (e.beta === null || e.gamma === null) return;
@@ -939,8 +953,8 @@ const INPUT = {
     document.getElementById('touch').classList.toggle('hidden', !INPUT.touchOn || GAME.mode === 'title' || GAME.mode === 'end');
     const b = document.body.classList;
     b.toggle('touchmode', INPUT.touchOn);
-    for (const m of ['drag', 'buttons', 'tilt']) b.toggle('steer-' + m, SET.steer === m);
-    b.toggle('autorocket', !!SET.autorocket); b.toggle('lefty', !!SET.lefty);
+    for (const m of ['stick', 'drag', 'buttons', 'tilt']) b.toggle('steer-' + m, SET.steer === m);
+    b.toggle('nogo', !!SET.autorocket || SET.steer === 'stick'); b.toggle('lefty', !!SET.lefty);
   },
   poll(dt) {
     const k = INPUT.keys, t = INPUT.touch;
@@ -965,7 +979,8 @@ const INPUT = {
       AUD.init();
     }
     if (INPUT.touchOn) {
-      if (SET.steer === 'drag' && INPUT.drag) analog = INPUT.dragSteer;
+      if ((SET.steer === 'drag' || SET.steer === 'stick') && INPUT.drag) analog = INPUT.dragSteer;
+      if (SET.steer === 'stick' && INPUT.drag) { thr = Math.max(thr, INPUT.stickThr); if (INPUT.stickBrake) brake = 1; }
       if (SET.steer === 'tilt' && INPUT.tiltRaw !== null) {
         if (INPUT.tiltZero === null) INPUT.tiltZero = INPUT.tiltRaw;
         const d = INPUT.tiltRaw - INPUT.tiltZero; analog = clamp((Math.abs(d) < 2 ? 0 : d - Math.sign(d) * 2) / 22, -1, 1);
