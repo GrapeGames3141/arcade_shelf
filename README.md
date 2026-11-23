@@ -34,6 +34,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Pop Quiz | `popquiz/popquiz.html` | `http://127.0.0.1:8000/popquiz/popquiz.html` |
 | Buzz Words | `buzzwords/buzzwords.html` | `http://127.0.0.1:8000/buzzwords/buzzwords.html` |
 | Unicorn Meadow | `unicornmeadow/unicornmeadow.html` | `http://127.0.0.1:8000/unicornmeadow/unicornmeadow.html` |
+| Barnyard Count | `barncount/barncount.html` | `http://127.0.0.1:8000/barncount/barncount.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.

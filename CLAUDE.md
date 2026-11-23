@@ -4,7 +4,7 @@ Start every session by reading this file, the root `AGENTS.md`, and the target g
 
 ## Repository layout
 
-The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `saltaquarium`, `woolrampage`, `kindred-crossing`, `popquiz`, `buzzwords`, and `unicornmeadow` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
+The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `saltaquarium`, `woolrampage`, `kindred-crossing`, `popquiz`, `buzzwords`, `unicornmeadow`, and `barncount` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
 
 | Source game | Source file | Drive release copy |
 | --- | --- | --- |
@@ -36,6 +36,7 @@ The root repository uses branch `main` and has origin `https://github.com/GrapeG
 | Pop Quiz | `popquiz\popquiz.html` | none yet |
 | Buzz Words | `buzzwords\buzzwords.html` | none yet |
 | Unicorn Meadow | `unicornmeadow\unicornmeadow.html` | none yet |
+| Barnyard Count | `barncount\barncount.html` | none yet |
 | Cartastrophe | `cartastrophe\cartastrophe.html` | none yet |
 
 `experiments\Astra-demo\Astra-demo.html`, `experiments\demo\demo.html`, and `experiments\procedural-demo\procedural-demo.html` are explicitly curated nested arcade and Pages entrypoints. Their evidence, plans, build notes, and sibling experiments stay excluded. `experiments\humanoid-model-experiment\humanoid-model-experiment.html` remains a development prototype, not an arcade entry. Its historical Drive export is `human.html`; do not update that copy unless the user asks.
