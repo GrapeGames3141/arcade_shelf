@@ -1,18 +1,42 @@
 (() => {
-  const cards = [...document.querySelectorAll('.game-card')];
+  const cards = [...document.querySelectorAll('#game-grid .game-card')];
   const filters = [...document.querySelectorAll('.filter')];
   const search = document.querySelector('#search');
   const count = document.querySelector('#result-count');
   const empty = document.querySelector('#empty-state');
+  const grid = document.querySelector('#game-grid');
+  const labels = Object.fromEntries(filters.map(b => [b.dataset.filter, b.childNodes[0].textContent.trim()]));
   let category = 'all';
   let recent = '';
   try { recent = localStorage.getItem('grapegames-last-played') || ''; } catch (_) { /* Storage is optional. */ }
+
+  // Everything a player might type: title, category, tags and picture description.
+  const text = card => [card.dataset.search, card.dataset.category, labels[card.dataset.category] || '',
+    card.querySelector('h3')?.textContent || '', card.querySelector('img')?.alt || ''].join(' ').toLowerCase();
+  const haystack = new Map(cards.map(card => [card, text(card)]));
+  const SYN = { kid: 'kids', children: 'kids', child: 'kids', toddler: 'kids', learning: 'kids', learn: 'kids', education: 'kids', shooter: 'action', shooting: 'action', rts: 'strategy', tower: 'strategy', farm: 'farm' };
+  const matches = (card, query) => query.split(/\s+/).filter(Boolean).every(word => {
+    const h = haystack.get(card); return h.includes(word) || (SYN[word] && h.includes(SYN[word]));
+  });
+
+  // On phones, the unfiltered library is a set of sideways-scrolling shelves, one per category.
+  const shelves = document.createElement('div'); shelves.className = 'shelves'; shelves.id = 'shelves';
+  grid.before(shelves);
+  for (const b of filters) {
+    const slug = b.dataset.filter; if (slug === 'all') continue;
+    const mine = cards.filter(c => c.dataset.category === slug); if (!mine.length) continue;
+    const sec = document.createElement('section'); sec.className = 'shelf';
+    sec.innerHTML = `<div class="shelf-head"><h3>${labels[slug]} <span>${mine.length}</span></h3><button type="button" class="see-all" data-filter="${slug}">See all ↗</button></div><div class="shelf-row"></div>`;
+    const row = sec.querySelector('.shelf-row'); mine.forEach(c => row.append(c.cloneNode(true)));
+    sec.querySelector('.see-all').addEventListener('click', () => { category = slug; update(); document.querySelector('.tools').scrollIntoView({ block: 'start' }); });
+    shelves.append(sec);
+  }
 
   function update() {
     const query = search.value.trim().toLowerCase();
     let shown = 0;
     cards.forEach(card => {
-      const visible = (category === 'all' || card.dataset.category === category) && card.dataset.search.includes(query);
+      const visible = (category === 'all' || card.dataset.category === category) && matches(card, query);
       card.hidden = !visible;
       if (visible) shown++;
     });
@@ -21,7 +45,8 @@
       button.classList.toggle('active', selected);
       button.setAttribute('aria-pressed', String(selected));
     });
-    count.textContent = `SHOWING ${shown === cards.length ? 'ALL ' : ''}${String(shown).padStart(2, '0')} ${shown === 1 ? 'GAME' : 'GAMES'}`;
+    document.body.classList.toggle('browsing', category === 'all' && !query);
+    count.textContent = `SHOWING ${shown === cards.length ? 'ALL ' : ''}${String(shown).padStart(2, '0')} ${shown === 1 ? 'GAME' : 'GAMES'}${category !== 'all' ? ' · ' + (labels[category] || '').toUpperCase() : ''}${query ? ` · “${query.toUpperCase()}”` : ''}`;
     empty.hidden = shown !== 0;
   }
 
@@ -42,9 +67,7 @@
   document.querySelector('#random-game').addEventListener('click', playRandom);
   document.querySelector('#hero-random').addEventListener('click', playRandom);
   if (recent) {
-    const card = cards.find(item => item.dataset.id === recent);
-    const categoryLabel = card && card.querySelector('.category');
-    if (categoryLabel) categoryLabel.append(document.createTextNode(' · LAST PLAYED'));
+    document.querySelectorAll(`.game-card[data-id="${CSS.escape(recent)}"] .category`).forEach(label => label.append(document.createTextNode(' · LAST PLAYED')));
   }
   update();
 })();
