@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Quilt Hill Roll</title>
+<style>
+:root{
+  --red:#c8463f;--cream:#f6eddc;--green:#4f8a5b;--teal:#3f8f93;--mustard:#e0a83a;--plum:#7d4a74;--ink:#3a2f2b;
+  --font:"Baloo 2","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;background:#dfe8ee;font-family:var(--font);color:var(--ink);touch-action:none}
+canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+/* felt surfaces: soft noise via layered radial gradients + dashed stitch border */
+.felt{position:relative;border-radius:18px;box-shadow:0 4px 0 rgba(0,0,0,.12),0 8px 18px rgba(40,30,20,.18);
+  background-image:radial-gradient(rgba(255,255,255,.10) 1px,transparent 1.4px),radial-gradient(rgba(0,0,0,.07) 1px,transparent 1.5px);
+  background-size:5px 5px,7px 7px;background-position:0 0,2px 3px}
+.felt::after{content:"";position:absolute;inset:5px;border:2.5px dashed rgba(255,255,255,.55);border-radius:13px;pointer-events:none}
+.btn{font-family:var(--font);font-weight:800;font-size:18px;border:0;color:#fff;padding:12px 20px;cursor:pointer;background-color:var(--red);letter-spacing:.5px;text-shadow:0 2px 0 rgba(0,0,0,.18)}
+.btn:active{transform:translateY(2px)}
+.btn.small{font-size:13px;padding:8px 12px;border-radius:14px}
+.btn.small::after{inset:3px;border-width:2px;border-radius:11px}
+.btn.teal{background-color:var(--teal)}.btn.green{background-color:var(--green)}.btn.mustard{background-color:var(--mustard)}.btn.plum{background-color:var(--plum)}
+#hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 8px) 10px 0;pointer-events:none;display:none}
+#topRow{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+#stats{background-color:var(--cream);padding:8px 14px;font-weight:800;font-size:16px;line-height:1.25;min-width:132px}
+#stats b{color:var(--red)}
+#stats .lbl{font-size:11px;opacity:.6;letter-spacing:1px}
+#rbtns{display:flex;gap:6px;pointer-events:auto}
+#prog{position:absolute;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 16px);width:min(440px,46vw);height:16px;border-radius:9px;
+  background:repeating-linear-gradient(90deg,#c8463f 0 14px,#f6eddc 14px 22px,#4f8a5b 22px 34px,#f6eddc 34px 42px);box-shadow:inset 0 0 0 2px rgba(0,0,0,.12)}
+@media (max-width:640px){#prog{left:auto;right:10px;transform:none;top:calc(env(safe-area-inset-top) + 56px);width:52vw}
+  .btn.small{font-size:11px;padding:7px 9px}#stats{font-size:14px;min-width:104px;padding:7px 11px}}
+.btn{white-space:nowrap}
+#progSled{position:absolute;top:-9px;width:30px;height:30px;margin-left:-15px;font-size:22px;line-height:30px;text-align:center;filter:drop-shadow(0 2px 1px rgba(0,0,0,.25))}
+.patch{margin-top:8px;display:inline-block;padding:6px 12px;font-weight:800;font-size:13px;color:#fff;border-radius:12px;background-color:#c8463f;transition:background-color .2s}.patch::after{inset:3px;border-width:2px;border-radius:9px}.patch.p1{background-color:#a9582f}.patch.p2{background-color:#b48ac4}
+#legend{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;text-align:left;margin:6px auto 14px;max-width:380px;font-size:14px;font-weight:700}#legend .sw{width:46px;height:22px;border-radius:7px;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+#stack span{display:inline-block;animation:hop .35s ease-out}
+@keyframes hop{0%{transform:translateY(-14px) scale(1.4)}100%{transform:none}}
+#pops{position:fixed;left:0;right:0;top:28%;pointer-events:none;text-align:center}
+.pop{position:absolute;left:50%;transform:translateX(-50%);font-weight:900;font-size:30px;color:#fff;white-space:nowrap;
+  text-shadow:0 3px 0 rgba(0,0,0,.25),0 0 2px rgba(0,0,0,.4);animation:popup 1.25s ease-out forwards;-webkit-text-stroke:1.5px rgba(60,40,30,.55)}
+.pop.big{font-size:44px}
+@keyframes popup{0%{opacity:0;transform:translate(-50%,20px) scale(.6)}15%{opacity:1;transform:translate(-50%,0) scale(1.1)}30%{transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-70px) scale(1)}}
+.overlay{position:fixed;inset:0;overflow:auto;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px;background:rgba(220,232,240,.25)}
+.card{background-color:var(--cream);padding:22px 26px;max-width:min(560px,94vw);text-align:center}
+h1.title{margin:0;font-size:clamp(40px,9vw,72px);line-height:.95;color:#fff;font-weight:900;letter-spacing:1px;
+  text-shadow:0 4px 0 #b03a34,0 8px 0 rgba(0,0,0,.15);-webkit-text-stroke:2px #8e2d29}
+.sub{font-weight:700;opacity:.75;margin:6px 0 14px}
+#riders{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0 16px}
+.rider{width:96px;padding:10px 6px 8px;background-color:#fff;cursor:pointer;font-weight:800;font-size:14px;border-radius:16px;color:var(--ink)}
+.rider .em{font-size:40px;display:block;line-height:1.1}
+.rider.sel{background-color:var(--mustard);color:#fff}
+.row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.hint{font-size:13px;opacity:.65;margin-top:12px;line-height:1.4}
+#count{position:fixed;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-size:110px;font-weight:900;color:#fff;
+  text-shadow:0 6px 0 rgba(0,0,0,.2);-webkit-text-stroke:3px #8e2d29}
+#endCard table{margin:10px auto;border-collapse:collapse;font-weight:800;font-size:17px}
+#endCard td{padding:3px 10px}#endCard td:last-child{text-align:right}
+#endCard tr.tot td{border-top:3px dashed rgba(0,0,0,.2);font-size:24px;color:var(--red);padding-top:8px}
+#touch{position:fixed;inset:0;pointer-events:none;display:none}
+#joyBase{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;background:rgba(255,255,255,.28);box-shadow:inset 0 0 0 3px rgba(255,255,255,.6);display:none}
+#joyKnob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:var(--red);box-shadow:0 3px 0 rgba(0,0,0,.18),inset 0 0 0 4px rgba(255,255,255,.45)}
+#jumpBtn{position:absolute;right:calc(env(safe-area-inset-right) + 26px);bottom:calc(env(safe-area-inset-bottom) + 34px);width:104px;height:104px;border-radius:50%;
+  pointer-events:auto;background-color:var(--teal);color:#fff;font-weight:900;font-size:20px;display:flex;align-items:center;justify-content:center;text-shadow:0 2px 0 rgba(0,0,0,.2)}
+#jumpBtn::after{border-radius:50%}
+#joyHint{position:absolute;left:24px;bottom:calc(env(safe-area-inset-bottom) + 40px);color:#fff;font-weight:800;opacity:.85;text-shadow:0 2px 2px rgba(0,0,0,.3);font-size:14px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div id="topRow">
+    <div>
+      <div id="stats" class="felt"><div class="lbl">TIME</div><div id="hTime">0.0</div><div class="lbl">SCORE</div><div><b id="hScore">0</b></div><div class="lbl">BOBBINS</div><div id="hBob">0</div></div>
+      <div id="patch" class="felt patch">Cotton</div>
+    </div>
+    <div id="rbtns">
+      <button class="btn small teal felt" id="bQual">HIGH</button>
+      <button class="btn small mustard felt" id="bSound">SOUND ON</button>
+      <button class="btn small felt" id="bPause">II</button>
+    </div>
+  </div>
+  <div id="prog"><div id="progSled">🦔</div></div>
+</div>
+<div id="pops"></div>
+<div id="count">3</div>
+<div id="touch"><div id="joyBase"><div id="joyKnob"></div></div><div id="joyHint">◀ drag to steer ▶</div><div id="jumpBtn" class="felt">JUMP</div></div>
+
+<div id="menu" class="overlay">
+  <div class="card felt">
+    <h1 class="title">Quilt Hill<br>Roll</h1>
+    <div class="sub">Curl up and roll down the patchwork hill. Grab bobbins. Mind the scissors!</div>
+    <div id="legend">
+      <div class="sw" style="background:repeating-conic-gradient(#e07a6a 0 25%,#f6eddc 0 50%) 0 0/12px 12px"></div><div>Cotton: steady rolling</div>
+      <div class="sw" style="background:repeating-linear-gradient(90deg,#c98a3a 0 4px,#a06a2c 4px 8px)"></div><div>Corduroy: grippy, slows you, sharp turns</div>
+      <div class="sw" style="background:linear-gradient(120deg,#ead2f2,#fff 45%,#d5e6f7)"></div><div>Satin: slippery and fast, hard to steer</div>
+      <div class="sw" style="background:radial-gradient(circle,#e07aa0 55%,transparent 58%)"></div><div>Buttons: BOING! bounce you away</div>
+      <div class="sw" style="background:linear-gradient(90deg,#c9cfd8,#8c94a3)"></div><div>Scissors: snipping shut costs 3 bobbins</div>
+    </div>
+    <div class="row">
+      <button class="btn felt" id="bGo">ROLL!</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn small teal felt" id="bQual2">QUALITY: HIGH</button>
+      <button class="btn small mustard felt" id="bSound2">SOUND ON</button>
+    </div>
+    <div class="hint" id="ctlHint">A / D or ← → steer · W push · S brake · SPACE hop · P pause<br>Ramps of piping throw you into the air. Collect every bobbin for a 500 bonus.</div>
+    <div class="hint" id="bestLine"></div>
+  </div>
+</div>
+<div id="pauseO" class="overlay" style="display:none">
+  <div class="card felt"><h1 class="title" style="font-size:48px">Paused</h1>
+    <div class="row" style="margin-top:14px"><button class="btn felt green" id="bResume">KEEP ROLLING</button><button class="btn felt" id="bRestart">RESTART</button><button class="btn felt plum" id="bMenu">MENU</button></div>
+  </div>
+</div>
+<div id="endO" class="overlay" style="display:none">
+  <div class="card felt" id="endCard"><h1 class="title" style="font-size:46px">Finish!</h1><table id="endTable"></table><div class="sub" id="endBest"></div>
+    <div class="row"><button class="btn felt green" id="bAgain">ROLL AGAIN</button><button class="btn felt plum" id="bMenu2">MENU</button></div>
+  </div>
+</div>
+<script>
+"use strict";

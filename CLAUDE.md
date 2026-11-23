@@ -37,6 +37,8 @@ The root repository uses branch `main` and has origin `https://github.com/GrapeG
 | Buzz Words | `buzzwords\buzzwords.html` | none yet |
 | Unicorn Meadow | `unicornmeadow\unicornmeadow.html` | none yet |
 | Barnyard Count | `barncount\barncount.html` | none yet |
+| Mitten Mountain | `mittenmountain\mittenmountain.html` | none yet |
+| Quilt Hill Roll | `quilthill\quilthill.html` | none yet |
 | Cartastrophe | `cartastrophe\cartastrophe.html` | none yet |
 
 `experiments\Astra-demo\Astra-demo.html`, `experiments\demo\demo.html`, and `experiments\procedural-demo\procedural-demo.html` are explicitly curated nested arcade and Pages entrypoints. Their evidence, plans, build notes, and sibling experiments stay excluded. `experiments\humanoid-model-experiment\humanoid-model-experiment.html` remains a development prototype, not an arcade entry. Its historical Drive export is `human.html`; do not update that copy unless the user asks.

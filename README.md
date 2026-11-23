@@ -35,6 +35,8 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Buzz Words | `buzzwords/buzzwords.html` | `http://127.0.0.1:8000/buzzwords/buzzwords.html` |
 | Unicorn Meadow | `unicornmeadow/unicornmeadow.html` | `http://127.0.0.1:8000/unicornmeadow/unicornmeadow.html` |
 | Barnyard Count | `barncount/barncount.html` | `http://127.0.0.1:8000/barncount/barncount.html` |
+| Mitten Mountain | `mittenmountain/mittenmountain.html` | `http://127.0.0.1:8000/mittenmountain/mittenmountain.html` |
+| Quilt Hill Roll | `quilthill/quilthill.html` | `http://127.0.0.1:8000/quilthill/quilthill.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.

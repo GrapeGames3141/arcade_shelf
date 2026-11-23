@@ -17,6 +17,8 @@ SOURCE_ONLY_DIRS = {
     "cartastrophe": {"parts", "test"},
     "lawnchairaces": {"parts", "test"},
     "mytharium": {"parts", "test", "concepts", "imagegen-jobs"},
+    "mittenmountain": {"parts", "test"},
+    "quilthill": {"parts", "test"},
 }
 PROMOTED_EXPERIMENTS = (
     Path("experiments/Astra-demo/Astra-demo.html"),

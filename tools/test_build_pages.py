@@ -168,4 +168,19 @@ class PagesTests(unittest.TestCase):
         for name in ('parts', 'test', 'concepts', 'imagegen-jobs'):
             self.assertFalse((out / 'mytharium' / name).exists())
 
+    def test_felt_game_authoring_dirs_are_not_packaged(self):
+        for game_name in ('mittenmountain', 'quilthill'):
+            game = self.root / game_name
+            (game / 'parts').mkdir(parents=True)
+            (game / 'test').mkdir()
+            (game / (game_name + '.html')).write_text('<!doctype html><title>Felt Game</title>', encoding='utf-8')
+            (game / 'game.json').write_text(json.dumps({'title': 'Felt Game', 'category': 'Kids'}), encoding='utf-8')
+            (game / 'parts' / 'author.js').write_text('throw new Error()', encoding='utf-8')
+            (game / 'test' / 'shot.py').write_text('raise RuntimeError()', encoding='utf-8')
+        out = builder.build(self.root)
+        for game_name in ('mittenmountain', 'quilthill'):
+            self.assertTrue((out / game_name / (game_name + '.html')).exists())
+            self.assertFalse((out / game_name / 'parts').exists())
+            self.assertFalse((out / game_name / 'test').exists())
+
 if __name__ == '__main__': unittest.main()
