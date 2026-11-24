@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import unittest
@@ -62,18 +63,18 @@ class PagesTests(unittest.TestCase):
         self.assertIn('Clouds &lt;&amp;&gt; &quot;Sky&quot;', lobby)
         self.assertIn('future%20fields/launch.html', lobby)
         self.assertIn('data-filter="puzzle"', lobby)
-        self.assertIn('SHOWING ALL 13 GAMES', lobby)
-        self.assertIn('THE ARCADE SHELF · 13 PLAYABLE WORLDS', lobby)
+        self.assertIn('SHOWING ALL 14 GAMES', lobby)
+        self.assertIn('THE ARCADE SHELF · 14 PLAYABLE WORLDS', lobby)
         self.assertIn('<title>The Arcade Shelf</title>', lobby)
         self.assertIn('href="privacy.html"', lobby)
         self.assertTrue((out / 'privacy.html').exists())
         self.assertIn('aria-label="The Arcade Shelf home"', lobby)
         self.assertIn('https://thearcadeshelf.com/', lobby)
-        self.assertIn('content="Explore 13 free browser games at The Arcade Shelf."', lobby)
+        self.assertIn('content="Explore 14 free browser games at The Arcade Shelf."', lobby)
         self.assertIn('Littoral — Astra 6.2', lobby)
         self.assertIn('Beach to Cave — Fable 5.2', lobby)
         self.assertIn('data-filter="experiments"', lobby)
-        self.assertIn('13 · PUZZLE', lobby)
+        self.assertIn('14 · PUZZLE', lobby)
         self.assertLess(lobby.index('Beach to Cave — Fable 5.2'), lobby.index('Clouds &lt;&amp;&gt; &quot;Sky&quot;'))
         self.assertNotIn('Not an arcade game', lobby)
         self.assertTrue((out / 'future fields/nested/game.js').exists())
@@ -97,7 +98,7 @@ class PagesTests(unittest.TestCase):
         shutil.rmtree(game)
         builder.build(self.root)
         self.assertFalse((out / 'future fields').exists())
-        self.assertIn('SHOWING ALL 12 GAMES', (out / 'index.html').read_text(encoding='utf-8'))
+        self.assertIn('SHOWING ALL 13 GAMES', (out / 'index.html').read_text(encoding='utf-8'))
 
     def test_repository_castle_output_has_no_keytrain(self):
         out = builder.build(ROOT)
@@ -126,6 +127,18 @@ class PagesTests(unittest.TestCase):
         self.assertEqual(lobby.count('href="gold-rush/gold-rush.html"'), 1)
         self.assertLess(lobby.index('Littoral — Astra 6.2'), lobby.index('Custom Gold'))
         self.assertLess(lobby.index('Beach to Cave — Fable 5.2'), lobby.index('Custom Gold'))
+
+    def test_allowlisted_external_lobby_card_is_preserved_once(self):
+        url = next(iter(builder.EXTERNAL_LOBBY_URLS))
+        out = builder.build(self.root)
+        lobby = (out / 'index.html').read_text(encoding='utf-8')
+        self.assertEqual(lobby.count(f'href="{url}"'), 1)
+        index = self.root / 'index.html'
+        source = index.read_text(encoding='utf-8')
+        article = next(item for item in re.findall(r'<article class="game-card".*?</article>', source, flags=re.S) if url in item)
+        index.write_text(source.replace('</div><div id="empty-state"', article + '</div><div id="empty-state"'), encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'Duplicate external lobby card'):
+            builder.build(self.root)
 
     def test_title_fallback_and_invalid_entry(self):
         game = self.root / 'new-game'

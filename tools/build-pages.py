@@ -26,6 +26,8 @@ PROMOTED_EXPERIMENTS = (
     Path("experiments/demo/demo.html"),
     Path("experiments/procedural-demo/procedural-demo.html"),
 )
+# Intentional direct launchers must be explicit: experiments are otherwise not Pages content.
+EXTERNAL_LOBBY_URLS = frozenset({"https://cartastrophe-online.patguettler.workers.dev/"})
 
 class PageParser(HTMLParser):
     def __init__(self):
@@ -122,10 +124,17 @@ def build(root=ROOT):
     # discoveries never reuse its display number.
     cards = []
     seen_paths = set()
+    seen_external_urls = set()
     for article in articles:
         parser = PageParser()
         parser.feed(article)
         for url in parser.urls:
+            if url in EXTERNAL_LOBBY_URLS:
+                if url in seen_external_urls:
+                    raise ValueError(f"Duplicate external lobby card for {url}")
+                seen_external_urls.add(url)
+                cards.append(article)
+                break
             parts = urlsplit(url)
             path_parts = unquote(parts.path).split("/")
             if not parts.scheme and not parts.netloc and tuple(path_parts) in promoted_paths:

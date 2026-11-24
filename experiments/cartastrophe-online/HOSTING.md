@@ -1,7 +1,8 @@
 # Hosting Cartastrophe Online from the arcade site
 
-Status: **plan, not built yet.** Nothing is deployed. The steps below need the owner's go-ahead. Two of them also need
-explicit approval: deploying to Cloudflare (see `DEPLOY.md`), and putting an experiment on the Pages site.
+Status: **direct Worker launch is live** at [Cartastrophe Online](https://cartastrophe-online.patguettler.workers.dev/).
+The arcade shelf card links to that Worker; the experiment source and generated page remain excluded from the static
+Pages package. The split Pages-hosting design below is an inactive alternative, not the current deployment.
 
 ## The idea
 

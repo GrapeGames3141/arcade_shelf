@@ -5,7 +5,8 @@ same carts, physics and controls as the arcade game. The match runs on a Cloudfl
 Object per room**. Browsers only send their inputs over a WebSocket. The server decides every collision, pickup, item
 hit, wipeout and score, and sends snapshots back 30 times a second.
 
-This is an experiment. It is kept out of the arcade homepage and the GitHub Pages build (see `../AGENTS.md`).
+This remains a Worker experiment. The arcade shelf links directly to its deployed Worker; the experiment source and
+generated page remain out of the GitHub Pages package (see `../AGENTS.md`).
 
 ## Run it locally
 
@@ -70,6 +71,7 @@ doesn't create charges. Rough budget per day on Free:
 * Durable Object duration: 13,000 GB-s/day, or about 28 hours of a room being connected. A room stops its loop once nobody
   is connected.
 
-Nothing has been deployed. See `DEPLOY.md` for checking the account is on Workers Free before any test deploy.
+The verified direct launch URL is [Cartastrophe Online](https://cartastrophe-online.patguettler.workers.dev/). See
+`DEPLOY.md` for the Workers Free deployment gate and limits.
 
 To serve the page from the arcade site (GitHub Pages) with only the room server on Cloudflare, see `HOSTING.md`.
