@@ -214,6 +214,7 @@ body.caps .slot, body.caps .slot *, body.caps .key, body.caps .tile, body.caps .
       <label><button class="tog" id="tMusic"></button> Music</label>
       <label><button class="tog" id="tLock"></button> Kid lock (full screen)</label>
       <p class="locknote">With Kid lock on, press and hold ⚙️ Grown-ups to open this page. For a complete lock on Android, also turn on App pinning (Settings → Security → App pinning).</p>
+      <span>Voice <span class="seg" id="segE"><button data-e="clips">Recorded</button><button data-e="browser">This device</button></span></span>
       <span>Voice speed <span class="seg" id="segR"><button data-r="0">Slow</button><button data-r="1">Normal</button></span></span>
     </div>
     <div class="row"><button class="pill sun" id="bTestVoice">🔊 Test the voice</button></div>
@@ -369,7 +370,7 @@ function rulesFor(P, lv) {
 // Save data
 // ---------------------------------------------------------------------------
 const DEFAULT = () => ({ stars: 0, gems: 0, owned: { buddy: { bee: 1 }, garden: { garden: 1 }, tiles: { honey: 1 } }, equip: { buddy: 'bee', garden: 'garden', tiles: 'honey' },
-  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0, letters: 'lower', lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, words: 0, seen: {} });
+  set: { lv: [true, false, false, false], per: 8, keys: 'abc', boxes: true, sounds: true, rules: true, voice: true, sound: true, music: true, rate: 0, engine: 'clips', letters: 'lower', lock: matchMedia('(pointer: coarse)').matches }, stickers: {}, rounds: 0, words: 0, seen: {} });
 let S = DEFAULT();
 function load() {
   if (TEST) return;
@@ -426,6 +427,7 @@ const isToken = t => /^\{[slw]:[a-zA-Z]+\}$/.test(t);
 function speak(line, { onend } = {}) {
   const parts = asParts(line); window.VOICE_LOG.push(parts.join(' | '));
   if (!S.set.voice || !parts.length) { if (onend) setTimeout(onend, 10); return; }
+  if (S.set.engine === 'browser') { browserSpeak(parts, onend); return; }
   const data = voiceData();
   if (AC && !TEST && parts.every(t => data[clipKey(t)])) {
     stopVoice(); const tok = voiceToken, say = $('say');
@@ -447,10 +449,27 @@ function speak(line, { onend } = {}) {
 }
 // For the browser's own speech, swap the exact-sound tokens for everyday spellings
 const plainText = parts => parts.map(t => t.replace(/\{w:([a-zA-Z]+)\}/g, (m, k) => k.split('').join('-')).replace(/\{s:([a-zA-Z]+)\}/g, (m, k) => SOUNDS[k] || k).replace(/\{l:([a-z])\}/g, (m, k) => LETTER_NAMES[k] || k)).join('. ').replace(/([.!?:,])\. /g, '$1 ');
+// "This device" voice (a test option): the browser's own speech, one piece at a time with pauses.
+// Sounds use held spellings and are said slowly; say-it-slowly words are the word at a very slow rate.
+const BROWSER_SOUNDS = Object.assign({}, SOUNDS, { m: 'mmm', n: 'nnn', l: 'lll', r: 'rrr', f: 'fff', v: 'vvv', sh: 'shhh', th: 'thhh', E: 'eee', oo: 'ooo' });
+const browserLetter = k => k === 'a' ? 'ay' : k.toUpperCase();
+function browserSpeak(parts, onend) {
+  stopVoice(); const tok = voiceToken;
+  const next = i => {
+    if (tok !== voiceToken) return;
+    if (i >= parts.length) { if (onend) onend(); return; }
+    const t = parts[i]; let m, text, rate = 1;
+    if ((m = t.match(/^\{s:([a-zA-Z]+)\}$/))) { text = BROWSER_SOUNDS[m[1]] || m[1]; rate = .7; }
+    else if ((m = t.match(/^\{w:([a-zA-Z]+)\}$/))) { text = m[1]; rate = .45; }
+    else text = t.replace(/\{l:([a-z])\}/g, (_, k) => browserLetter(k)).replace(/\{s:([a-zA-Z]+)\}/g, (_, k) => BROWSER_SOUNDS[k] || k).replace(/\{w:([a-zA-Z]+)\}/g, '$1');
+    const end = t.slice(-1), gap = isToken(t) || isToken(parts[i + 1] || '') ? 450 : /[.!?]/.test(end) ? 350 : end === ':' ? 250 : 120;
+    ttsSpeak(text, { rate, onend: () => setTimeout(() => next(i + 1), gap) });
+  };
+  next(0);
+}
 function speakSeq(list, onend) { const next = i => i >= list.length ? onend && onend() : speak(list[i], { onend: () => next(i + 1) }); next(0); }
 // Fallback: the browser's own speech, for any line without a recording
-function ttsSpeak(text, { onend } = {}) {
-  const rate = 1;
+function ttsSpeak(text, { onend, rate = 1 } = {}) {
   if (!SPEECH || TEST) { if (onend) setTimeout(onend, 10); return; }
   const say = $('say');
   const go = (useVoice) => {
@@ -915,7 +934,7 @@ function buildSettings() {
     box.appendChild(el);
   });
   const seg = (id, attr, key, num = true) => $(id).querySelectorAll('button').forEach(b => { const v = num ? +b.dataset[attr] : b.dataset[attr]; b.classList.toggle('on', v === S.set[key]); b.onclick = () => { S.set[key] = v; sfx('click'); save(); buildSettings(); }; });
-  seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segC', 'c', 'letters', false); applyCase(); seg('segR', 'r', 'rate');
+  seg('segN', 'n', 'per'); seg('segK', 'k', 'keys', false); seg('segC', 'c', 'letters', false); applyCase(); seg('segR', 'r', 'rate'); seg('segE', 'e', 'engine', false);
   for (const [id, key] of [['tSounds', 'sounds'], ['tBoxes', 'boxes'], ['tRules', 'rules'], ['tVoice', 'voice'], ['tSound', 'sound'], ['tMusic', 'music'], ['tLock', 'lock']]) { const t = $(id); t.classList.toggle('on', !!S.set[key]); t.onclick = () => { S.set[key] = !S.set[key]; save(); buildSettings(); sfx('click'); }; }
   const tl = $('tLock'), flip = tl.onclick; tl.onclick = () => { flip(); if (S.set.lock) kidLock(); else kidUnlock(); };
   $('bTestVoice').onclick = () => { audioInit(); unlockSpeech(); const was = S.set.voice; S.set.voice = true; speak(TEST_LINE); S.set.voice = was; setTimeout(() => { $('voiceNote').textContent = speechHeard ? 'The voice is working.' : 'No voice yet. Turn the volume up and check silent mode, then try again.'; }, 3000); };
