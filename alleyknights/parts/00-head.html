@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Alley Knights</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:"Segoe UI",system-ui,Arial,sans-serif;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hidden{display:none!important}
+.logo{font-family:Impact,"Arial Black",sans-serif;letter-spacing:3px;line-height:.88;color:#ffd23f;
+  text-shadow:0 0 18px rgba(255,80,160,.55),0 4px 0 #b8327a,0 8px 0 #4a1238,0 12px 22px rgba(0,0,0,.7);transform:rotate(-3deg)}
+.logo small{display:block;font-size:.34em;letter-spacing:6px;color:#ff8fd0;text-shadow:0 0 12px #ff3fa8,0 3px 0 #4a1238;margin-top:6px}
+.btn{font:800 16px/1 "Segoe UI",Arial,sans-serif;color:#1a1200;background:#ffd23f;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;box-shadow:0 4px 0 #a07a10;transition:transform .06s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 #a07a10}
+.btn.big{font-size:24px;padding:16px 30px;border-radius:14px;box-shadow:0 6px 0 #a07a10}
+.btn.ghost{background:rgba(255,255,255,.13);color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20}
+#title{background:linear-gradient(90deg,rgba(6,6,14,.9) 0,rgba(6,6,14,.6) 46%,rgba(6,6,14,0) 72%);justify-content:flex-start;align-items:flex-start;padding:3vh 4vw;overflow:auto}
+.tcol{width:min(560px,92vw);display:flex;flex-direction:column;gap:12px;margin:auto 0}
+#title .logo{font-size:min(92px,16vw)}
+.tag{font-weight:700;color:#d8e2ff;font-size:17px;margin:8px 0 2px 6px;text-shadow:0 2px 3px #000}
+#tstash{font-size:13px;color:#ffe9a8;margin-left:6px}
+.panel{background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}
+.row>label{width:96px;font-weight:700;font-size:14px;color:#ffe9a8}
+.seg{display:flex;gap:4px;flex-wrap:wrap}
+.seg button{font:700 13px "Segoe UI",Arial;color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:8px;padding:6px 10px;cursor:pointer}
+.seg button.on{background:#ffd23f;color:#2a1a00;border-color:#ffd23f}
+.how{font-size:13.5px;line-height:1.45;color:#e2e8f7}
+.how b{color:#ffd23f}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:12.5px;margin-top:6px;color:#cfdcec}
+.keys span:nth-child(odd){font-weight:800;color:#fff;white-space:nowrap}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;font-weight:800}
+#nightbox{position:absolute;left:12px;top:10px;background:rgba(0,0,0,.5);border-radius:10px;padding:6px 10px 8px;min-width:170px}
+#nightbox .r{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+#nlab{font:900 20px Impact,"Arial Black",sans-serif;letter-spacing:1px;color:#ffd23f}
+#ntime{font-size:14px;color:#cfe0ff}
+.tbar{height:7px;border-radius:4px;background:linear-gradient(90deg,#1a2350,#3a3a7a 60%,#ff9a4a);margin-top:5px;position:relative;overflow:hidden}
+#nbar{position:absolute;left:0;top:0;bottom:0;background:rgba(255,255,255,.55)}
+.tbar::after{content:'☀';position:absolute;right:-1px;top:-6px;font-size:11px}
+#facs{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:62vw}
+.fac{background:rgba(0,0,0,.5);border-radius:9px;padding:4px 8px;display:flex;align-items:center;gap:6px;font-size:12px}
+.fac .fi{font-size:16px}.fac .nb{width:74px;height:8px;border-radius:4px;background:rgba(255,255,255,.15);overflow:hidden}
+.fac .nb i{display:block;height:100%;transition:width .2s}
+.fac.out{opacity:.4;text-decoration:line-through}.fac.boss{outline:2px solid #ff4f6d}
+#foodbox{position:absolute;right:12px;top:10px;background:rgba(0,0,0,.5);border-radius:10px;padding:6px 12px;text-align:right}
+#foodbox b{font:900 26px Impact,"Arial Black",sans-serif;color:#ffd23f}#foodbox span{display:block;font-size:11px;color:#cfe0ff}
+#foodbox.bump{animation:bump .35s}@keyframes bump{40%{transform:scale(1.18)}}
+#me{position:absolute;left:12px;bottom:14px;display:flex;gap:10px;align-items:flex-end}
+.bars2{display:flex;flex-direction:column;gap:5px;width:190px}
+.bl{font-size:11px;color:#cfe0ff;display:flex;justify-content:space-between}
+.bw{height:12px;border-radius:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);overflow:hidden}
+#grit{height:100%;background:linear-gradient(90deg,#ff5a5a,#ff9a4a)}#lidb{height:100%;background:linear-gradient(90deg,#9fb3c8,#e8f0ff)}
+#lidw.off .bw{animation:blink .3s infinite alternate}#lidw.off .bl span:last-child::after{content:' OFF!';color:#ff6b6b}
+@keyframes blink{to{border-color:#ff3030}}
+#wbox{width:86px;height:86px;border-radius:16px;background:rgba(0,0,0,.5);border:3px solid rgba(255,255,255,.25);display:flex;flex-direction:column;align-items:center;justify-content:center}
+#wico{font-size:38px;line-height:1}#wnam{font-size:10px;color:#ffe9a8;margin-top:3px;text-align:center}#wuse{font-size:10px;color:#cfe0ff}
+#chgw{position:absolute;left:50%;bottom:28%;transform:translateX(-50%);width:160px;height:10px;border-radius:5px;background:rgba(0,0,0,.6);overflow:hidden;border:1px solid #fff}
+#chg{height:100%;background:linear-gradient(90deg,#ffd23f,#ff4f6d)}
+#cartw{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);text-align:center;font-size:12px}
+#cartw .bw{width:220px;margin-top:3px}#cartb{height:100%}
+#boss{position:absolute;left:50%;top:52px;transform:translateX(-50%);text-align:center;font:900 15px Impact,"Arial Black";letter-spacing:2px;color:#ff8fa0;text-shadow:0 2px 3px #000}
+#boss .bw{width:min(420px,60vw);height:14px;margin-top:3px}#bossb{height:100%;background:linear-gradient(90deg,#ff2d55,#ff8a2f)}
+#marks{position:absolute;inset:0}
+.mk{position:absolute;left:0;top:0;width:44px;height:44px;border-radius:50%;background:rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.3);display:flex;align-items:center;justify-content:center;font-size:19px}
+.mk svg{position:absolute;inset:-2px;width:44px;height:44px}.mk .bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:3}.mk .pr{fill:none;stroke-width:4;stroke-linecap:round}
+.mk.mine{box-shadow:0 0 12px rgba(255,210,63,.7)}.mk.fight{animation:wig .25s infinite alternate}
+@keyframes wig{to{filter:brightness(1.6)}}
+.mk.den{opacity:.75}.mk.den.raid{opacity:1;border-color:#ff3b3b;box-shadow:0 0 16px #ff3b3b;animation:wig .2s infinite alternate}.mk.den .pr{stroke:#ff3b3b}
+#raidw{position:absolute;left:50%;top:80px;transform:translateX(-50%);font:900 20px Impact;letter-spacing:2px;color:#ff4f4f;text-shadow:0 0 10px #000;animation:blink2 .4s infinite alternate}
+@keyframes blink2{to{opacity:.45}}
+#feed{position:absolute;right:12px;top:72px;display:flex;flex-direction:column;align-items:flex-end;gap:4px;max-width:44vw}
+.fd{background:rgba(0,0,0,.5);padding:4px 9px;border-radius:7px;font-size:13px;animation:fin .25s ease-out}
+@keyframes fin{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+#callout{position:absolute;left:50%;top:28%;transform:translate(-50%,-50%);font:900 min(72px,12vw) Impact,"Arial Black",sans-serif;letter-spacing:2px;
+  color:#ffd23f;text-shadow:0 0 16px rgba(255,63,168,.6),0 4px 0 #b8327a,0 8px 0 #4a1238,0 12px 20px rgba(0,0,0,.6);white-space:nowrap;opacity:0;pointer-events:none}
+#callout.pop{animation:pop 1.9s ease-out forwards}
+@keyframes pop{0%{transform:translate(-50%,-50%) scale(.2) rotate(-12deg);opacity:0}10%{transform:translate(-50%,-50%) scale(1.15) rotate(3deg);opacity:1}
+  18%{transform:translate(-50%,-50%) scale(1) rotate(-2deg)}80%{opacity:1}100%{transform:translate(-50%,-62%) scale(1.04) rotate(-2deg);opacity:0}}
+#sub{position:absolute;left:50%;top:38%;transform:translateX(-50%);font-size:18px;text-shadow:0 2px 4px #000;white-space:nowrap;opacity:0;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+#sub.pop{animation:fade 2.6s ease-out forwards}@keyframes fade{0%,6%{opacity:0}12%,82%{opacity:1}100%{opacity:0}}
+#hint{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);font-size:14px;color:#e5eefb;text-shadow:0 2px 3px #000;text-align:center;max-width:80vw;font-weight:700}
+#vig{position:absolute;inset:0;box-shadow:inset 0 0 120px rgba(255,0,0,.7);opacity:0}#vig.on{animation:vig .5s ease-out}@keyframes vig{0%{opacity:1}100%{opacity:0}}
+#intro{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:12;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,.65),rgba(0,0,0,0) 70%)}
+#inum{font:900 min(96px,16vw) Impact,"Arial Black";letter-spacing:4px;color:#ffd23f;text-shadow:0 0 22px rgba(255,63,168,.6),0 5px 0 #b8327a}
+#ititle{font:italic 900 28px Impact;color:#ffb8e0;letter-spacing:2px;margin-top:4px;text-shadow:0 0 12px #ff3fa8}
+#ifacs{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center}
+#ifacs span{background:rgba(0,0,0,.6);border:2px solid;border-radius:20px;padding:5px 12px;font-weight:800;font-size:15px}#ifacs b{color:#ff8fa0}
+#touch{position:fixed;inset:0;z-index:15;pointer-events:none}
+#touch .tb{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font:900 13px "Segoe UI",Arial;color:#fff;text-shadow:0 1px 2px #000;z-index:2}
+#touch .tb.on{background:rgba(255,210,63,.45)}
+#tZone{position:absolute;left:0;top:18%;bottom:0;width:46%;pointer-events:auto}
+#tCam{position:absolute;right:0;top:18%;bottom:0;width:54%;pointer-events:auto}
+#tStick{position:absolute;width:150px;height:150px;border-radius:50%;border:2px solid rgba(255,255,255,.35);background:radial-gradient(circle,rgba(255,255,255,.04) 0,rgba(255,255,255,.12) 70%);transform:translate(-50%,-50%);display:none;pointer-events:none}
+#tStick.on{display:block}
+#tKnob{position:absolute;left:50%;top:50%;width:60px;height:60px;border-radius:50%;background:rgba(255,210,63,.55);border:2px solid #fff;transform:translate(-50%,-50%)}
+#tAtk{right:max(18px,env(safe-area-inset-right));bottom:22px;width:112px;height:112px;font-size:16px!important}
+#tBlk{right:calc(max(18px,env(safe-area-inset-right)) + 126px);bottom:20px;width:88px;height:88px}
+#tJmp{right:calc(max(18px,env(safe-area-inset-right)) + 14px);bottom:148px;width:74px;height:74px}
+#tAct{right:calc(max(18px,env(safe-area-inset-right)) + 112px);bottom:122px;width:70px;height:70px}
+#tPause{right:212px;top:10px;width:46px;height:46px;border-radius:12px!important}
+body.lefty #tZone{left:auto;right:0}body.lefty #tCam{right:auto;left:0}
+body.lefty #tAtk{right:auto;left:max(18px,env(safe-area-inset-left))}body.lefty #tBlk{right:auto;left:calc(max(18px,env(safe-area-inset-left)) + 126px)}
+body.lefty #tJmp{right:auto;left:calc(max(18px,env(safe-area-inset-left)) + 14px)}body.lefty #tAct{right:auto;left:calc(max(18px,env(safe-area-inset-left)) + 112px)}
+body.touchmode #me{left:50%;transform:translateX(-50%) scale(.8);transform-origin:bottom center;bottom:4px}
+body.touchmode #hint{bottom:150px}body.touchmode #cartw{bottom:96px}
+#pause{background:rgba(5,6,14,.7)}
+#pause .panel{min-width:300px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+.plab{font-weight:700;font-size:13px;color:#ffe9a8;margin-right:4px}
+#dawn,#lost{background:rgba(8,6,10,.6);overflow:auto;align-items:flex-start;padding:14px 0}
+.dwrap{margin:auto;display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-start;padding:0 12px}
+.box{background:#c9a26a;background-image:repeating-linear-gradient(90deg,rgba(0,0,0,.04) 0 3px,transparent 3px 7px);color:#2a1c0c;border-radius:6px;width:min(400px,94vw);padding:20px 22px 22px;box-shadow:0 12px 40px rgba(0,0,0,.6),inset 0 0 0 3px #a8814d;transform:rotate(-1.2deg);font:14px/1.35 Georgia,"Times New Roman",serif}
+.box hr{border:0;border-top:2px dashed rgba(60,40,10,.4);margin:8px 0}
+.box .ln{display:flex;justify-content:space-between;gap:8px}.box .tot{font-weight:900;font-size:18px}
+.box .big{font:900 34px Impact,"Arial Black";letter-spacing:1px;text-align:center;color:#6a1a10}
+.box .hear{text-align:center;font:italic 700 15px Georgia;letter-spacing:3px;color:#5a3a14}
+.box .stars{text-align:center;font-size:40px;color:#e0a010;text-shadow:0 2px 0 #7a4a08;letter-spacing:6px}
+.box .c{text-align:center}.box .small{font-size:12.5px}.box .sig{text-align:right;font-style:italic;margin-top:8px;font-size:13px}
+.shopc{width:min(460px,94vw)}
+.shopc h3{font:900 24px Impact;letter-spacing:2px;color:#ffd23f;margin-bottom:6px;display:flex;justify-content:space-between;align-items:baseline}
+.shopc h3 span{font-size:18px}
+#shop{display:flex;flex-direction:column;gap:6px}
+.up{display:flex;gap:10px;align-items:center;text-align:left;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 10px;color:#fff;cursor:pointer;font:13px "Segoe UI",Arial}
+.up:hover{background:rgba(255,210,63,.15)}.up .ui{font-size:26px}.up .ut{flex:1}.up .ut div{font-size:11.5px;color:#cfdcec;margin-top:2px}.up .ut small{color:#ffd23f;letter-spacing:2px}
+.up .uc{font-weight:900;color:#ffd23f;white-space:nowrap}.up.poor{opacity:.5}.up.max{opacity:.6}.up.max .uc{color:#7ddc6f}
+.endbtns{display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+#err{position:fixed;left:10px;bottom:10px;right:10px;color:#ff8080;font:12px monospace;z-index:99;white-space:pre-wrap;pointer-events:none}
+#fps{position:fixed;left:50%;bottom:2px;transform:translateX(-50%);font:11px monospace;color:#8f9fb8;z-index:11;pointer-events:none}
+@media (max-height:520px){#nightbox{min-width:130px;padding:4px 8px}#nlab{font-size:16px}.fac{font-size:10px;padding:2px 6px}.fac .nb{width:50px}#foodbox b{font-size:20px}
+  #callout{top:30%}#tAtk{width:96px!important;height:96px!important}#tBlk{width:78px;height:78px;right:calc(max(18px,env(safe-area-inset-right)) + 108px)}#tJmp{bottom:126px;width:64px;height:64px}#tAct{bottom:104px;width:62px;height:62px;right:calc(max(18px,env(safe-area-inset-right)) + 96px)}
+  #title{padding:2vh 3vw}#title .logo{font-size:min(60px,11vw)}.panel{padding:8px 10px}.row{margin:3px 0}#feed{top:56px}.fd{font-size:11px}#boss{top:40px}}
+@media (max-width:760px){#title{background:rgba(6,6,14,.75)}.row>label{width:100%}#facs{max-width:56vw}.fac .fn{display:none}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="nightbox"><div class="r"><span id="nlab">NIGHT 1</span><span id="ntime">3:00</span></div><div class="tbar"><div id="nbar"></div></div></div>
+  <div id="facs"></div>
+  <div id="foodbox"><b>🍕 <span id="food" style="display:inline;font-size:inherit;color:inherit">0</span></b><span id="foodn">+0 tonight</span></div>
+  <div id="boss" class="hidden"><div id="bossn"></div><div class="bw"><div id="bossb"></div></div></div>
+  <div id="raidw" class="hidden">⚠ DEN RAID: GET TO THE COUCH ⚠</div>
+  <div id="marks"></div>
+  <div id="feed"></div>
+  <div id="callout"></div>
+  <div id="sub"></div>
+  <div id="hint"></div>
+  <div id="chgw" class="hidden"><div id="chg"></div></div>
+  <div id="cartw" class="hidden"><div id="cartl">CART</div><div class="bw"><div id="cartb"></div></div></div>
+  <div id="me">
+    <div id="wbox"><span id="wico">🐾</span><span id="wnam">Paws</span><span id="wuse"></span></div>
+    <div class="bars2">
+      <div><div class="bl"><span>GRIT</span><span></span></div><div class="bw"><div id="grit"></div></div></div>
+      <div id="lidw"><div class="bl"><span>LID</span><span></span></div><div class="bw"><div id="lidb"></div></div></div>
+    </div>
+  </div>
+  <div id="vig"></div>
+</div>
+<div id="intro" class="hidden"><div id="inum">NIGHT 1</div><div id="ititle"></div><div id="ifacs"></div></div>
+
+<div id="touch" class="hidden">
+  <div id="tZone"></div>
+  <div id="tCam"></div>
+  <div id="tStick"><div id="tKnob"></div></div>
+  <div class="tb" id="tAtk">ATTACK</div>
+  <div class="tb" id="tBlk">BLOCK</div>
+  <div class="tb" id="tJmp">JUMP</div>
+  <div class="tb" id="tAct">ACT</div>
+  <div class="tb" id="tPause">II</div>
+</div>
+
+<div id="title" class="screen">
+  <div class="tcol">
+    <div class="logo">ALLEY KNIGHTS<small>EVERY NIGHT · LID UP</small></div>
+    <div class="tag">A raccoon, a trash-can lid, and whatever's in the dumpster. Run the varmints out of your alley.</div>
+    <div id="tstash"></div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn big" id="cont">PLAY</button><button class="btn ghost" id="newg">New game</button><button class="btn ghost" id="howb">How to play</button><button class="btn ghost" id="fsb">Fullscreen</button></div>
+    <div class="panel how" id="how">
+      Every <b>night</b> new varmints try to take your alley. Each faction has a <b>nerve</b> bar: knock them around and send them running to drain it. Break every faction's nerve for a <b>clean sweep</b>, or just hold out until <b>dawn</b>.
+      Stand next to a <b>dumpster</b> with no varmints around to <b>claim</b> it: your dumpsters make <b>food</b> and you can <b>rummage</b> them for weapons. Varmints holding a dumpster get their nerve back.
+      Keep them off the <b>couch</b>: if they raid the den for too long, you're <b>evicted</b>. Spend food on upgrades between nights. Find the <b>shopping cart</b> and ram through a crowd before it rattles to pieces.
+      Knock varmints into <b>walls</b>, <b>dumpsters</b>, the open <b>manhole</b> or out onto the <b>street</b> for big hits.
+      <div class="keys">
+        <span>WASD / arrows</span><span>Move (camera-relative)</span>
+        <span>J / left click</span><span>Attack (hold with the 7-iron to charge)</span>
+        <span>K / right click / Shift</span><span>Hold to raise your lid · attack while blocking = shield bash</span>
+        <span>Space</span><span>Jump (onto dumpsters, too)</span>
+        <span>E / F</span><span>Pick up / swap weapon · rummage a dumpster you hold · ride or leave the cart</span>
+        <span>Q / R</span><span>Turn the camera · <b>V</b> high camera · <b>Esc</b> pause</span>
+        <span>Gamepad</span><span>Left stick move, right stick camera, X attack, LB/RB block, A jump, B action</span>
+      </div>
+    </div>
+    <div class="panel" id="settings">
+      <div class="row"><label>Quality</label><div class="seg" data-k="quality"></div></div>
+      <div class="row"><label>Sound</label><div class="seg" data-k="sound"></div><div class="seg" data-k="music"></div><div class="seg" data-k="shake"></div></div>
+      <div class="row"><label>Touch</label><div class="seg" data-k="touch"></div><div class="seg" data-k="lefty"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <div class="logo" style="font-size:52px">PAUSED</div>
+    <div class="row" style="justify-content:center"><span class="plab">Quality</span><div class="seg" data-k="quality"></div></div>
+    <div class="row" style="justify-content:center"><div class="seg" data-k="sound"></div><div class="seg" data-k="music"></div><div class="seg" data-k="shake"></div></div>
+    <div class="row" style="justify-content:center"><span class="plab">Touch</span><div class="seg" data-k="touch"></div><div class="seg" data-k="lefty"></div></div>
+    <button class="btn big" id="resume">RESUME</button>
+    <div style="display:flex;gap:10px"><button class="btn ghost" id="restart">Restart night</button><button class="btn ghost" id="quit">Quit to title</button></div>
+  </div>
+</div>
+
+<div id="dawn" class="screen hidden">
+  <div class="dwrap">
+    <div class="box" id="procl"></div>
+    <div class="panel shopc"><h3>THE PAWN SHOP <span id="shopfood"></span></h3><div id="shop"></div>
+      <div class="endbtns"><button class="btn big" id="next">NEXT NIGHT ▶</button><button class="btn ghost" id="dawnq">Title</button></div></div>
+  </div>
+</div>
+<div id="lost" class="screen hidden">
+  <div class="dwrap"><div><div class="box" id="lostbody"></div><div class="endbtns"><button class="btn big" id="retry">TRY AGAIN</button><button class="btn ghost" id="lostq">Title</button></div></div></div>
+</div>
+<div id="fps"></div>
+<div id="err"></div>

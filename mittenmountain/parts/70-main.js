@@ -11,10 +11,12 @@ if(!QUALS[qName])qName='HIGH';
 const qm=location.search.match(/[?&]q=(\w+)/);if(qm&&QUALS[qm[1].toUpperCase()])qName=qm[1].toUpperCase();
 let Q=QUALS[qName];
 let snowModel=null;
-function buildSnow(){if(snowModel)freeModel(snowModel);const sb=new SB(Q.snow);const box=[60,34,70];
-  for(let i=0;i<Q.snow;i++)sb.add(Math.random()*box[0],Math.random()*box[1],Math.random()*box[2],0.05+Math.random()*0.05,PAL.white,0,1,0);snowModel=makeModel(sb);snowModel.box=box;}
+function buildSnow(){if(snowModel)freeModel(snowModel);const n=Math.max(40,Math.round(Q.snow*(LIGHT.snowMul||1)));const sb=new SB(n);const box=[60,34,70];const fk=LIGHT.flake||1;
+  for(let i=0;i<n;i++)sb.add(Math.random()*box[0],Math.random()*box[1],Math.random()*box[2],(0.05+Math.random()*0.05)*fk,PAL.white,0,1,0);snowModel=makeModel(sb);snowModel.box=box;}
 function setQuality(n){qName=n;Q=QUALS[n];try{localStorage.setItem('mm_q',n);}catch(e){}clearChunks();buildSnow();
   const t='QUALITY: '+n;$('bQual2').textContent=t;$('bQual').textContent=n;}
+function setLevel(l){l=clamp(l|0,1,LV.unlocked);LV.level=l;saveLevels();applyTheme(l);if(backdropModel)freeModel(backdropModel);backdropModel=buildBackdropTheme(l);
+  GAME.palsTotal=genCourse(l);buildSnow();if($('lvName'))$('lvName').textContent=levelLabel(l);if($('hLevel'))$('hLevel').textContent='LEVEL '+l+' · '+themeFor(l).name.toUpperCase();}
 function cycleQuality(){setQuality(QORDER[(QORDER.indexOf(qName)+1)%QORDER.length]);}
 
 // ---- models used every frame
@@ -28,7 +30,8 @@ const CAM={eye:[0,3,10],tgt:[0,0,0],fov:62,vp:null,right:[1,0,0],up:[0,1,0]};
 function updateCamera(dt,snap){
   const{fr,pos}=playerWorld();const k=P.stack.length;
   let eyeT,tgtT;
-  if(GAME.mode==='menu'){const a=GAME.t*0.25;eyeT=v3.add(pos,[Math.sin(a)*4.2,1.9,Math.cos(a)*4.2]);tgtT=v3.add(pos,[0,0.8,0]);}
+  if(CELEB.on){const c=celebCamera();eyeT=c.eye;tgtT=c.tgt;}
+  else if(GAME.mode==='menu'){const a=GAME.t*0.25;eyeT=v3.add(pos,[Math.sin(a)*4.2,1.9,Math.cos(a)*4.2]);tgtT=v3.add(pos,[0,0.8,0]);}
   else{const back=4.6+k*0.32,up=2.0+k*0.34;const sb=P.s-back;const frb=frame(sb);
     eyeT=v3.add(surf(sb,P.u*0.7,frb),[0,up+P.y*0.45,0]);tgtT=v3.add(v3.add(pos,v3.sc(fr.T,6)),[0,0.6+k*0.18,0]);}
   const f=snap?1:1-Math.exp(-dt*7);CAM.eye=v3.lerp(CAM.eye,eyeT,f);CAM.tgt=v3.lerp(CAM.tgt,tgtT,1-Math.exp(-dt*10)*(snap?0:1));
@@ -67,7 +70,7 @@ function render(){
   beginSplats(cam,time);const su=R.splat.u;
   gl.uniform2f(su.uFog,180,900);
   drawModel(backdropModel,M4.trans(CAM.e[0],CAM.e[1]-32,CAM.e[2]));
-  gl.uniform2f(su.uFog,85,Q.ahead+10);
+  const fk=LIGHT.fogK||1;gl.uniform2f(su.uFog,85*fk,(Q.ahead+10)*fk);
   for(const m of CHUNKS.values())drawModel(m);
   drawModel(archModel);
   // ---- items
@@ -103,7 +106,8 @@ function render(){
   const sm=sledMatrix();
   drawModel(sledModel,sm.M,{boil:Math.floor(time*6),boilAmt:0.05});
   const seats=[[0,0.1,0.35],[0,0.1,-0.2],[0,0.1,-0.72]];
-  const riders=[{key:GAME.rider,variant:0,driver:true}].concat(P.stack);
+  const riders=CELEB.on?[]:[{key:GAME.rider,variant:0,driver:true}].concat(P.stack);
+  if(CELEB.on)drawCelebration(time,qt,boil);
   let towerX=0,towerY=0;
   riders.forEach((r,i)=>{
     let lp;if(i<3)lp=seats[i];else{const lvl=i-2;towerX+=Math.sin(P.lean*(1+lvl*0.45))*0.5;towerY+=0.5;lp=[towerX,0.1+towerY,-0.72];}
@@ -154,6 +158,7 @@ function tick(dt){
     else if(now!==before){el.textContent=now;el.style.display='flex';Sfx.tick(0);}}
   if(GAME.mode==='run'||GAME.mode==='finish'||GAME.mode==='ended'){acc+=dt;const h=1/120;
     while(acc>=h){stepPhysics(h,GAME.mode==='ended'?{steer:0,push:0,brake:1}:INP);acc-=h;}}
+  if(CELEB.on&&GAME.mode==='finish'&&CELEB.t>(TEST?0.5:3.4))HUD.end();
   stepParticles(dt);
 }
 // ---- menus
@@ -161,26 +166,28 @@ let selRider='bunny';try{selRider=localStorage.getItem('mm_rider')||'bunny';}cat
 function buildMenu(){const box=$('riders');box.innerHTML='';
   for(const k of RIDERS){const d=document.createElement('div');d.className='rider felt'+(k===selRider?' sel':'');d.innerHTML=`<span class="em">${SPECIES[k].em}</span>${SPECIES[k].name}`;
     d.onclick=()=>{selRider=k;GAME.rider=k;try{localStorage.setItem('mm_rider',k);}catch(e){}buildMenu();Sfx.unlock();};box.appendChild(d);}
-  let b=0;try{b=+localStorage.getItem('mm_best')||0;}catch(e){}$('bestLine').textContent=b?'Best score: '+b:'';
+  let b=0;try{b=+localStorage.getItem('mm_best_'+LV.level)||0;}catch(e){}$('bestLine').textContent=(b?'Best on this level: '+b+' · ':'')+(LV.unlocked>1?LV.unlocked+' levels unlocked':'Finish a run to unlock the next level');
+  $('lvName').textContent=levelLabel(LV.level);$('bLvPrev').style.opacity=LV.level>1?1:0.35;$('bLvNext').style.opacity=LV.level<LV.unlocked?1:0.35;
   if(touchMode)$('ctlHint').innerHTML='Left thumb: drag to steer, push up to go faster, pull down to brake · Right side: JUMP<br>Every pal on your sled multiplies button points. Bonking a yarn ball knocks the top pal off.';
 }
-function startRun(){Sfx.unlock();GAME.rider=selRider;resetRun();GAME.mode='count';GAME.countT=3.0;['menu','endO','pauseO'].forEach(i=>$(i).style.display='none');$('hud').style.display='block';
+function startRun(){Sfx.unlock();GAME.rider=selRider;if(GAME.palsTotal===undefined||GAME.courseLevel!==LV.level){setLevel(LV.level);}GAME.courseLevel=LV.level;resetRun();GAME.mode='count';GAME.countT=3.0;['menu','endO','pauseO'].forEach(i=>$(i).style.display='none');$('hud').style.display='block';
   HUD.stack();showTouch();updateCamera(0,true);$('bQual').textContent=qName;const el=$('count');el.textContent='3';el.style.display='flex';Sfx.tick(0);}
 function pauseGame(){if(GAME.mode!=='run'&&GAME.mode!=='count')return;GAME.prevMode=GAME.mode;GAME.mode='pause';$('pauseO').style.display='flex';showTouch();}
 function resumeGame(){if(GAME.mode!=='pause')return;GAME.mode=GAME.prevMode||'run';$('pauseO').style.display='none';showTouch();last=performance.now();}
 function toMenu(){GAME.mode='menu';resetRun();['endO','pauseO','hud'].forEach(i=>$(i).style.display='none');$('menu').style.display='flex';$('count').style.display='none';buildMenu();showTouch();}
 function soundToggle(){Sfx.unlock();Sfx.setOn(!Sfx.on);const t=Sfx.on?'SOUND ON':'SOUND OFF';$('bSound').textContent=t;$('bSound2').textContent=t;try{localStorage.setItem('mm_snd',Sfx.on?1:0);}catch(e){}}
-$('bGo').onclick=startRun;$('bAgain').onclick=startRun;$('bRestart').onclick=startRun;$('bMenu').onclick=toMenu;$('bMenu2').onclick=toMenu;$('bResume').onclick=resumeGame;
+$('bGo').onclick=startRun;$('bAgain').onclick=()=>{setLevel(GAME.levelDone||LV.level);startRun();};$('bNext').onclick=()=>{setLevel((GAME.levelDone||LV.level)+1);startRun();};
+$('bLvPrev').onclick=()=>{setLevel(LV.level-1);toMenuRefresh();};$('bLvNext').onclick=()=>{if(LV.level<LV.unlocked){setLevel(LV.level+1);toMenuRefresh();}};
+function toMenuRefresh(){resetRun();updateChunks(P.s,Q.ahead,Q.dens,99);buildMenu();}$('bRestart').onclick=startRun;$('bMenu').onclick=toMenu;$('bMenu2').onclick=toMenu;$('bResume').onclick=resumeGame;
 $('bPause').onclick=()=>GAME.mode==='pause'?resumeGame():pauseGame();
 $('bQual').onclick=cycleQuality;$('bQual2').onclick=cycleQuality;$('bSound').onclick=soundToggle;$('bSound2').onclick=soundToggle;
 try{if(localStorage.getItem('mm_snd')==='0'){Sfx.on=false;$('bSound').textContent=$('bSound2').textContent='SOUND OFF';}}catch(e){}
 addEventListener('blur',()=>{if(GAME.mode==='run')pauseGame();});
 
 // ---- boot
-GAME.palsTotal=genCourse();
-sledModel=buildSled();backdropModel=buildBackdrop();archModel=buildArches();partModel=makeModel(partSB,true);
+sledModel=buildSled();archModel=buildArches();partModel=makeModel(partSB,true);
 for(const k of RIDERS)getAnimal(k,0);
-setQuality(qName);resetRun();GAME.rider=selRider;buildMenu();
+setQuality(qName);setLevel(LV.level);GAME.courseLevel=LV.level;resetRun();GAME.rider=selRider;buildMenu();
 updateChunks(P.s,Q.ahead,Q.dens,99);updateCamera(0,true);
 requestAnimationFrame(frameLoop);
 
@@ -188,7 +195,7 @@ requestAnimationFrame(frameLoop);
 window.MM={
   state:()=>({mode:GAME.mode,s:+P.s.toFixed(2),u:+P.u.toFixed(2),v:+P.v.toFixed(2),y:+P.y.toFixed(2),air:P.air,stack:P.stack.map(p=>p.key),score:GAME.score,buttons:GAME.buttons,
     bonks:GAME.bonks,bigAirs:GAME.bigAirs,airScore:GAME.airScore,time:+GAME.runT.toFixed(2),finishT:GAME.finishT,fps:Math.round(fps),splats:R.splatsDrawn,draws:R.draws,chunks:CHUNKS.size,
-    quality:qName,items:ITEMS.length,pals:GAME.palsTotal,canvas:[canvas.width,canvas.height]}),
+    quality:qName,items:ITEMS.length,level:LV.level,unlocked:LV.unlocked,pals:GAME.palsTotal,canvas:[canvas.width,canvas.height]}),
   start(rider,skipCount){if(rider)selRider=rider;startRun();if(skipCount){GAME.mode='run';GAME.countT=0;$('count').style.display='none';}},
   auto(on){GAME.auto=on;},
   sim(seconds,dt){dt=dt||1/120;const n=Math.round(seconds/dt);for(let i=0;i<n;i++){if(GAME.auto)autopilot(INP);if(GAME.mode==='run'||GAME.mode==='finish')stepPhysics(dt,INP);stepParticles(dt);GAME.t+=dt;}return MM.state();},
@@ -198,4 +205,8 @@ window.MM={
   items:()=>ITEMS.map(i=>({type:i.type,s:+i.s.toFixed(1),u:+i.u.toFixed(1)})),
   frame(){updateChunks(P.s,Q.ahead,Q.dens,99);updateCamera(1/60,true);render();return MM.state();},
   menu:toMenu,
+  level(l,unlock){if(unlock)LV.unlocked=Math.max(LV.unlocked,l);setLevel(l);GAME.courseLevel=LV.level;resetRun();updateChunks(P.s,Q.ahead,Q.dens,99);return LV;},
+  lv:()=>Object.assign({},LV),
+  counts:()=>{const c={};for(const i of ITEMS)c[i.type]=(c[i.type]||0)+1;return c;},
+  celeb:()=>({on:CELEB.on,t:+CELEB.t.toFixed(2),n:CELEB.spots.length}),
 };

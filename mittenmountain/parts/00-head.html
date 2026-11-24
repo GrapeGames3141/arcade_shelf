@@ -55,9 +55,11 @@ h1.title{margin:0;font-size:clamp(40px,9vw,72px);line-height:.95;color:#fff;font
 .hint{font-size:13px;opacity:.65;margin-top:12px;line-height:1.4}
 #count{position:fixed;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none;font-size:110px;font-weight:900;color:#fff;
   text-shadow:0 6px 0 rgba(0,0,0,.2);-webkit-text-stroke:3px #8e2d29}
-#endCard table{margin:10px auto;border-collapse:collapse;font-weight:800;font-size:17px}
-#endCard td{padding:3px 10px}#endCard td:last-child{text-align:right}
-#endCard tr.tot td{border-top:3px dashed rgba(0,0,0,.2);font-size:24px;color:var(--red);padding-top:8px}
+#endO{justify-content:flex-end;background:transparent;padding-bottom:calc(env(safe-area-inset-bottom) + 14px)}
+#endCard{padding:14px 20px}#endCard table{margin:6px auto;border-collapse:collapse;font-weight:800;font-size:15px}
+@media (max-height:560px){#endCard table{font-size:13px}#endCard td{padding:1px 8px}}
+#endCard td{padding:2px 9px}#endCard td:last-child{text-align:right}
+#endCard tr.tot td{border-top:3px dashed rgba(0,0,0,.2);font-size:21px;color:var(--red);padding-top:8px}
 #touch{position:fixed;inset:0;pointer-events:none;display:none}
 #joyBase{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;background:rgba(255,255,255,.28);box-shadow:inset 0 0 0 3px rgba(255,255,255,.6);display:none}
 #joyKnob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:var(--red);box-shadow:0 3px 0 rgba(0,0,0,.18),inset 0 0 0 4px rgba(255,255,255,.45)}
@@ -72,7 +74,7 @@ h1.title{margin:0;font-size:clamp(40px,9vw,72px);line-height:.95;color:#fff;font
 <div id="hud">
   <div id="topRow">
     <div>
-      <div id="stats" class="felt"><div class="lbl">TIME</div><div id="hTime">0.0</div><div class="lbl">SCORE</div><div><b id="hScore">0</b></div><div class="lbl">BUTTONS</div><div id="hBtn">0</div></div>
+      <div id="stats" class="felt"><div class="lbl" id="hLevel" style="opacity:.85;color:#c8463f">LEVEL 1</div><div class="lbl">TIME</div><div id="hTime">0.0</div><div class="lbl">SCORE</div><div><b id="hScore">0</b></div><div class="lbl">BUTTONS</div><div id="hBtn">0</div></div>
       <div id="stack"></div>
     </div>
     <div id="rbtns">
@@ -92,6 +94,11 @@ h1.title{margin:0;font-size:clamp(40px,9vw,72px);line-height:.95;color:#fff;font
     <h1 class="title">Mitten<br>Mountain</h1>
     <div class="sub">Sled down the giant scarf. Pick up pals. Don't bonk the yarn!</div>
     <div id="riders"></div>
+    <div class="row" id="lvRow" style="align-items:center;margin-bottom:12px">
+      <button class="btn small plum felt" id="bLvPrev">◀</button>
+      <div id="lvName" class="felt" style="background-color:#fff;padding:9px 16px;font-weight:800;min-width:210px">Level 1 · Sunrise</div>
+      <button class="btn small plum felt" id="bLvNext">▶</button>
+    </div>
     <div class="row">
       <button class="btn felt" id="bGo">SLED!</button>
     </div>
@@ -109,8 +116,8 @@ h1.title{margin:0;font-size:clamp(40px,9vw,72px);line-height:.95;color:#fff;font
   </div>
 </div>
 <div id="endO" class="overlay" style="display:none">
-  <div class="card felt" id="endCard"><h1 class="title" style="font-size:46px">Finish!</h1><table id="endTable"></table><div class="sub" id="endBest"></div>
-    <div class="row"><button class="btn felt green" id="bAgain">SLED AGAIN</button><button class="btn felt plum" id="bMenu2">CHANGE RIDER</button></div>
+  <div class="card felt" id="endCard"><h1 class="title" style="font-size:40px">Finish!</h1><div class="sub" id="endLevel" style="margin:4px 0 0"></div><table id="endTable"></table><div class="sub" id="endBest"></div>
+    <div class="row"><button class="btn felt green" id="bNext">NEXT LEVEL ▶</button><button class="btn felt teal" id="bAgain">SLED AGAIN</button><button class="btn felt plum" id="bMenu2">MENU</button></div>
   </div>
 </div>
 <script>

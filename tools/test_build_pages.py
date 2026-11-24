@@ -169,7 +169,7 @@ class PagesTests(unittest.TestCase):
             self.assertFalse((out / 'mytharium' / name).exists())
 
     def test_felt_game_authoring_dirs_are_not_packaged(self):
-        for game_name in ('mittenmountain', 'quilthill'):
+        for game_name in ('mittenmountain', 'quilthill', 'alleyknights'):
             game = self.root / game_name
             (game / 'parts').mkdir(parents=True)
             (game / 'test').mkdir()
@@ -178,7 +178,7 @@ class PagesTests(unittest.TestCase):
             (game / 'parts' / 'author.js').write_text('throw new Error()', encoding='utf-8')
             (game / 'test' / 'shot.py').write_text('raise RuntimeError()', encoding='utf-8')
         out = builder.build(self.root)
-        for game_name in ('mittenmountain', 'quilthill'):
+        for game_name in ('mittenmountain', 'quilthill', 'alleyknights'):
             self.assertTrue((out / game_name / (game_name + '.html')).exists())
             self.assertFalse((out / game_name / 'parts').exists())
             self.assertFalse((out / game_name / 'test').exists())

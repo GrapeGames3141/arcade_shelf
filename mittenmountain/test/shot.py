@@ -43,6 +43,25 @@ with sync_playwright() as p:
         before=len(pg.evaluate("MM.state()")['stack']);pg.evaluate("MM.sim(0.9)");st=pg.evaluate("MM.state()");print('bonk test stack',before,'->',len(st['stack']),'bonks',st['bonks'])
         pg.evaluate("MM.sim(0.25)");pg.evaluate("MM.frame()");shot('bonk')
         pg.evaluate("MM.menu()");pg.evaluate("MM.frame()");pg.evaluate("document.getElementById('menu').style.display='none'");pg.wait_for_timeout(200);pg.evaluate("MM.frame()");shot('closeup')
+    if sc=='levels':
+        for L in range(1,7):
+            pg.evaluate(f"MM.level({L},true)");c=pg.evaluate("MM.counts()");print('level',L,c)
+        for L in range(1,6):
+            pg.evaluate(f"MM.level({L},true)");pg.evaluate("MM.start('bunny',true)");pg.evaluate("MM.teleport(240,0)");pg.evaluate("MM.input({steer:0,push:0,brake:0})")
+            pg.evaluate("MM.sim(0.5)");pg.evaluate("MM.frame()");pg.wait_for_timeout(300);shot(f'theme{L}')
+    if sc=='celeb':
+        pg.evaluate("MM.level(1,true)");pg.evaluate("MM.start('fox',true)");pg.evaluate("MM.auto(true)")
+        for i in range(30):
+            st=pg.evaluate("MM.sim(5)")
+            if st['mode']!='run':break
+        print('finished',json.dumps(pg.evaluate("MM.state()")))
+        for k in range(12):
+            pg.evaluate("MM.sim(0.5)")
+            c=pg.evaluate("MM.celeb()")
+            if c['on'] and c['t']>1.4:break
+        print('celeb',pg.evaluate("MM.celeb()"),pg.evaluate("MM.lv()"))
+        pg.evaluate("document.getElementById('endO').style.display='none'");pg.evaluate("MM.frame()");pg.wait_for_timeout(300);shot('celeb')
+        pg.evaluate("document.getElementById('endO').style.display='flex'");pg.wait_for_timeout(200);shot('celebcard')
     if sc=='perf':
         pg.evaluate("MM.start('bunny',true)");pg.evaluate("MM.auto(true)");pg.wait_for_timeout(6000);shot('perf')
     print('errors',len(errs))

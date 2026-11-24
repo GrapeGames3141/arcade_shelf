@@ -66,6 +66,11 @@ const Sfx={ctx:null,on:true,master:null,musicT:0,step:0,
   boing(){this.tone(180,520,0.25,'sine',0.3);this.tone(260,620,0.2,'triangle',0.1,0.03);},
   snip(){this.noiseHit(0.05,5000,0.4,'highpass');this.noiseHit(0.06,4000,0.4,'highpass',0.09);this.tone(900,300,0.15,'square',0.05);},
   bonk(){this.tone(220,90,0.2,'sine',0.3);this.noiseHit(0.1,900,0.25);},
+  zip(){if(!this.ctx)return;const c=this.ctx,t=c.currentTime;const s=c.createBufferSource();s.buffer=this.noise;const f=c.createBiquadFilter();f.type='bandpass';f.Q.value=6;f.frequency.setValueAtTime(800,t);f.frequency.exponentialRampToValueAtTime(5000,t+0.45);
+    const g=c.createGain();g.gain.setValueAtTime(0.35,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.5);s.connect(f).connect(g).connect(this.master);s.start(t,Math.random());s.stop(t+0.55);},
+  thimble(){[1047,1319,1568,2093].forEach((f,i)=>this.tone(f,f,0.18,'triangle',0.14,i*0.06));},
+  hoop(){this.tone(500,1000,0.2,'sine',0.2);this.tone(750,1500,0.2,'sine',0.12,0.08);},
+  ouch(){this.tone(1400,700,0.12,'square',0.06);this.tone(300,160,0.2,'sine',0.25,0.05);},
   fanfare(){[523,659,784,1047,784,1047].forEach((f,i)=>this.tone(f,f,0.28,'triangle',0.17,i*0.11));},
   tick(n){this.tone(n?880:520,n?880:520,0.15,'triangle',0.18);},
   update(dt){if(!this.ctx)return;const c=this.ctx;const running=GAME.mode==='run'||GAME.mode==='finish';
@@ -93,8 +98,8 @@ const HUD={last:'',
     if(txt!==this.last){this.last=txt;$('hTime').textContent=t+'s';$('hScore').textContent=GAME.score;$('hBob').textContent=GAME.bobbins+' / '+GAME.total;
       const pe=$('patch');pe.textContent=PLABEL[P.patch];pe.className='felt patch p'+P.patch;}
     $('progSled').style.left=(clamp(P.s/QH.L,0,1)*100)+'%';},
-  end(){GAME.mode='ended';showTouch();const rows=[['Time',GAME.finishT.toFixed(1)+'s'],['Bobbins',GAME.bobbins+' / '+GAME.total+' × 25'],['Air',GAME.airScore],['Boings',GAME.boings+' × 5'],
-      ['Time bonus',GAME.timeBonus]].concat(GAME.allBonus?[['Every bobbin!',GAME.allBonus]]:[]).concat([['Snips',GAME.snips]]);
+  end(){GAME.mode='ended';showTouch();const rows=[['Time',GAME.finishT.toFixed(1)+'s'],['Bobbins',GAME.bobbins+' / '+GAME.total+' × 25'],['Thimbles',GAME.thimbles+' × 100'],['Hoops',GAME.hoops+' × 50'],['Air',GAME.airScore],['Boings',GAME.boings+' × 5'],
+      ['Time bonus',GAME.timeBonus]].concat(GAME.allBonus?[['Every bobbin!',GAME.allBonus]]:[]).concat([['Snips · Ouches',GAME.snips+' · '+GAME.ouches]]);
     $('endTable').innerHTML=rows.map(r=>`<tr><td style="text-align:left">${r[0]}</td><td>${r[1]}</td></tr>`).join('')+`<tr class="tot"><td style="text-align:left">Total</td><td>${GAME.score}</td></tr>`;
     $('endBest').textContent=GAME.newBest?'New best score!':(GAME.best?'Best: '+GAME.best:'');$('endO').style.display='flex';$('hud').style.display='none';}
 };

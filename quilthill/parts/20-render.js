@@ -10,7 +10,7 @@ layout(location=1) in vec4 aPS;
 layout(location=2) in vec4 aCol;
 layout(location=3) in vec4 aNrm;
 uniform mat4 uVP,uM;
-uniform vec3 uCam,uCamR,uCamU,uSun,uSunCol,uSky,uGround,uTintCol,uBox;
+uniform vec3 uCam,uCamR,uCamU,uSun,uSunCol,uSky,uGround,uTintCol,uBox,uFireP,uFireCol;uniform float uFireI,uFireR;
 uniform float uBoil,uBoilAmt,uScale,uTime,uTint;
 uniform vec2 uFog;
 uniform int uMode;
@@ -41,7 +41,8 @@ void main(){
   float wrap=clamp((ndl+0.4)/1.4,0.,1.);
   vec3 amb=mix(uGround,uSky,n.y*0.5+0.5);
   vec3 base=aCol.rgb;
-  vec3 c=base*(amb+uSunCol*wrap);
+  vec3 Lf=uFireP-wp;float fd=length(Lf);float fat=uFireI/(1.+(fd/uFireR)*(fd/uFireR));float ff=clamp((dot(n,Lf/fd)+0.3)/1.3,0.,1.)*fat;
+  vec3 c=base*(amb+uSunCol*wrap+uFireCol*ff);
   float rim=pow(1.-clamp(ndv,0.,1.),2.5);
   c+=base*rim*0.3+rim*0.05;
   if(uMode==1)c=vec3(1.,.99,.97);
@@ -184,6 +185,7 @@ function beginSplats(cam,time){
   gl.uniform3fv(s.u.uFogCol,LIGHT.fog);gl.uniform2f(s.u.uFog,90,230);gl.uniform1f(s.u.uTime,time);
   gl.uniform1i(s.u.uMode,0);gl.uniform1f(s.u.uTint,0);gl.uniform3f(s.u.uTintCol,1,1,1);gl.uniform1f(s.u.uScale,1);
   gl.uniform1f(s.u.uBoil,0);gl.uniform1f(s.u.uBoilAmt,0);
+  if(typeof FIRE!=='undefined'){gl.uniform3fv(s.u.uFireP,FIRE.p);gl.uniform3fv(s.u.uFireCol,FIRE.col);gl.uniform1f(s.u.uFireI,FIRE.i);gl.uniform1f(s.u.uFireR,FIRE.r);}
 }
 const IDENT=M4.ident();
 function drawModel(m,M,opt){

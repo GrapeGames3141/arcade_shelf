@@ -37,6 +37,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Barnyard Count | `barncount/barncount.html` | `http://127.0.0.1:8000/barncount/barncount.html` |
 | Mitten Mountain | `mittenmountain/mittenmountain.html` | `http://127.0.0.1:8000/mittenmountain/mittenmountain.html` |
 | Quilt Hill Roll | `quilthill/quilthill.html` | `http://127.0.0.1:8000/quilthill/quilthill.html` |
+| Alley Knights | `alleyknights/alleyknights.html` | `http://127.0.0.1:8000/alleyknights/alleyknights.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.

@@ -62,10 +62,11 @@ const Sfx={ctx:null,on:true,master:null,hiss:null,hissG:null,hissF:null,musicT:0
   button(n){const b=660*Math.pow(1.06,Math.min(n,8));this.tone(b,b,0.09,'triangle',0.16);this.tone(b*1.5,b*1.5,0.14,'triangle',0.12,0.06);},
   pickup(n){this.tone(700,1300,0.12,'sine',0.18);this.tone(900,1700,0.12,'sine',0.14,0.1);},
   bonk(){this.tone(180,70,0.3,'sine',0.35);this.noiseHit(0.2,800,0.3);},
+  cheer(){for(let i=0;i<9;i++){const f=700+Math.random()*700;this.tone(f,f*1.5,0.16,'sine',0.09,0.1+i*0.11+Math.random()*0.05);}this.noiseHit(0.6,3000,0.06);},
   fanfare(){[523,659,784,1047].forEach((f,i)=>this.tone(f,f,0.3,'triangle',0.18,i*0.12));},
   tick(n){this.tone(n?880:520,n?880:520,0.15,'triangle',0.18);},
   update(dt){if(!this.ctx)return;const c=this.ctx;
-    const running=GAME.mode==='run'||GAME.mode==='finish';const v=running?P.v:0;
+    const running=GAME.mode==='run'||GAME.mode==='finish';const v=running&&!CELEB.on?P.v:0;
     this.hissG.gain.setTargetAtTime(running&&!P.air?Math.min(0.12,v/22*0.1)*(P.inSnow?2:1):0,c.currentTime,0.05);
     this.hissF.frequency.setTargetAtTime(P.inSnow?600:900+v*70,c.currentTime,0.1);
     // music box loop (pentatonic, lookahead scheduling)
@@ -85,11 +86,14 @@ const HUD={lastTxt:'',
     const pops=$('pops');d.style.top=(pops.children.length%3)*40+'px';pops.appendChild(d);setTimeout(()=>d.remove(),1300);},
   stack(){$('stack').innerHTML=P.stack.map(p=>'<span>'+SPECIES[p.key].em+'</span>').join('');},
   flashScore(){const e=$('hScore');e.style.transform='scale(1.3)';setTimeout(()=>e.style.transform='',120);},
-  update(){const t=(GAME.mode==='finish'?GAME.finishT:GAME.runT).toFixed(1);const txt=t+'|'+GAME.score+'|'+GAME.buttons;
+  update(){const t=(GAME.mode==='finish'||GAME.mode==='ended'?GAME.finishT:GAME.runT).toFixed(1);const txt=t+'|'+GAME.score+'|'+GAME.buttons;
     if(txt!==this.lastTxt){this.lastTxt=txt;$('hTime').textContent=t+'s';$('hScore').textContent=GAME.score;$('hBtn').textContent=GAME.buttons;}
     $('progSled').style.left=(clamp(P.s/TR.L,0,1)*100)+'%';},
   end(){GAME.mode='ended';showTouch();const rows=[['Time',GAME.finishT.toFixed(1)+'s'],['Buttons',GAME.buttons],['Air & hops',GAME.airScore],
-      ['Pals delivered '+P.stack.map(p=>SPECIES[p.key].em).join(''),P.stack.length+' × 150'],['Time bonus',GAME.timeBonus],['Bonks',GAME.bonks]];
-    $('endTable').innerHTML=rows.map(r=>`<tr><td style="text-align:left">${r[0]}</td><td>${r[1]}</td></tr>`).join('')+`<tr class="tot"><td style="text-align:left">Total</td><td>${GAME.score}</td></tr>`;
-    $('endBest').textContent=GAME.newBest?'New best score!':(GAME.best?'Best: '+GAME.best:'');$('endO').style.display='flex';$('hud').style.display='none';}
+      ['Pals '+P.stack.map(p=>SPECIES[p.key].em).join(''),P.stack.length+' × 150'],['Time bonus',GAME.timeBonus],['Bonks',GAME.bonks]];
+    let h='';for(let i=0;i<rows.length;i+=2){h+='<tr>';for(const r of rows.slice(i,i+2))h+=`<td style="text-align:left;opacity:.75">${r[0]}</td><td>${r[1]}</td>`;h+='</tr>';}
+    $('endTable').innerHTML=h+`<tr class="tot"><td style="text-align:left">Total</td><td>${GAME.score}</td><td colspan=2></td></tr>`;
+    $('endBest').textContent=GAME.newBest?'New best score!':(GAME.best?'Best: '+GAME.best:'');
+    $('endLevel').textContent=levelLabel(GAME.levelDone)+' complete!'+(GAME.unlockedNew?'  Unlocked '+levelLabel(GAME.levelDone+1):'');
+    $('bNext').textContent='LEVEL '+(GAME.levelDone+1)+' ▶';$('endO').style.display='flex';$('hud').style.display='none';}
 };

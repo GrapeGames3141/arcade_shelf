@@ -8,37 +8,40 @@ function getAnimal(key,variant){const id=key+':'+variant;if(!ANIMALS[id])ANIMALS
 
 // ---- course items (fixed seed so every run is the same mountain)
 let ITEMS=[];
-function genCourse(){
-  const rnd=mulberry(20261122);ITEMS=[];const hw=TR.hw;
+function genCourse(level){
+  level=level||1;const D=diffFor(level);
+  const rnd=mulberry(20261122+level*977);ITEMS=[];const hw=TR.hw;
   const add=(type,s,u,extra)=>{const fr=frame(s);const it=Object.assign({type,s,u,alive:true,pos:surf(s,u,fr),fr},extra||{});ITEMS.push(it);return it;};
   let s=45,palCount=0,lastPal=0;
   const yarnCols=['#e07aa0','#3f8f93','#e2aa3c','#b19ad0','#cf4a42','#7fa36b'];const btnCols=['#cf4a42','#3f8f93','#e2aa3c','#4f8a5b','#e07aa0','#304468'];
+  const W=[['mogul',D.mogulW],['ramp',D.rampW],['snake',D.snakeW],['needle',D.needleW],['slalom',D.slalomW]];const Wsum=W.reduce((a,w)=>a+w[1],0);
   while(s<TR.L-45){
-    const diff=s/TR.L;const r=rnd();
-    if(s-lastPal>55&&rnd()<0.75){ // a pal waiting on the scarf
+    const diff=s/TR.L;
+    if(s-lastPal>55&&rnd()<D.palP){
       const u=(rnd()-0.5)*2*(hw-1.0);add('pal',s,u,{key:PAL_KEYS[palCount%PAL_KEYS.length],variant:palCount,wave:rnd()*6});palCount++;lastPal=s;
-      // a few buttons leading to them
       for(let k=1;k<=3;k++)add('button',s-k*3,u*(1-k*0.2),{col:btnCols[(k+palCount)%btnCols.length],h:0.55});
       s+=14;continue;}
-    if(r<0.28){ // mogul field
-      const n=3+Math.floor(rnd()*(2+diff*4));for(let k=0;k<n;k++){const u=(rnd()-0.5)*2*(hw-0.8);add('yarn',s+k*(5-diff*1.5)+rnd()*2,u,{col:yarnCols[Math.floor(rnd()*yarnCols.length)],seed:Math.floor(rnd()*99)});}
-      s+=n*5+8;
-    }else if(r<0.48){ // mitten ramp with a button arc
+    let r=rnd()*Wsum,kind='snake';for(const[k,w]of W){if(r<w){kind=k;break;}r-=w;}
+    if(kind==='mogul'){ // yarn moguls: few and spread out on early levels
+      const n=D.mogulMin+Math.floor(rnd()*(D.mogulMax-D.mogulMin+1+diff*D.d*0.5));
+      for(let k=0;k<n;k++){const u=(rnd()-0.5)*2*(hw-0.8);add('yarn',s+k*D.mogulGap+rnd()*2,u,{col:yarnCols[Math.floor(rnd()*yarnCols.length)],seed:Math.floor(rnd()*99)});}
+      s+=n*D.mogulGap+10;
+    }else if(kind==='ramp'){
       const u=(rnd()-0.5)*2*(hw-1.6);const fr=frame(s);const lenS=RAMP.len/fr.arc;
       add('ramp',s,u,{lenS,col:['#cf4a42','#3f8f93','#80507a','#4f8a5b'][Math.floor(rnd()*4)],center:surf(s+lenS/2,u)});
       for(let k=0;k<5;k++){const t=k/4;add('button',s+lenS+3+t*11,u,{col:btnCols[k%btnCols.length],h:1.6+Math.sin(t*Math.PI)*2.2});}
       s+=lenS+26;
-    }else if(r<0.66){ // button snake
+    }else if(kind==='snake'){
       const ph=rnd()*6;for(let k=0;k<8;k++)add('button',s+k*2.6,Math.sin(ph+k*0.55)*(hw-1.2),{col:btnCols[k%btnCols.length],h:0.55});
       s+=26;
-    }else if(r<0.82){ // needle gate: crossed needles block one side
+    }else if(kind==='needle'){
       const side=rnd()<0.5?-1:1;add('needle',s,side*(hw-1.3),{col:['#b19ad0','#7fa36b','#e07aa0'][Math.floor(rnd()*3)]});
-      if(diff>0.35)add('needle',s+0.01,side*(hw-3.4),{col:'#e2aa3c'});
+      if(D.needleDouble&&diff>0.3)add('needle',s+0.01,side*(hw-3.4),{col:'#e2aa3c'});
       add('button',s,-side*(hw-1.5),{col:'#e2aa3c',h:0.55});
       s+=18;
-    }else{ // slalom of yarn
-      for(let k=0;k<4;k++)add('yarn',s+k*7,(k%2?1:-1)*(1.0+rnd()*1.5),{col:yarnCols[k%yarnCols.length],seed:k+Math.floor(s)});
-      s+=34;
+    }else{ // slalom
+      const n=3+Math.min(3,Math.floor(D.d/2));for(let k=0;k<n;k++)add('yarn',s+k*7,(k%2?1:-1)*(1.0+rnd()*1.5),{col:yarnCols[k%yarnCols.length],seed:k+Math.floor(s)});
+      s+=n*7+12;
     }
   }
   ITEMS.sort((a,b)=>a.s-b.s);
@@ -59,7 +62,7 @@ function resetRun(){
   Object.assign(P,{s:6,u:0,v:0,vu:0,y:0,vy:0,air:false,airT:0,coyote:0,inv:0,stack:[],lean:0,leanV:0,yaw:0,roll:0,shake:0,jumpBuf:0,inSnow:false,lastAu:0});
   for(const it of ITEMS){it.alive=true;delete it.taken;delete it.hit;delete it.fly;}
   ITEMS=ITEMS.filter(it=>!it.dropped);
-  FLYERS.length=0;PARTS_P.length=0;
+  FLYERS.length=0;PARTS_P.length=0;CELEB.on=false;CELEB.t=0;
   Object.assign(GAME,{runT:0,score:0,buttons:0,airScore:0,bonks:0,bigAirs:0,finishT:0,ended:false});
 }
 function playerWorld(){const fr=frame(P.s);return{fr,pos:v3.add(surf(P.s,P.u,fr),v3.sc(fr.N,P.y))};}
@@ -76,7 +79,7 @@ function stepPhysics(dt,inp){
   if(!P.air)a-=(P.inSnow?0.55:0.03)*G*Math.sign(P.v);
   a-=0.0042*P.v*P.v;
   if(!finished&&inp.push>0&&P.v<17&&!P.air)a+=3.4*inp.push;
-  if((inp.brake>0||finished)&&!P.air)a-=(finished?4:7.5)*Math.max(inp.brake,finished?1:0);
+  if((inp.brake>0||finished)&&!P.air)a-=(finished?6:7.5)*Math.max(inp.brake,finished?1:0);
   P.v=Math.max(0,P.v+a*dt);
   // lateral
   let au=steer*(P.air?3.5:(P.inSnow?7:13.5))*(finished?0.3:1);
@@ -111,6 +114,8 @@ function stepPhysics(dt,inp){
   collide();
   // finish
   if(GAME.mode==='run'){GAME.runT+=dt;if(P.s>=TR.L)finishRun();}
+  if(GAME.mode==='finish'&&!CELEB.on&&(P.v<0.8||GAME.runT>0&&performance.now()-GAME.finishWall>6000))startCelebration();
+  if(CELEB.on)CELEB.t+=dt;
 }
 function collide(){
   const pw=playerWorld().pos;
@@ -143,15 +148,16 @@ function finishRun(){
   GAME.mode='finish';GAME.finishT=GAME.runT;
   const pals=P.stack.length;const palPts=pals*150;const timeBonus=Math.max(0,Math.round((110-GAME.runT)*10));
   GAME.palPts=palPts;GAME.timeBonus=timeBonus;GAME.score+=palPts+timeBonus;
-  try{const b=+localStorage.getItem('mm_best')||0;GAME.best=b;if(GAME.score>b){localStorage.setItem('mm_best',GAME.score);GAME.newBest=true;}else GAME.newBest=false;}catch(e){}
+  try{const key='mm_best_'+LV.level;const b=+localStorage.getItem(key)||0;GAME.best=b;if(GAME.score>b){localStorage.setItem(key,GAME.score);GAME.newBest=true;}else GAME.newBest=false;}catch(e){}
+  GAME.finishWall=performance.now();GAME.levelDone=LV.level;
+  if(LV.level>=LV.unlocked){LV.unlocked=LV.level+1;GAME.unlockedNew=true;}else GAME.unlockedNew=false;saveLevels();
   popup('FINISH!',true);Sfx.fanfare();
-  setTimeout(()=>{if(GAME.mode==='finish')HUD.end();},TEST?50:2200);
 }
 // ---- particles (felt puffs)
 function spawnPuff(p,n,col,spd){for(let i=0;i<n;i++){if(PARTS_P.length>500)PARTS_P.shift();
   PARTS_P.push({p:p.slice(),v:[(Math.random()-0.5)*spd,Math.random()*spd*0.9+0.5,(Math.random()-0.5)*spd],t:0,life:0.5+Math.random()*0.5,col,s:0.06+Math.random()*0.08});}}
 function stepParticles(dt){
-  for(const q of PARTS_P){q.t+=dt;q.v[1]-=6*dt;q.p=v3.mad(q.p,q.v,dt);}
+  for(const q of PARTS_P){q.t+=dt;if(q.slow){q.v[1]-=(q.col[0]>0.9&&q.col[1]>0.9?-0.25:1.0)*dt;q.v[0]+=Math.sin(q.t*4+q.s*50)*dt*0.6;}else q.v[1]-=6*dt;q.p=v3.mad(q.p,q.v,dt);}
   while(PARTS_P.length&&PARTS_P[0].t>PARTS_P[0].life)PARTS_P.shift();
   for(let i=PARTS_P.length-1;i>=0;i--)if(PARTS_P[i].t>PARTS_P[i].life)PARTS_P.splice(i,1);
   for(const f of FLYERS){f.t+=dt;if(f.landed)continue;f.vel[1]-=12*dt;f.pos=v3.mad(f.pos,f.vel,dt);f.spin+=dt*9;

@@ -112,10 +112,13 @@ function drawAnimal(A,M,pose,boil){
   const sc=A.scale;const Mb=M4.mul(M,M4.mul(M4.scale(sc),M4.mul(M4.trans(0,pose.bob||0,0),M4.rotZ(pose.lean||0))));
   const op={boil,boilAmt:0.18,scale:sc,tint:pose.tint,tintCol:pose.tintCol};
   drawModel(A.body,Mb,op);
-  const Mh=M4.mul(Mb,M4.mul(M4.trans(0,0.38,0),M4.mul(M4.rotY(pose.headTurn||0),M4.rotZ(pose.headTilt||0))));
+  const Mh=M4.mul(Mb,M4.mul(M4.trans(0,0.38,0),M4.mul(M4.rotY(pose.headTurn||0),M4.mul(M4.rotZ(pose.headTilt||0),M4.rotX(pose.headNod||0)))));
   drawModel(A.head,Mh,op);
-  drawModel(A.armL,M4.mul(Mb,M4.mul(M4.trans(-0.15,0.31,0.02),M4.rotZ(-(pose.armL||0)))),op);
-  drawModel(A.armR,M4.mul(Mb,M4.mul(M4.trans(0.15,0.31,0.02),M4.rotZ(pose.armR||0))),op);
+  drawModel(A.armL,M4.mul(Mb,M4.mul(M4.trans(-0.15,0.31,0.02),M4.mul(M4.rotZ(-(pose.armL||0)),M4.rotX(-(pose.armLX||0))))),op);
+  const Ma=M4.mul(Mb,M4.mul(M4.trans(0.15,0.31,0.02),M4.mul(M4.rotZ(pose.armR||0),M4.rotX(-(pose.armRX||0)))));
+  drawModel(A.armR,Ma,op);
+  if(pose.mug){const mm=mugModels[pose.mug]||(mugModels[pose.mug]=buildMug(pose.mug));
+    drawModel(mm,M4.mul(Ma,M4.mul(M4.trans(0.0,-0.17,0.05),M4.mul(M4.rotX((pose.armRX||0)-(pose.mugTilt||0)),M4.mul(M4.rotZ(-(pose.armR||0)),M4.trans(-0.02,-0.03,0))))),{boil:op.boil,boilAmt:0.08,scale:sc});}
 }
 
 // ---- sled (front +z)

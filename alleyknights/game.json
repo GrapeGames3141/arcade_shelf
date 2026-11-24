@@ -1,0 +1,7 @@
+{
+  "title": "Alley Knights",
+  "description": "A raccoon knight with a trash-can lid for a shield and whatever's in the dumpster for a sword. Each night, rats, possums, alley cats, skunks, pigeons, gulls and a rival raccoon gang try to take your alley. Break their nerve, hold the dumpsters, guard the couch until dawn.",
+  "category": "Action",
+  "controls": "WASD move, J or left click attack, hold K / right click / Shift to block (attack while blocking = shield bash), Space jump, E pick up / rummage / ride the cart, Q R turn camera, Esc pause. Touch: joystick on the left, ATTACK / BLOCK / JUMP / ACT on the right. Gamepad supported.",
+  "requirements": "WebGL2 browser"
+}
