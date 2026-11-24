@@ -357,6 +357,19 @@ function drawUnicorn(g, u, x, y, s, face, o) {
   const farCoat = shade(coat, dark ? -.12 : -.1);
   // legs: [x, phase, far]
   const legs = [[-brx * .58, 0, 1], [brx * .52, Math.PI, 1], [-brx * .45, Math.PI, 0], [brx * .65, 0, 0]];
+  const legGeom = (lx, ph) => {
+    const ang = o.moving ? Math.sin((o.walk || 0) + ph) * .42 : 0, knee = (o.moving ? Math.max(0, -Math.sin((o.walk || 0) + ph)) * .55 : 0) + jump * 1.1;
+    const L = legL + bry * .2; return { ang, L, kneeY: L * .5, bend: -knee * (lx > 0 ? -1 : 1) * .9 };
+  };
+  // adds a leg's outline to the current path (used to keep paint inside the legs)
+  const legClip = (lx, ph) => {
+    const { ang, L, kneeY, bend } = legGeom(lx, ph);
+    g.save(); g.translate(lx, by + bry * .35); g.rotate(ang);
+    g.moveTo(-.075, -.02); g.lineTo(.075, -.02); g.quadraticCurveTo(.08, kneeY * .5, .055, kneeY); g.lineTo(-.055, kneeY); g.quadraticCurveTo(-.08, kneeY * .5, -.075, -.02); g.closePath();
+    g.translate(0, kneeY); g.rotate(bend);
+    g.moveTo(-.055, -.03); g.lineTo(.055, -.03); g.quadraticCurveTo(.05, L * .3, .047, L * .46); g.lineTo(-.047, L * .46); g.quadraticCurveTo(-.05, L * .3, -.055, -.03); g.closePath();
+    g.restore();
+  };
   const legOf = (lx, ph, far) => {
     const top = [lx, by + bry * .35];
     g.save(); g.translate(top[0], top[1]);
@@ -365,8 +378,7 @@ function drawUnicorn(g, u, x, y, s, face, o) {
       g.fillStyle = far ? farCoat : coat; ell(g, lx > 0 ? .1 : -.05, bry * .45, .13, .05); g.fill(); g.stroke();
       g.fillStyle = HOOVES[u.hoof]; ell(g, lx > 0 ? .21 : .06, bry * .5, .04, .035); g.fill(); g.restore(); return;
     }
-    const ang = o.moving ? Math.sin((o.walk || 0) + ph) * .42 : 0, knee = (o.moving ? Math.max(0, -Math.sin((o.walk || 0) + ph)) * .55 : 0) + jump * 1.1;
-    const L = legL + bry * .2, kneeY = L * .5, bend = -knee * (lx > 0 ? -1 : 1) * .9;
+    const { ang, L, kneeY, bend } = legGeom(lx, ph);
     g.rotate(ang);
     const upper = () => { g.beginPath(); g.moveTo(-.075, -.02); g.quadraticCurveTo(-.08, kneeY * .5, -.055, kneeY); g.lineTo(.055, kneeY); g.quadraticCurveTo(.08, kneeY * .5, .075, -.02); g.closePath(); };
     const lower = () => { g.save(); g.translate(0, kneeY); g.rotate(bend); g.beginPath(); g.moveTo(-.055, 0); g.quadraticCurveTo(-.05, L * .3, -.047, L * .46); g.lineTo(.047, L * .46); g.quadraticCurveTo(.05, L * .3, .055, 0); g.closePath(); g.restore(); };
@@ -389,7 +401,7 @@ function drawUnicorn(g, u, x, y, s, face, o) {
   g.fillStyle = 'rgba(255,255,255,.4)'; ell(g, -brx * .2, by - bry * .5, brx * .5, bry * .22, -.08); g.fill();
   if (u.paint && u.paint.length) {
     g.save(); g.beginPath(); g.ellipse(0, by + breathe, brx, bry + breathe, 0, 0, TAU);
-    for (const [lx] of legs) { g.rect(lx - .075, by, .15, -by); }
+    if (sleep <= .5) for (const [lx, ph] of legs) legClip(lx, ph);
     g.clip(); drawPaint(g, u.paint, brx, bry, by); g.restore();
   }
   for (const m of u.mud || []) { g.fillStyle = 'rgba(160,112,72,.7)'; ell(g, m[0] * brx * .9, by + m[1] * bry * .8, .05 * m[2], .034 * m[2], m[0]); g.fill(); g.fillStyle = 'rgba(110,72,40,.6)'; circle(g, m[0] * brx * .9 + .03, by + m[1] * bry * .8 + .02, .013 * m[2]); g.fill(); }
@@ -1241,8 +1253,19 @@ function showerAt(px, py) {
   for (let i = 0; i < 3; i++) G.fx.push({ x: px + rand(-22, 22) * U, y: py - rand(30, 70) * U, vx: rand(-15, 15) * U, vy: rand(260, 360) * U, life: .45, age: 0, kind: 'drop', r: rand(3, 5) * U });
   if (!onUnicorn(px, py)) return;
   const q = toBody(px, py), R = .32; let washed = false;
-  for (const st of u.paint) { if (st.s) { if (Math.hypot(st.x - q[0], st.y - q[1]) < R) { st.gone = true; washed = true; } } else { const before = st.p.length; st.p = st.p.filter(p => Math.hypot(p[0] - q[0], p[1] - q[1]) > R); if (st.p.length < before) washed = true; if (!st.p.length) st.gone = true; } }
-  u.paint = u.paint.filter(st => !st.gone);
+  // washing a stroke splits it where the water hits, so the leftover pieces never get joined by a straight line
+  const kept = [];
+  for (const st of u.paint) {
+    if (st.s) { if (Math.hypot(st.x - q[0], st.y - q[1]) < R) washed = true; else kept.push(st); continue; }
+    let run = [], hit = false;
+    for (const pt of st.p) {
+      if (Math.hypot(pt[0] - q[0], pt[1] - q[1]) > R) run.push(pt);
+      else { hit = true; if (run.length) kept.push({ ...st, p: run }); run = []; }
+    }
+    if (run.length) kept.push(hit ? { ...st, p: run } : st);
+    if (hit) washed = true;
+  }
+  u.paint = kept;
   if (Math.random() < .3 && u.mud.length) { u.mud.pop(); addXp(u, 1); }
   u.shine = Math.min(100, u.shine + .6); G.care.happy = .5; G.care.wet = 1.5;
   if (washed && Math.random() < .3) burst(px, py, 'bubble', 2);
