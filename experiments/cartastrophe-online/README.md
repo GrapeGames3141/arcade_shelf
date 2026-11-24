@@ -71,7 +71,7 @@ doesn't create charges. Rough budget per day on Free:
 * Durable Object duration: 13,000 GB-s/day, or about 28 hours of a room being connected. A room stops its loop once nobody
   is connected.
 
-The verified direct launch URL is [Cartastrophe Online](https://cartastrophe-online.patguettler.workers.dev/). See
+The verified direct launch URL is [Cartastrophe Online](https://multiplayer.thearcadeshelf.com/). See
 `DEPLOY.md` for the Workers Free deployment gate and limits.
 
 To serve the page from the arcade site (GitHub Pages) with only the room server on Cloudflare, see `HOSTING.md`.

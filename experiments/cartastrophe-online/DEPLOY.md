@@ -16,7 +16,7 @@ workflow uses the existing `CLOUDFLARE_API_TOKEN` organization secret, runs `npm
 server simulation, runs `node test/sim-node.mjs`, and runs `wrangler deploy --dry-run` before its only upload step.
 It does not create billing products or enable paid features.
 
-After a successful run, use the `workers.dev` URL printed by Wrangler. Open it in two independent browsers or devices,
+After a successful run, open https://multiplayer.thearcadeshelf.com/ (the `workers.dev` address is switched off so it does not show the account name). Open it in two independent browsers or devices,
 create and join a room, have both players ready up, complete a short match, and verify rematch and leave/rejoin. Check
 that the page and WebSocket room both use the same Worker origin. A failed run or a Free-plan limit is not permission to
 retry on a paid plan.
@@ -48,7 +48,7 @@ npm run check      # build + wrangler deploy --dry-run: validates config, upload
 npx wrangler deploy
 ```
 
-Open the printed `https://cartastrophe-online.<subdomain>.workers.dev/` on two devices and play a match.
+Open https://multiplayer.thearcadeshelf.com/ on two devices and play a match.
 
 ## 4. Remove it afterwards (if wanted)
 

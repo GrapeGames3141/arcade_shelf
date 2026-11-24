@@ -27,7 +27,7 @@ PROMOTED_EXPERIMENTS = (
     Path("experiments/procedural-demo/procedural-demo.html"),
 )
 # Intentional direct launchers must be explicit: experiments are otherwise not Pages content.
-EXTERNAL_LOBBY_URLS = frozenset({"https://cartastrophe-online.patguettler.workers.dev/"})
+EXTERNAL_LOBBY_URLS = frozenset({"https://multiplayer.thearcadeshelf.com/"})
 
 class PageParser(HTMLParser):
     def __init__(self):

@@ -1,6 +1,6 @@
 # Hosting Cartastrophe Online from the arcade site
 
-Status: **direct Worker launch is live** at [Cartastrophe Online](https://cartastrophe-online.patguettler.workers.dev/).
+Status: **direct Worker launch is live** at [Cartastrophe Online](https://multiplayer.thearcadeshelf.com/).
 The arcade shelf card links to that Worker; the experiment source and generated page remain excluded from the static
 Pages package. The split Pages-hosting design below is an inactive alternative, not the current deployment.
 
