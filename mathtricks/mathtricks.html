@@ -98,6 +98,27 @@ header.bar h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: -.01em; }
 .muted { color: var(--soft); }
 .foot { margin-top: 22px; color: var(--soft); font-size: 13px; text-align: center; }
 a { color: var(--accent); }
+/* percent bar */
+.barbox { padding: 30px 6px 4px; }
+.pbar { position: relative; height: 58px; border-radius: 14px; background: var(--bg); border: 2px solid var(--line); touch-action: none; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.pbar.mini { height: 28px; cursor: default; }
+.pbar .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: color-mix(in srgb, var(--accent) 32%, transparent); border-radius: 12px 0 0 12px; }
+.pbar .tick { position: absolute; bottom: 0; width: 2px; height: 10px; margin-left: -1px; background: var(--line); }
+.pbar .tick.major { height: 100%; background: color-mix(in srgb, var(--soft) 35%, transparent); }
+.pbar .knob { position: absolute; top: -12px; bottom: -12px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--accent); display: none; }
+.pbar .knob::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 26px; height: 26px; margin-left: -13px; border-radius: 50%; background: var(--accent); box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.pbar .truth { position: absolute; top: -16px; bottom: -6px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--good); display: none; }
+.pbar .truth span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 14px; font-weight: 700; color: var(--good); padding-bottom: 2px; }
+.blabels { position: relative; height: 40px; margin-top: 16px; font-size: 13px; color: var(--soft); }
+.pbar.mini + .blabels { margin-top: 4px; }
+.blabels span { position: absolute; transform: translateX(-50%); text-align: center; line-height: 1.15; }
+.blabels b { display: block; color: var(--ink); font-size: 15px; }
+.readrow { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 4px 0 10px; }
+.readout { font-size: 38px; font-weight: 800; min-width: 150px; text-align: center; font-variant-numeric: tabular-nums; }
+.readout.wait { font-size: 17px; font-weight: 600; color: var(--soft); }
+.nudge { border: 0; width: 52px; height: 52px; border-radius: 50%; background: var(--card); box-shadow: var(--shadow); font-size: 26px; font-weight: 700; }
+.checkb { width: 100%; border: 0; border-radius: 14px; height: 58px; background: var(--accent); color: #fff; font-size: 20px; font-weight: 600; box-shadow: var(--shadow); }
+.checkb:disabled { opacity: .45; }
 @media (max-width: 420px) { .hero h1 { font-size: 30px; } .q { font-size: 26px; } .topics { grid-template-columns: 1fr 1fr; } .topic { flex-direction: column; align-items: flex-start; gap: 8px; } }
 @media (min-height: 760px) and (max-width: 520px) { .pad button { height: 64px; } }
 </style>
@@ -645,6 +666,7 @@ $('#bStep').onclick = () => {
   if (cur.shown < st.length) {
     const li = document.createElement('li'); li.innerHTML = st[cur.shown]; if (cur.shown === st.length - 1) li.className = 'ans';
     $('#lSteps').append(li); cur.shown++;
+    if (cur.shown === st.length && useBar(cur.trick, cur.ex)) { const d = document.createElement('div'); d.className = 'barbox'; d.innerHTML = barMarkup(true); $('#lSteps').append(d); showTruth(d, cur.ex.a); }
     $('#bStep').textContent = cur.shown < st.length ? 'Next step' : 'Now you try →';
   } else startPractice([cur.trick], 6, 'trick');
 };
@@ -663,6 +685,52 @@ function tick() {
   $('#pInfo').textContent = `${Math.ceil(left)}s · ${P.score}`; $('#pBar').style.width = (100 - left / 60 * 100) + '%';
   if (left <= 0) { stopTimer(); finish(); }
 }
+// ---------- percent bar: drag to a percent, then see where the exact answer sits ----------
+const useBar = (tr, q) => tr.topic === 'frac' && q.unit === '%' && q.a >= 0 && q.a <= 100;
+const BAR_MARKS = [[0, '0', '0%'], [25, '¼', '25%'], [50, '½', '50%'], [75, '¾', '75%'], [100, '1', '100%']];
+function barMarkup(mini) {
+  const ticks = Array.from({ length: 21 }, (_, i) => i * 5).map(v => `<i class="tick${v % 25 ? '' : ' major'}" style="left:${v}%"></i>`).join('');
+  return `<div class="pbar${mini ? ' mini' : ''}"><div class="fill"></div>${ticks}<div class="truth"><span></span></div><div class="knob"></div></div>
+    <div class="blabels">${BAR_MARKS.map(([v, f, pc]) => `<span style="left:${v}%"><b>${f}</b>${pc}</span>`).join('')}</div>`;
+}
+function showTruth(root, a) {
+  const t = root.querySelector('.truth'); t.style.left = a + '%'; t.style.display = 'block'; t.querySelector('span').textContent = rep(a) + '%';
+}
+function buildBar() {
+  $('#pInput').innerHTML = `<div class="barbox">${barMarkup(false)}</div>
+    <div class="readrow"><button class="nudge" id="bMinus" aria-label="Less">−</button><div class="readout wait" id="bRead">Drag the bar</div><button class="nudge" id="bPlus" aria-label="More">+</button></div>
+    <button class="checkb" id="bCheck" disabled>Check</button>
+    ${P.kind === 'speed' ? '' : '<div class="row" style="margin-top:8px"><button class="btn wide" id="bHint">Hint</button></div>'}`;
+  const bar = $('#pInput .pbar'); let down = false;
+  const from = e => { const r = bar.getBoundingClientRect(); setBar(Math.round(Math.min(100, Math.max(0, (e.clientX - r.left) / r.width * 100)) * 2) / 2); };
+  bar.onpointerdown = e => { if (P.locked) return; down = true; try { bar.setPointerCapture(e.pointerId); } catch (_) { } from(e); };
+  bar.onpointermove = e => { if (down && !P.locked) from(e); };
+  bar.onpointerup = bar.onpointercancel = () => { down = false; };
+  $('#bMinus').onclick = () => !P.locked && setBar(Math.max(0, (P.val ?? 50) - .5));
+  $('#bPlus').onclick = () => !P.locked && setBar(Math.min(100, (P.val ?? 50) + .5));
+  $('#bCheck').onclick = answerBar;
+  if ($('#bHint')) $('#bHint').onclick = hint;
+}
+function setBar(v) {
+  P.val = v; const root = $('#pInput');
+  root.querySelector('.fill').style.width = v + '%'; const k = root.querySelector('.knob'); k.style.left = v + '%'; k.style.display = 'block';
+  const r = $('#bRead'); r.className = 'readout'; r.textContent = fmt(v, 1) + '%'; $('#bCheck').disabled = false;
+}
+function answerBar() {
+  if (P.locked || P.val == null) return;
+  const q = P.q, err = Math.abs(P.val - q.a), close = Math.max(3, q.tol || 0), spot = err <= Math.max(1, Math.min(close, q.tol || 0)), ok = err <= close;
+  P.locked = true; $('#bCheck').disabled = true; showTruth($('#pInput'), q.a);
+  const clean = P.hintN === 0;
+  if (ok) { S.solved++; save(); if (P.kind === 'speed') P.score++; else { P.results.push(clean); if (clean) P.first++; } }
+  else if (P.kind !== 'speed') P.results.push(false);
+  const msg = $('#pMsg'); msg.className = 'msg ' + (ok ? 'good' : 'bad');
+  msg.textContent = spot ? `${pick(['Spot on!', 'Nailed it!', 'Yes!'])} It's ${rep(q.a)}%.` : ok ? `Close! You said ${fmt(P.val, 1)}%, it's ${rep(q.a)}%.` : `It's ${rep(q.a)}%. You were ${fmt(err, 1)} away.`;
+  if (P.kind === 'speed') { setTimeout(() => P && timer && nextQ(), ok ? 900 : 1500); return; }
+  P.i++;
+  if (spot && P.hintN === 0) { setTimeout(() => { if (P && P.locked && !$('#pExplain').classList.contains('on')) nextQ(); }, 1500); return; }
+  revealAll();
+}
+
 function nextQ() {
   if (P.kind !== 'speed' && P.i >= P.n) return finish();
   const tr = pick(P.pool); let q; for (let k = 0; k < 6; k++) { q = tr.gen(); if (!P.q || strip(q.q) !== strip(P.q.q)) break; }
@@ -671,7 +739,9 @@ function nextQ() {
   $('#pQ').innerHTML = q.q + (q.ask ? `<span class="sub">${q.ask}</span>` : '');
   $('#pMsg').textContent = ''; $('#pMsg').className = 'msg'; $('#pExplain').classList.remove('on'); $('#pSteps').innerHTML = '';
   if (P.kind !== 'speed') { $('#pInfo').textContent = `${P.i + 1}/${P.n}`; $('#pBar').style.width = (P.i / P.n * 100) + '%'; }
-  if (q.choices) {
+  P.val = null;
+  if (useBar(tr, q)) { $('#pEntryWrap').style.display = 'none'; buildBar(); }
+  else if (q.choices) {
     $('#pEntryWrap').style.display = 'none';
     $('#pInput').innerHTML = `<div class="choices">${q.choices.map((c, i) => `<button data-c="${i}">${q.choicesHTML ? q.choicesHTML[i] : c}</button>`).join('')}</div>`;
     document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => answer(+b.dataset.c));
@@ -763,6 +833,14 @@ $('#bSpeed').onclick = () => {
 
 document.addEventListener('keydown', e => {
   if (!P) { if (e.key === 'Enter' && $('#lesson').classList.contains('on')) $('#bStep').click(); return; }
+  if (P.q && useBar(P.tr, P.q)) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { if (!P.locked) setBar(Math.min(100, Math.max(0, (P.val ?? 50) + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : .5)))); }
+    else if (e.key === 'Enter') { if (P.locked) { if ($('#pExplain').classList.contains('on')) next(); } else answerBar(); }
+    else if (e.key.toLowerCase() === 'h') hint();
+    else if (e.key === 'Escape') $('#bQuit').click();
+    else return;
+    e.preventDefault(); return;
+  }
   if (P.q && P.q.choices) { const n = parseInt(e.key, 10); if (n >= 1 && n <= P.q.choices.length && !P.locked) answer(n - 1); else if (e.key === 'Enter' && P.locked) next(); return; }
   if (/^[0-9]$/.test(e.key)) key(e.key);
   else if (e.key === '.' || e.key === ',') key('.');
