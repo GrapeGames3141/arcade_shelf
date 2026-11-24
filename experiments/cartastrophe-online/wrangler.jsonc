@@ -13,5 +13,6 @@
     { "tag": "v1", "new_sqlite_classes": ["Room"] }
   ],
   "observability": { "enabled": false },
+  "routes": [{ "pattern": "multiplayer.thearcadeshelf.com", "custom_domain": true }],
   "workers_dev": true
 }
