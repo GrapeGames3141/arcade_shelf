@@ -666,7 +666,7 @@ $('#bStep').onclick = () => {
   if (cur.shown < st.length) {
     const li = document.createElement('li'); li.innerHTML = st[cur.shown]; if (cur.shown === st.length - 1) li.className = 'ans';
     $('#lSteps').append(li); cur.shown++;
-    if (cur.shown === st.length && useBar(cur.trick, cur.ex)) { const d = document.createElement('div'); d.className = 'barbox'; d.innerHTML = barMarkup(true); $('#lSteps').append(d); showTruth(d, cur.ex.a); }
+    if (cur.shown === st.length && !cur.ex.choices) { const sp = barSpec(cur.trick, cur.ex, .5), d = document.createElement('div'); d.className = 'barbox'; d.innerHTML = barMarkup(sp, true); $('#lSteps').append(d); showTruth(d, sp, cur.ex); }
     $('#bStep').textContent = cur.shown < st.length ? 'Next step' : 'Now you try →';
   } else startPractice([cur.trick], 6, 'trick');
 };
@@ -685,46 +685,81 @@ function tick() {
   $('#pInfo').textContent = `${Math.ceil(left)}s · ${P.score}`; $('#pBar').style.width = (100 - left / 60 * 100) + '%';
   if (left <= 0) { stopTimer(); finish(); }
 }
-// ---------- percent bar: drag to a percent, then see where the exact answer sits ----------
-const useBar = (tr, q) => tr.topic === 'frac' && q.unit === '%' && q.a >= 0 && q.a <= 100;
-const BAR_MARKS = [[0, '0', '0%'], [25, '¼', '25%'], [50, '½', '50%'], [75, '¾', '75%'], [100, '1', '100%']];
-function barMarkup(mini) {
-  const ticks = Array.from({ length: 21 }, (_, i) => i * 5).map(v => `<i class="tick${v % 25 ? '' : ' major'}" style="left:${v}%"></i>`).join('');
-  return `<div class="pbar${mini ? ' mini' : ''}"><div class="fill"></div>${ticks}<div class="truth"><span></span></div><div class="knob"></div></div>
-    <div class="blabels">${BAR_MARKS.map(([v, f, pc]) => `<span style="left:${v}%"><b>${f}</b>${pc}</span>`).join('')}</div>`;
+// ---------- number line: drag to where you think the answer is, then see where it really sits ----------
+// Every number answer uses it (fractions get a 0-100% bar with ¼ ½ ¾ marks). "Type exact" switches to the keypad.
+const useBar = (tr, q) => !q.choices && isFinite(q.a) && S.input !== 'type';
+const NICE = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+const niceUp = x => { const m = 10 ** Math.floor(Math.log10(x)); return NICE.find(n => n * m >= x - 1e-12) * m; };
+const niceStep = x => { const m = 10 ** Math.floor(Math.log10(x)); return [1, 2, 5, 10].find(n => n * m >= x - 1e-12) * m; };
+const compact = v => Math.abs(v) >= 10000 ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v) : fmt(v, 4);
+function barSpec(tr, q, r = Math.random()) {
+  if (tr.topic === 'frac' && q.unit === '%') return { min: 0, max: 100, snap: .5, majors: [[0, '0', '0%'], [25, '¼', '25%'], [50, '½', '50%'], [75, '¾', '75%'], [100, '1', '100%']] };
+  const a = Math.max(q.a, 1e-9), max = niceUp(a * (1.15 + r * .65)), snap = niceStep(max / 200);
+  return { min: 0, max, snap, majors: [0, .2, .4, .6, .8, 1].map(f => [f * max, compact(+(f * max).toPrecision(6))]) };
 }
-function showTruth(root, a) {
-  const t = root.querySelector('.truth'); t.style.left = a + '%'; t.style.display = 'block'; t.querySelector('span').textContent = rep(a) + '%';
+const pos = (sp, v) => (v - sp.min) / (sp.max - sp.min) * 100;
+const dpOf = sp => Math.max(0, -Math.floor(Math.log10(sp.snap) + 1e-9));
+const showV = (q, v, dp = 2) => q.pre === '$' ? money(v) : `${q.pre || ''}${fmt(v, dp)}${q.unit || ''}`;
+function barMarkup(sp, mini) {
+  const n = sp.majors.length === 5 ? 20 : 25, ticks = Array.from({ length: n + 1 }, (_, i) => `<i class="tick${i % (n / (sp.majors.length - 1)) ? '' : ' major'}" style="left:${i / n * 100}%"></i>`).join('');
+  return `<div class="pbar${mini ? ' mini' : ''}"><div class="fill"></div>${ticks}<div class="truth"><span></span></div><div class="knob"></div></div>
+    <div class="blabels">${sp.majors.map(([v, f, sub]) => `<span style="left:${pos(sp, v)}%"><b>${f}</b>${sub || ''}</span>`).join('')}</div>`;
+}
+function showTruth(root, sp, q) {
+  const t = root.querySelector('.truth'); t.style.left = Math.min(100, Math.max(0, pos(sp, q.a))) + '%'; t.style.display = 'block';
+  t.querySelector('span').textContent = sp.max === 100 && q.unit === '%' ? rep(q.a) + '%' : showV(q, q.a);
+}
+function renderInput() {
+  const q = P.q, tr = P.tr;
+  if (useBar(tr, q)) { $('#pEntryWrap').style.display = 'none'; buildBar(); }
+  else if (q.choices) {
+    $('#pEntryWrap').style.display = 'none';
+    $('#pInput').innerHTML = `<div class="choices">${q.choices.map((c, i) => `<button data-c="${i}">${q.choicesHTML ? q.choicesHTML[i] : c}</button>`).join('')}</div>`;
+    document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => answer(+b.dataset.c));
+  } else {
+    $('#pEntryWrap').style.display = '';
+    $('#pInput').innerHTML = `<div class="pad">${['7', '8', '9', '⌫', '4', '5', '6', '.', '1', '2', '3', '0'].map(k => `<button data-k="${k}">${k}</button>`).join('')}
+      <button class="hintb" id="bHint"${P.kind === 'speed' ? ' disabled' : ''}>Hint</button><button class="go" data-k="go">Check</button></div>
+      <div class="row" style="justify-content:center"><button class="btn" id="bMode">📏 Use the slider</button></div>`;
+    document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => key(b.dataset.k));
+    $('#bHint').onclick = hint; $('#bMode').onclick = () => { S.input = 'bar'; save(); if (!P.locked) renderInput(); };
+    drawEntry();
+  }
 }
 function buildBar() {
-  $('#pInput').innerHTML = `<div class="barbox">${barMarkup(false)}</div>
-    <div class="readrow"><button class="nudge" id="bMinus" aria-label="Less">−</button><div class="readout wait" id="bRead">Drag the bar</div><button class="nudge" id="bPlus" aria-label="More">+</button></div>
+  const sp = P.spec = barSpec(P.tr, P.q);
+  $('#pInput').innerHTML = `<div class="barbox">${barMarkup(sp, false)}</div>
+    <div class="readrow"><button class="nudge" id="bMinus" aria-label="Less">−</button><div class="readout wait" id="bRead">Drag the slider</div><button class="nudge" id="bPlus" aria-label="More">+</button></div>
     <button class="checkb" id="bCheck" disabled>Check</button>
-    ${P.kind === 'speed' ? '' : '<div class="row" style="margin-top:8px"><button class="btn wide" id="bHint">Hint</button></div>'}`;
+    <div class="row" style="margin-top:8px">${P.kind === 'speed' ? '' : '<button class="btn wide" id="bHint">Hint</button>'}<button class="btn wide" id="bMode">⌨ Type exact</button></div>`;
   const bar = $('#pInput .pbar'); let down = false;
-  const from = e => { const r = bar.getBoundingClientRect(); setBar(Math.round(Math.min(100, Math.max(0, (e.clientX - r.left) / r.width * 100)) * 2) / 2); };
+  const from = e => { const r = bar.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); setBar(sp.min + f * (sp.max - sp.min)); };
   bar.onpointerdown = e => { if (P.locked) return; down = true; try { bar.setPointerCapture(e.pointerId); } catch (_) { } from(e); };
   bar.onpointermove = e => { if (down && !P.locked) from(e); };
   bar.onpointerup = bar.onpointercancel = () => { down = false; };
-  $('#bMinus').onclick = () => !P.locked && setBar(Math.max(0, (P.val ?? 50) - .5));
-  $('#bPlus').onclick = () => !P.locked && setBar(Math.min(100, (P.val ?? 50) + .5));
+  $('#bMinus').onclick = () => !P.locked && setBar((P.val ?? (sp.min + sp.max) / 2) - sp.snap);
+  $('#bPlus').onclick = () => !P.locked && setBar((P.val ?? (sp.min + sp.max) / 2) + sp.snap);
   $('#bCheck').onclick = answerBar;
   if ($('#bHint')) $('#bHint').onclick = hint;
+  $('#bMode').onclick = () => { S.input = 'type'; save(); if (!P.locked) renderInput(); };
 }
 function setBar(v) {
-  P.val = v; const root = $('#pInput');
-  root.querySelector('.fill').style.width = v + '%'; const k = root.querySelector('.knob'); k.style.left = v + '%'; k.style.display = 'block';
-  const r = $('#bRead'); r.className = 'readout'; r.textContent = fmt(v, 1) + '%'; $('#bCheck').disabled = false;
+  const sp = P.spec; v = Math.min(sp.max, Math.max(sp.min, Math.round(v / sp.snap) * sp.snap)); v = +v.toFixed(dpOf(sp) + 2);
+  P.val = v; const root = $('#pInput'), x = pos(sp, v) + '%';
+  root.querySelector('.fill').style.width = x; const k = root.querySelector('.knob'); k.style.left = x; k.style.display = 'block';
+  const r = $('#bRead'); r.className = 'readout'; r.textContent = showV(P.q, v, dpOf(sp)); $('#bCheck').disabled = false;
 }
 function answerBar() {
   if (P.locked || P.val == null) return;
-  const q = P.q, err = Math.abs(P.val - q.a), close = Math.max(3, q.tol || 0), spot = err <= Math.max(1, Math.min(close, q.tol || 0)), ok = err <= close;
-  P.locked = true; $('#bCheck').disabled = true; showTruth($('#pInput'), q.a);
+  const q = P.q, sp = P.spec, span = sp.max - sp.min, err = Math.abs(P.val - q.a);
+  const close = Math.max(span * .03, q.tol || 0), spot = err <= Math.max(span * .01, Math.min(close, q.tol || 0)), ok = err <= close;
+  P.locked = true; $('#bCheck').disabled = true; showTruth($('#pInput'), sp, q);
   const clean = P.hintN === 0;
   if (ok) { S.solved++; save(); if (P.kind === 'speed') P.score++; else { P.results.push(clean); if (clean) P.first++; } }
   else if (P.kind !== 'speed') P.results.push(false);
-  const msg = $('#pMsg'); msg.className = 'msg ' + (ok ? 'good' : 'bad');
-  msg.textContent = spot ? `${pick(['Spot on!', 'Nailed it!', 'Yes!'])} It's ${rep(q.a)}%.` : ok ? `Close! You said ${fmt(P.val, 1)}%, it's ${rep(q.a)}%.` : `It's ${rep(q.a)}%. You were ${fmt(err, 1)} away.`;
+  const msg = $('#pMsg'), exact = sp.max === 100 && q.unit === '%' ? rep(q.a) + '%' : showV(q, q.a), mine = showV(q, P.val, dpOf(sp));
+  msg.className = 'msg ' + (ok ? 'good' : 'bad');
+  msg.textContent = spot ? `${pick(['Spot on!', 'Nailed it!', 'Yes!'])} It's ${exact}.` : ok ? `Close! You said ${mine}, it's ${exact}.` : `It's ${exact}. You said ${mine}.`;
   if (P.kind === 'speed') { setTimeout(() => P && timer && nextQ(), ok ? 900 : 1500); return; }
   P.i++;
   if (spot && P.hintN === 0) { setTimeout(() => { if (P && P.locked && !$('#pExplain').classList.contains('on')) nextQ(); }, 1500); return; }
@@ -739,20 +774,7 @@ function nextQ() {
   $('#pQ').innerHTML = q.q + (q.ask ? `<span class="sub">${q.ask}</span>` : '');
   $('#pMsg').textContent = ''; $('#pMsg').className = 'msg'; $('#pExplain').classList.remove('on'); $('#pSteps').innerHTML = '';
   if (P.kind !== 'speed') { $('#pInfo').textContent = `${P.i + 1}/${P.n}`; $('#pBar').style.width = (P.i / P.n * 100) + '%'; }
-  P.val = null;
-  if (useBar(tr, q)) { $('#pEntryWrap').style.display = 'none'; buildBar(); }
-  else if (q.choices) {
-    $('#pEntryWrap').style.display = 'none';
-    $('#pInput').innerHTML = `<div class="choices">${q.choices.map((c, i) => `<button data-c="${i}">${q.choicesHTML ? q.choicesHTML[i] : c}</button>`).join('')}</div>`;
-    document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => answer(+b.dataset.c));
-  } else {
-    $('#pEntryWrap').style.display = '';
-    $('#pInput').innerHTML = `<div class="pad">${['7', '8', '9', '⌫', '4', '5', '6', '.', '1', '2', '3', '0'].map(k => `<button data-k="${k}">${k}</button>`).join('')}
-      <button class="hintb" id="bHint"${P.kind === 'speed' ? ' disabled' : ''}>Hint</button><button class="go" data-k="go">Check</button></div>`;
-    document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => key(b.dataset.k));
-    $('#bHint').onclick = hint;
-    drawEntry();
-  }
+  P.val = null; renderInput();
 }
 function drawEntry(cls = '') {
   const q = P.q, e = $('#pEntry');
@@ -834,7 +856,7 @@ $('#bSpeed').onclick = () => {
 document.addEventListener('keydown', e => {
   if (!P) { if (e.key === 'Enter' && $('#lesson').classList.contains('on')) $('#bStep').click(); return; }
   if (P.q && useBar(P.tr, P.q)) {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { if (!P.locked) setBar(Math.min(100, Math.max(0, (P.val ?? 50) + (e.key === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 5 : .5)))); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { if (!P.locked) { const sp = P.spec; setBar((P.val ?? (sp.min + sp.max) / 2) + (e.key === 'ArrowLeft' ? -1 : 1) * sp.snap * (e.shiftKey ? 10 : 1)); } }
     else if (e.key === 'Enter') { if (P.locked) { if ($('#pExplain').classList.contains('on')) next(); } else answerBar(); }
     else if (e.key.toLowerCase() === 'h') hint();
     else if (e.key === 'Escape') $('#bQuit').click();
@@ -854,7 +876,7 @@ document.addEventListener('keydown', e => {
 
 renderHome();
 // test hooks
-window.MT = { TRICKS, TOPICS, check, strip, get P() { return P; }, S, startPractice, openLesson, answer };
+window.MT = { barSpec, TRICKS, TOPICS, check, strip, get P() { return P; }, S, startPractice, openLesson, answer };
 </script>
 </body>
 </html>
