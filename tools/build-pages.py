@@ -154,7 +154,7 @@ def build(root=ROOT):
                 break
     displayed_games = {key[0] for key in seen_paths if len(key) == 2}
     uncurated = [g for g in games if g.name not in displayed_games]
-    categories = {"action": "Action", "explore": "Explore", "creative": "Creative", "puzzle": "Puzzle", "strategy": "Strategy", "kids": "Kids", "experiments": "Experiments"}
+    categories = {"action": "Action", "explore": "Explore", "creative": "Creative", "puzzle": "Puzzle", "brain": "Brain", "strategy": "Strategy", "kids": "Kids", "experiments": "Experiments"}
     for game in uncurated:
         data = metadata(game)
         slug = category_slug(data["category"])

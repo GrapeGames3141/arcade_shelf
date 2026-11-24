@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Math Tricks</title>
+<meta name="description" content="Learn quick mental math tricks by starting from what you already know.">
+<style>
+:root {
+  --bg: #f5f1e8; --card: #fffdf8; --ink: #1f1d2b; --soft: #6b6677; --line: #e3dccd;
+  --good: #2e9e6a; --bad: #d6453d; --hint: #f0b429; --accent: #4f46e5; --shadow: 0 2px 0 rgba(31, 29, 43, .08), 0 8px 24px rgba(31, 29, 43, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #16151d; --card: #22202c; --ink: #f2efe8; --soft: #a9a3b5; --line: #353243; --shadow: 0 2px 0 rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25); }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; min-height: 100dvh; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+.wrap { max-width: 680px; margin: 0 auto; padding: 12px 16px calc(24px + env(safe-area-inset-bottom)); }
+header.bar { display: flex; align-items: center; gap: 10px; min-height: 48px; margin-bottom: 6px; }
+header.bar h1 { font-size: 20px; margin: 0; flex: 1; letter-spacing: -.01em; }
+.back { border: 0; background: var(--card); box-shadow: var(--shadow); border-radius: 12px; width: 44px; height: 44px; font-size: 20px; }
+.pill { font-size: 14px; color: var(--soft); white-space: nowrap; }
+.screen { display: none; }
+.screen.on { display: block; animation: rise .18s ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* home */
+.hero { padding: 18px 2px 8px; }
+.hero h1 { font-size: 34px; line-height: 1.1; margin: 0 0 6px; letter-spacing: -.02em; }
+.hero p { margin: 0; color: var(--soft); }
+.hero .demo { margin-top: 14px; background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); font-size: 16px; }
+.demo b { color: var(--accent); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0; }
+.btn { border: 0; border-radius: 14px; padding: 12px 18px; background: var(--card); box-shadow: var(--shadow); font-weight: 600; min-height: 48px; }
+.btn.main { background: var(--accent); color: #fff; }
+.btn.wide { flex: 1; }
+.btn:disabled { opacity: .45; cursor: default; }
+.topics { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 8px; }
+.topic { text-align: left; border: 0; background: var(--card); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; min-height: 84px; }
+.sym { flex: none; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 26px; font-weight: 700; color: #fff; }
+.topic b { display: block; font-size: 16px; line-height: 1.2; }
+.topic small { color: var(--soft); font-size: 13px; }
+.stars { color: var(--hint); letter-spacing: 1px; font-size: 14px; }
+.stars .off { color: var(--line); }
+
+/* topic */
+.tricks { display: grid; gap: 10px; }
+.trick { text-align: left; border: 0; background: var(--card); border-radius: 16px; padding: 14px 16px; box-shadow: var(--shadow); display: flex; justify-content: space-between; gap: 10px; align-items: center; min-height: 64px; }
+.trick span { color: var(--soft); font-size: 14px; display: block; }
+.lead { color: var(--soft); margin: 4px 0 14px; }
+
+/* lesson */
+.card { background: var(--card); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
+.idea { font-size: 18px; }
+.idea .know { display: inline-block; background: color-mix(in srgb, var(--hint) 22%, transparent); border-radius: 8px; padding: 0 6px; }
+.tag { font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--soft); text-transform: uppercase; margin-bottom: 6px; }
+.q { font-size: 30px; font-weight: 700; text-align: center; padding: 10px 0 6px; letter-spacing: -.01em; }
+.q.small { font-size: 22px; }
+.q .sub { display: block; font-size: 15px; color: var(--soft); font-weight: 500; letter-spacing: 0; }
+.steps { list-style: none; padding: 0; margin: 8px 0 0; counter-reset: s; }
+.steps li { counter-increment: s; position: relative; padding: 8px 8px 8px 40px; border-radius: 10px; margin-bottom: 4px; animation: rise .2s ease-out; }
+.steps li::before { content: counter(s); position: absolute; left: 6px; top: 8px; width: 24px; height: 24px; border-radius: 50%; background: var(--line); font-size: 13px; font-weight: 700; display: grid; place-items: center; }
+.steps li.ans { background: color-mix(in srgb, var(--good) 14%, transparent); font-weight: 600; }
+.steps li.ans::before { content: "✓"; background: var(--good); color: #fff; }
+.k { background: color-mix(in srgb, var(--hint) 24%, transparent); border-radius: 6px; padding: 0 4px; font-weight: 600; }
+.fr { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1; margin: 0 2px; font-size: .82em; }
+.fr > span:first-child { border-bottom: 2px solid currentColor; padding: 0 3px 2px; }
+.fr > span:last-child { padding: 2px 3px 0; }
+
+/* practice */
+.top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.prog { flex: 1; height: 8px; background: var(--line); border-radius: 8px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.entry { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 64px; font-size: 34px; font-weight: 700; border-radius: 14px; background: var(--bg); margin: 8px 0 4px; border: 2px solid var(--line); font-variant-numeric: tabular-nums; }
+.entry .caret { width: 2px; height: 34px; background: var(--accent); animation: blink 1s steps(1) infinite; }
+.entry .unit { color: var(--soft); }
+.entry.good { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--bg)); }
+.entry.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--bg)); animation: shake .3s; }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+.pad button { border: 0; border-radius: 14px; background: var(--card); box-shadow: var(--shadow); height: 58px; font-size: 24px; font-weight: 600; }
+.pad .go { grid-column: span 3; background: var(--accent); color: #fff; font-size: 20px; }
+.pad .hintb { font-size: 16px; background: color-mix(in srgb, var(--hint) 30%, var(--card)); }
+.choices { display: grid; gap: 10px; margin-top: 10px; }
+.choices button { border: 2px solid var(--line); background: var(--card); border-radius: 14px; min-height: 60px; font-size: 22px; font-weight: 600; box-shadow: var(--shadow); }
+.choices button.good { border-color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--card)); }
+.choices button.bad { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, var(--card)); }
+.msg { min-height: 26px; text-align: center; font-weight: 600; margin: 6px 0; }
+.msg.good { color: var(--good); } .msg.bad { color: var(--bad); }
+.explain { display: none; }
+.explain.on { display: block; }
+.timer { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; }
+.big { font-size: 56px; font-weight: 800; text-align: center; margin: 8px 0 0; letter-spacing: -.02em; }
+.center { text-align: center; }
+.muted { color: var(--soft); }
+.foot { margin-top: 22px; color: var(--soft); font-size: 13px; text-align: center; }
+a { color: var(--accent); }
+@media (max-width: 420px) { .hero h1 { font-size: 30px; } .q { font-size: 26px; } .topics { grid-template-columns: 1fr 1fr; } .topic { flex-direction: column; align-items: flex-start; gap: 8px; } }
+@media (min-height: 760px) and (max-width: 520px) { .pad button { height: 64px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section class="screen on" id="home">
+  <div class="hero">
+    <h1>Math Tricks</h1>
+    <p>Quick mental math, built on things you already know.</p>
+    <div class="demo">You know <b>4/8 is 50%</b>. Ninths are a bit smaller than eighths, so <b>4/9</b> is a bit under 50%.
+      And since <b>1/9 = 11.1%</b>, 4/9 = <b>44.4%</b>.</div>
+  </div>
+  <div class="row">
+    <button class="btn main wide" id="bSpeed">⚡ 60-second speed round</button>
+  </div>
+  <div class="row" style="margin-top:-4px"><span class="pill" id="homeStats"></span></div>
+  <div class="topics" id="topics"></div>
+  <p class="foot"><a href="../index.html">← Back to the arcade</a></p>
+</section>
+
+<section class="screen" id="topic">
+  <header class="bar"><button class="back" data-back aria-label="Back">←</button><h1 id="tTitle"></h1><span class="stars" id="tStars"></span></header>
+  <p class="lead" id="tLead"></p>
+  <div class="tricks" id="tricks"></div>
+  <div class="row"><button class="btn wide" id="bMix">Mix all of this topic</button></div>
+</section>
+
+<section class="screen" id="lesson">
+  <header class="bar"><button class="back" data-back aria-label="Back">←</button><h1 id="lTitle"></h1></header>
+  <div class="card"><div class="tag">The idea</div><div class="idea" id="lIdea"></div></div>
+  <div class="card"><div class="tag">Watch it work</div><div class="q small" id="lQ"></div><ol class="steps" id="lSteps"></ol>
+    <div class="row"><button class="btn main wide" id="bStep">Next step</button></div></div>
+</section>
+
+<section class="screen" id="play">
+  <div class="top"><button class="back" id="bQuit" aria-label="Stop">✕</button><div class="prog"><i id="pBar"></i></div><span class="timer" id="pInfo"></span></div>
+  <div class="card">
+    <div class="tag" id="pTag"></div>
+    <div class="q" id="pQ"></div>
+    <div id="pEntryWrap"><div class="entry" id="pEntry"></div></div>
+    <div class="msg" id="pMsg"></div>
+    <div class="explain" id="pExplain"><ol class="steps" id="pSteps"></ol><div class="row"><button class="btn main wide" id="bNext">Next</button></div></div>
+  </div>
+  <div id="pInput"></div>
+</section>
+
+<section class="screen" id="done">
+  <header class="bar"><button class="back" data-back aria-label="Back">←</button><h1 id="dTitle"></h1></header>
+  <div class="card center"><div class="big" id="dBig"></div><div class="stars" id="dStars" style="font-size:30px"></div><p id="dText" class="muted"></p></div>
+  <div class="row"><button class="btn main wide" id="bAgain">Go again</button><button class="btn wide" id="bHome">All topics</button></div>
+</section>
+
+</div>
+<script>
+'use strict';
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const gcd = (a, b) => b ? gcd(b, a % b) : Math.abs(a);
+const NF = {}; const fmt = (x, dp = 2) => (NF[dp] || (NF[dp] = new Intl.NumberFormat('en-US', { maximumFractionDigits: dp }))).format(+x.toFixed(dp) || 0);
+const F = (n, d) => `<span class="fr"><span>${n}</span><span>${d}</span></span>`;
+const K = s => `<span class="k">${s}</span>`;
+const money = x => '$' + x.toFixed(2);
+const pad2 = n => String(n).padStart(2, '0');
+const sq = n => n * n;
+const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const pow = (b, e) => b + String(e).split('').map(c => SUP[c]).join('');
+const rep = (x, dp = 1) => fmt(x, dp) + (Math.abs(x * 10 ** dp - Math.round(x * 10 ** dp)) > 1e-6 ? '…' : '');
+
+// A problem: { q, a, unit ('%', '$', ...), pre (prefix), tol, steps: [html, ...], ask (small text) } or { q, choices: [...], ans, steps }.
+// The last step always states the answer.
+const TOPICS = [
+  { id: 'frac', name: 'Fractions → %', sym: '¾', color: '#e4572e', lead: 'Turn fractions into percents by starting from the ones you already know: halves, quarters, fifths, eighths.' },
+  { id: 'pct', name: 'Percents', sym: '%', color: '#d98b0b', lead: 'Tips, sales and changes. Almost everything starts from 10%.' },
+  { id: 'mul', name: 'Multiplying', sym: '×', color: '#4f46e5', lead: 'Swap a hard multiplication for an easy one you already know.' },
+  { id: 'add', name: 'Adding & subtracting', sym: '±', color: '#0e8a7d', lead: 'Round to friendly numbers, then fix it up.' },
+  { id: 'div', name: 'Dividing', sym: '÷', color: '#7b3fb0', lead: 'Turn division into doubling, splitting or a quick check.' },
+  { id: 'sq', name: 'Squares & roots', sym: '√', color: '#c2366b', lead: 'Patterns that make squares and square roots almost instant.' },
+  { id: 'est', name: 'Estimate & compare', sym: '≈', color: '#2f6fb3', lead: 'Get close fast, and pick the bigger one without a calculator.' },
+  { id: 'life', name: 'Everyday math', sym: '$', color: '#3e8e41', lead: 'Temperatures, distances, time and speed.' },
+  { id: 'pow', name: 'Big & small numbers', sym: '10ⁿ', color: '#8a5a2b', lead: 'Zeros, decimals and powers of two.' },
+];
+const TRICKS = [];
+const T = (topic, id, title, idea, ex, gen) => TRICKS.push({ topic, id, title, idea, ex, gen });
+
+// ---------- Fractions to percents ----------
+T('frac', 'anchors', 'Halves, quarters & fifths',
+  `Know the anchors: ${K('1/2 = 50%')}, ${K('1/4 = 25%')}, ${K('1/5 = 20%')}, ${K('1/10 = 10%')}. Then just count how many pieces you have.`,
+  { n: 3, d: 4 },
+  (p = {}) => {
+    const d = p.d || pick([2, 4, 5, 10, 20, 25]); let n = p.n || R(1, d - 1); if (d === 2) n = 1;
+    const u = 100 / d, a = n * u;
+    return { q: `${F(n, d)} = ?%`, a, unit: '%', steps: [`You know ${F(1, d)} = ${K(u + '%')}`, `${F(n, d)} is ${n} of those: ${n} × ${u}% = <b>${a}%</b>`] };
+  });
+T('frac', 'eighths', 'Eighths',
+  `${F(1, 8)} is half of ${F(1, 4)}, so it's ${K('12.5%')}. Count up: 12.5, 25, 37.5, 50, 62.5, 75, 87.5.`,
+  { n: 5 },
+  (p = {}) => {
+    const n = p.n || pick([1, 3, 5, 7, 3, 5, 7]), a = n * 12.5;
+    const s = [`You know ${F(1, 4)} = 25%, so ${F(1, 8)} = half of that = ${K('12.5%')}`];
+    if (n > 4) s.push(`${F(n, 8)} = ${F(4, 8)} + ${F(n - 4, 8)} = 50% + ${(n - 4) * 12.5}%`);
+    s.push(`${F(n, 8)} = <b>${a}%</b>`);
+    return { q: `${F(n, 8)} = ?%`, a, unit: '%', steps: s };
+  });
+T('frac', 'thirds', 'Thirds, sixths & twelfths',
+  `${K('1/3 = 33.3%')}. A sixth is half a third: ${K('16.7%')}. A twelfth is half a sixth: ${K('8.3%')}. Give answers to one decimal place.`,
+  { n: 5, d: 6 },
+  (p = {}) => {
+    let d = p.d || pick([3, 6, 6, 12]), n = p.n || R(1, d - 1);
+    while (!p.n && gcd(n, d) !== 1) n = R(1, d - 1);
+    const a = n / d * 100, u = 100 / d, s = [];
+    if (d === 3) s.push(`You know ${F(1, 3)} = ${K('33.3…%')}`);
+    if (d === 6) s.push(`You know ${F(1, 3)} = 33.3%, so ${F(1, 6)} = half = ${K('16.7%')}`);
+    if (d === 12) s.push(`${F(1, 6)} = 16.7%, so ${F(1, 12)} = half = ${K('8.3%')}`);
+    if (n === d - 1 && d > 3) s.push(`${F(n, d)} is one piece less than a whole: 100% − ${rep(u)}%`);
+    else if (n > 1) s.push(`${n} pieces: ${n} × ${rep(u)}%`);
+    s.push(`${F(n, d)} = <b>${rep(a)}%</b>`);
+    return { q: `${F(n, d)} = ?%`, a, unit: '%', tol: .06, ask: 'one decimal place', steps: s };
+  });
+T('frac', 'ninths', 'Ninths: just repeat the digit',
+  `Use what you know: ${K('4/8 = 50%')}. Ninths are smaller pieces than eighths, so ${F(4, 9)} is a bit less. The exact trick: ${K('1/9 = 11.1%')}, so ${F(4, 9)} = 44.4%. The top number just repeats!`,
+  { n: 4 },
+  (p = {}) => {
+    const n = p.n || R(1, 8), a = n / 9 * 100;
+    return { q: `${F(n, 9)} = ?%`, a, unit: '%', tol: .06, ask: 'one decimal place', steps: [
+      `Start from what you know: ${F(n, 8)} = ${n * 12.5}%. Ninths are smaller, so it's a bit less than ${n * 12.5}%.`,
+      `${F(1, 9)} = ${K('11.1…%')}`, `${F(n, 9)} = ${n} × 11.1…% = <b>${rep(a)}%</b>  (the ${n} repeats: ${n}${n}.${n}${n}…)`] };
+  });
+T('frac', 'elevenths', 'Elevenths: times 9',
+  `${K('1/11 = 9.09%')}. For any ${F('n', 11)}, multiply the top by 9 and repeat it: ${F(3, 11)} → 3 × 9 = 27 → 27.27%.`,
+  { n: 3 },
+  (p = {}) => {
+    const n = p.n || R(1, 10), a = n / 11 * 100, t = pad2(n * 9);
+    return { q: `${F(n, 11)} = ?%`, a, unit: '%', tol: .06, ask: 'one decimal place', steps: [
+      `${F(1, 11)} = ${K('9.09…%')}, so ${F(n, 11)} is ${n} × 9 = ${n * 9}, repeating`,
+      `${F(n, 11)} = 0.${t}${t}… = <b>${rep(a, 2)}%</b>`] };
+  });
+T('frac', 'near', 'Close to one you know',
+  `When the bottom number is awkward, find a friendly fraction nearby, then nudge. ${K('A bigger bottom means smaller pieces')}, so the percent goes down. A rough answer within a couple of percent is great.`,
+  { n: 4, D: 8, d: 9 },
+  (p = {}) => {
+    let n, D, d;
+    if (p.n) ({ n, D, d } = p);
+    else { D = pick([4, 5, 8, 10, 20, 25]); d = D + pick(D <= 5 ? [1, -1] : D <= 10 ? [1, 2, -1, -2] : [1, 2, 3, -1, -2, -3]); n = R(1, Math.min(D, d) - 1); }
+    const P = n / D * 100, a = n / d * 100, up = d > D;
+    return { q: `About what % is ${F(n, d)}?`, a, unit: '%', tol: Math.max(2, a * .06), ask: 'a close guess is fine',
+      steps: [`You know ${F(n, D)} = ${K(fmt(P, 1) + '%')}`, `${d} is ${up ? 'bigger' : 'smaller'} than ${D}, so the pieces are ${up ? 'smaller' : 'bigger'}: a bit ${up ? 'less' : 'more'} than ${fmt(P, 1)}%`,
+        `How much? ${D} → ${d} is a ${fmt(Math.abs(d - D) / D * 100, 0)}% change, so about ${fmt(P, 1)} × ${D}/${d} ≈ ${fmt(P * D / d, 1)}%`, `Exact: ${F(n, d)} = <b>${rep(a)}%</b>`] };
+  });
+
+// ---------- Percents ----------
+T('pct', 'ten', '10% and 1%',
+  `${K('10%')}: move the decimal point one place left. ${K('1%')}: two places. Everything else is a few of those stacked up.`,
+  { k: 30, n: 70 },
+  (p = {}) => {
+    const k = p.k || pick([10, 20, 30, 40, 60, 70, 90, 2, 3, 4]);
+    const n = p.n || (k >= 10 ? R(3, 90) * 10 : R(2, 30) * 100);
+    const a = n * k / 100, s = [];
+    if (k >= 10) { s.push(`10% of ${fmt(n)} = ${K(fmt(n / 10))}`); if (k > 10) s.push(`${k}% is ${k / 10} of those: ${k / 10} × ${fmt(n / 10)}`); }
+    else { s.push(`1% of ${fmt(n)} = ${K(fmt(n / 100))}`); s.push(`${k}% is ${k} of those: ${k} × ${fmt(n / 100)}`); }
+    s.push(`${k}% of ${fmt(n)} = <b>${fmt(a)}</b>`);
+    return { q: `${k}% of ${fmt(n)} = ?`, a, steps: s };
+  });
+T('pct', 'tip', 'Tips: 15%, 20% and 25%',
+  `Find ${K('10%')} first. ${K('15%')} is 10% plus half of it. ${K('20%')} is 10% doubled. ${K('25%')} is a quarter.`,
+  { b: 48, r: 15 },
+  (p = {}) => {
+    const b = p.b || R(12, 120), r = p.r || pick([15, 20, 25, 15, 20]), t = b / 10, a = b * r / 100, s = [];
+    if (r === 25) s.push(`25% is a quarter: ${money(b)} ÷ 4`);
+    else { s.push(`10% of ${money(b)} = ${K(money(t))}`); s.push(r === 15 ? `Half of that is ${money(t / 2)}, so 15% = ${money(t)} + ${money(t / 2)}` : `Double it for 20%: 2 × ${money(t)}`); }
+    s.push(`${r}% tip = <b>${money(a)}</b>`);
+    return { q: `${r}% tip on ${money(b)}`, a, pre: '$', tol: .011, steps: s };
+  });
+T('pct', 'flip', 'Flip it',
+  `${K('x% of y = y% of x')}. 8% of 25 sounds hard, but 25% of 8 is just a quarter of 8: 2.`,
+  { x: 8, y: 25 },
+  (p = {}) => {
+    const y = p.y || pick([25, 50, 20, 10]), x = p.x || (y === 25 ? R(1, 12) * 4 : y === 50 ? R(2, 40) * 2 : y === 20 ? R(2, 18) * 5 : R(2, 9) * 10);
+    const name = { 25: ['a quarter', 4], 50: ['half', 2], 20: ['a fifth', 5], 10: ['a tenth', 10] }[y], a = x * y / 100;
+    return { q: `${x}% of ${y} = ?`, a, steps: [`Flip it: ${x}% of ${y} = ${K(`${y}% of ${x}`)}`, `${y}% is ${name[0]}: ${x} ÷ ${name[1]} = <b>${fmt(a)}</b>`] };
+  });
+T('pct', 'sale', 'Sale prices',
+  `${K('20% off means you pay 80%')}. Find 10% of the price, then take that many tens.`,
+  { pr: 60, off: 20 },
+  (p = {}) => {
+    const off = p.off || pick([10, 20, 25, 30, 40, 50, 15]), pr = p.pr || R(4, 60) * 5, pay = 100 - off, a = pr * pay / 100, s = [`${off}% off → you pay ${K(pay + '%')}`];
+    if (off === 25) s.push(`75% is three quarters: ${money(pr)} ÷ 4 × 3`);
+    else if (off === 50) s.push(`Half price: ${money(pr)} ÷ 2`);
+    else { s.push(`10% of ${money(pr)} = ${money(pr / 10)}`); s.push(`${pay}% = ${pay / 10} × ${money(pr / 10)}`); }
+    s.push(`You pay <b>${money(a)}</b>`);
+    return { q: `${money(pr)} with ${off}% off`, a, pre: '$', tol: .011, steps: s };
+  });
+T('pct', 'change', 'Percent change',
+  `${K('Change ÷ where you started')}. 40 → 50 is +10 on 40: 10/40 = 1/4 = 25% up.`,
+  { a0: 40, pc: 25 },
+  (p = {}) => {
+    let a0, pc;
+    if (p.a0) ({ a0, pc } = p); else do { a0 = pick([20, 25, 40, 50, 60, 80, 120, 200, 400, 500]); pc = pick([10, 20, 25, 50, 75, 150, -10, -20, -25, -50, -75]); } while (!Number.isInteger(a0 * pc / 100));
+    const b = a0 + a0 * pc / 100, up = pc > 0, dd = Math.abs(b - a0), g = gcd(dd, a0);
+    return { q: `${fmt(a0)} → ${fmt(b)}`, ask: `percent ${up ? 'increase' : 'decrease'}?`, a: Math.abs(pc), unit: '%', steps: [
+      `Change: ${fmt(b)} − ${fmt(a0)} = ${up ? '+' : '−'}${fmt(dd)}`, `Divide by where you started: ${F(dd, a0)} = ${F(dd / g, a0 / g)}`, `= <b>${Math.abs(pc)}% ${up ? 'up' : 'down'}</b>`] };
+  });
+T('pct', 'updown', 'Up, then down',
+  `Up 20% then down 20% doesn't get you back: 1.2 × 0.8 = 0.96, a ${K('4% loss')}. Quick trick: square the percent and divide by 100.`,
+  { x: 20 },
+  (p = {}) => {
+    const x = p.x || pick([10, 20, 25, 30, 40, 50]), a = x * x / 100;
+    return { q: `Up ${x}%, then down ${x}%`, ask: 'what % did you lose overall?', a, unit: '%', steps: [
+      `Up ${x}% is × ${fmt(1 + x / 100)}, down ${x}% is × ${fmt(1 - x / 100)}`, `${fmt(1 + x / 100)} × ${fmt(1 - x / 100)} = ${fmt(1 - a / 100, 4)}`,
+      `Shortcut: ${x}² ÷ 100 = ${x * x} ÷ 100 → you lose <b>${fmt(a)}%</b>`] };
+  });
+
+// ---------- Multiplying ----------
+T('mul', 'five', 'Times 5',
+  `${K('× 5 is half of × 10')}. 48 × 5: 480, halved, is 240.`,
+  { n: 48 },
+  (p = {}) => { const n = p.n || R(13, 198); return { q: `${n} × 5`, a: n * 5, steps: [`${n} × 10 = ${K(n * 10)}`, `Half of ${n * 10} = <b>${fmt(n * 5)}</b>`] }; });
+T('mul', 'nine', 'Times 9 and 99',
+  `${K('× 9 = × 10, minus one more')}. 37 × 9 = 370 − 37 = 333. Same idea for 99: × 100, minus one.`,
+  { n: 37, m: 9 },
+  (p = {}) => {
+    const m = p.m || pick([9, 9, 99]), n = p.n || (m === 9 ? R(12, 99) : R(12, 60)), big = m + 1;
+    return { q: `${n} × ${m}`, a: n * m, steps: [`${n} × ${big} = ${K(fmt(n * big))}`, `Take away one ${n}: ${fmt(n * big)} − ${n} = <b>${fmt(n * m)}</b>`] };
+  });
+T('mul', 'eleven', 'Times 11',
+  `For a two-digit number, ${K('add the digits and put the sum in the middle')}. 43 × 11: 4 _ 3, 4 + 3 = 7, so 473.`,
+  { n: 43 },
+  (p = {}) => {
+    const n = p.n || R(12, 98), t = Math.floor(n / 10), u = n % 10, s = t + u;
+    const st = [`Split ${n}: ${t} _ ${u}`, `Middle: ${t} + ${u} = ${K(s)}`];
+    if (s >= 10) st.push(`${s} has two digits, so carry the 1 to the front: ${t + 1} ${s - 10} ${u}`);
+    st.push(`${n} × 11 = <b>${fmt(n * 11)}</b>`);
+    return { q: `${n} × 11`, a: n * 11, steps: st };
+  });
+T('mul', 'quarter', 'Times 4 and 25',
+  `${K('× 4 = double, double')}. ${K('× 25 = × 100, then ÷ 4')} (25 is a quarter of 100).`,
+  { n: 36, m: 25 },
+  (p = {}) => {
+    const m = p.m || pick([4, 25, 25]), n = p.n || (m === 4 ? R(13, 99) : R(3, 40) * 4);
+    if (m === 4) return { q: `${n} × 4`, a: n * 4, steps: [`Double: ${n * 2}`, `Double again: <b>${fmt(n * 4)}</b>`] };
+    return { q: `${n} × 25`, a: n * 25, steps: [`× 100: ${K(fmt(n * 100))}`, `÷ 4 (half, then half): ${fmt(n * 50)}, then <b>${fmt(n * 25)}</b>`] };
+  });
+T('mul', 'halve', 'Double and halve',
+  `${K('Halve one number, double the other')}, the answer stays the same. Keep going until it's easy: 16 × 35 = 8 × 70 = 560.`,
+  { a: 16, b: 35 },
+  (p = {}) => {
+    let a = p.a || pick([12, 14, 16, 18, 22, 24, 28, 32]), b = p.b || pick([15, 25, 35, 45, 55, 65]);
+    const ans = a * b, st = []; let x = a, y = b;
+    while (x % 2 === 0 && y % 10 !== 0) { x /= 2; y *= 2; st.push(`Halve and double: ${x} × ${y}`); }
+    st.push(`${x} × ${y} = <b>${fmt(ans)}</b>`);
+    return { q: `${a} × ${b}`, a: ans, steps: st };
+  });
+T('mul', 'split', 'Round and fix',
+  `Round the big number to a friendly one, multiply, then ${K('fix the difference')}. 7 × 48 = 7 × 50 − 7 × 2 = 350 − 14 = 336.`,
+  { k: 7, n: 48 },
+  (p = {}) => {
+    const k = p.k || R(3, 9); let n = p.n; if (!n) { const m = R(2, 9) * 10, d = pick([-3, -2, -1, 1, 2, 3]); n = m + d; }
+    const rr = Math.round(n / 10) * 10, d = n - rr, plus = d > 0;
+    return { q: `${k} × ${n}`, a: k * n, steps: [`${n} = ${rr} ${plus ? '+' : '−'} ${Math.abs(d)}`, `${k} × ${rr} = ${K(k * rr)}`, `${k} × ${Math.abs(d)} = ${k * Math.abs(d)}`, `${k * rr} ${plus ? '+' : '−'} ${k * Math.abs(d)} = <b>${k * n}</b>`] };
+  });
+T('mul', 'hundred', 'Both close to 100',
+  `97 × 94: they're ${K('3 and 6 under 100')}. Cross off: 97 − 6 = 91. Multiply the gaps: 3 × 6 = 18. Put together: 9118.`,
+  { a: 97, b: 94 },
+  (p = {}) => {
+    const a = p.a || R(91, 99), b = p.b || R(91, 99), da = 100 - a, db = 100 - b;
+    return { q: `${a} × ${b}`, a: a * b, steps: [`${a} is ${da} under 100, ${b} is ${db} under`, `First part: ${a} − ${db} = ${K(a - db)}`, `Last two digits: ${da} × ${db} = ${K(pad2(da * db))}`, `Together: <b>${fmt(a * b)}</b>`] };
+  });
+T('mul', 'middle', 'Same distance from a round number',
+  `48 × 52: both are ${K('2 away from 50')}. Answer = 50² − 2² = 2500 − 4 = 2496.`,
+  { m: 50, d: 2 },
+  (p = {}) => {
+    const m = p.m || pick([20, 30, 40, 50, 60, 70, 80, 90, 100]), d = p.d || R(1, 5);
+    return { q: `${m - d} × ${m + d}`, a: m * m - d * d, steps: [`Both are ${d} away from ${m}`, `${m}² = ${K(fmt(m * m))}`, `${d}² = ${d * d}`, `${fmt(m * m)} − ${d * d} = <b>${fmt(m * m - d * d)}</b>`] };
+  });
+
+// ---------- Adding & subtracting ----------
+T('add', 'round', 'Round and fix',
+  `Make one number friendly, then ${K('fix it')}. 47 + 38 = 47 + 40 − 2 = 85. Works for subtracting too: 83 − 29 = 83 − 30 + 1.`,
+  { a: 47, b: 38, op: '+' },
+  (p = {}) => {
+    const op = p.op || pick(['+', '−']), b = p.b || R(1, 9) * 10 + pick([7, 8, 9]), a = p.a || (op === '+' ? R(15, 99) : R(b + 5, 160));
+    const up = Math.ceil(b / 10) * 10, k = up - b, ans = op === '+' ? a + b : a - b;
+    return { q: `${a} ${op} ${b}`, a: ans, steps: [`${b} = ${up} − ${k}`, op === '+' ? `${a} + ${up} = ${K(a + up)}, then take away ${k}` : `${a} − ${up} = ${K(a - up)}, then add back ${k}`, `= <b>${ans}</b>`] };
+  });
+T('add', 'thousand', 'Subtracting from 1000',
+  `${K('All from 9, the last from 10')}. 1000 − 387: 9 − 3 = 6, 9 − 8 = 1, 10 − 7 = 3 → 613.`,
+  { n: 387 },
+  (p = {}) => {
+    let n = p.n || R(101, 989); while (n % 10 === 0) n++;
+    const top = n < 100 ? 100 : 1000, ds = String(n).padStart(String(top).length - 1, '0').split('').map(Number);
+    const out = ds.map((d, i) => i === ds.length - 1 ? 10 - d : 9 - d);
+    return { q: `${fmt(top)} − ${n}`, a: top - n, steps: [`Each digit from 9: ${ds.slice(0, -1).map(d => `9 − ${d} = ${9 - d}`).join(', ')}`, `Last digit from 10: 10 − ${ds[ds.length - 1]} = ${out[out.length - 1]}`, `= <b>${top - n}</b>`] };
+  });
+T('add', 'shift', 'Slide both numbers',
+  `In a subtraction, ${K('add the same amount to both numbers')}; the gap doesn't change. 83 − 47 = 86 − 50 = 36.`,
+  { a: 83, b: 47 },
+  (p = {}) => {
+    const b = p.b || R(1, 9) * 10 + pick([6, 7, 8, 9]), a = p.a || R(b + 8, b + 90), k = Math.ceil(b / 10) * 10 - b;
+    return { q: `${a} − ${b}`, a: a - b, steps: [`Add ${k} to both: ${a + k} − ${b + k}`, `${a + k} − ${b + k} = <b>${a - b}</b>`] };
+  });
+T('add', 'ltr', 'Add from the left',
+  `Big parts first: ${K('hundreds, then tens, then ones')}. 456 + 378: 700, then 120 → 820, then 14 → 834.`,
+  { a: 456, b: 378 },
+  (p = {}) => {
+    const a = p.a || R(120, 799), b = p.b || R(120, 899);
+    const h = Math.floor(a / 100) * 100 + Math.floor(b / 100) * 100, t = Math.floor(a % 100 / 10) * 10 + Math.floor(b % 100 / 10) * 10, o = a % 10 + b % 10;
+    return { q: `${a} + ${b}`, a: a + b, steps: [`Hundreds: ${K(h)}`, `Tens: ${t} → ${h + t}`, `Ones: ${o} → <b>${fmt(a + b)}</b>`] };
+  });
+
+// ---------- Dividing ----------
+T('div', 'byfive', 'Divide by 5',
+  `${K('÷ 5 = double, then ÷ 10')}. 235 ÷ 5: 470 ÷ 10 = 47.`,
+  { n: 235 },
+  (p = {}) => { const n = p.n || R(12, 400); return { q: `${n} ÷ 5`, a: n / 5, steps: [`Double: ${K(n * 2)}`, `÷ 10: <b>${fmt(n / 5)}</b>`] }; });
+T('div', 'by25', 'Divide by 25',
+  `${K('÷ 25 = × 4, then ÷ 100')}. 650 ÷ 25: 2600 ÷ 100 = 26.`,
+  { n: 650 },
+  (p = {}) => { const n = p.n || R(2, 80) * 25 + pick([0, 0, 0, 5, 10]); return { q: `${fmt(n)} ÷ 25`, a: n / 25, steps: [`× 4 (double, double): ${K(fmt(n * 4))}`, `÷ 100: <b>${fmt(n / 25)}</b>`] }; });
+T('div', 'rules', 'Is it divisible?',
+  `Quick checks: ${K('3 and 9')}: add the digits. ${K('4')}: look at the last two digits. ${K('6')}: even and passes 3. ${K('11')}: alternate + and − on the digits.`,
+  { n: 7362, k: 9 },
+  (p = {}) => {
+    const k = p.k || pick([3, 4, 6, 9, 11]); let n = p.n;
+    if (!n) { const yes = Math.random() < .5; n = R(100, 9999); if (yes) n -= n % k; else if (n % k === 0) n += pick([1, 2]); if (n < 100) n += k * 20; }
+    const ds = String(n).split('').map(Number), sum = ds.reduce((x, y) => x + y, 0), ok = n % k === 0, st = [];
+    if (k === 3 || k === 9) st.push(`Digit sum: ${ds.join(' + ')} = ${K(sum)}`, `${sum} ${sum % k ? 'is not' : 'is'} a multiple of ${k}`);
+    if (k === 4) { const l = n % 100; st.push(`Last two digits: ${K(pad2(l))}`, `${l} ÷ 4 ${l % 4 ? 'has a remainder' : '= ' + l / 4}`); }
+    if (k === 6) st.push(`Even? ${n % 2 ? 'No' : 'Yes'}`, `Digit sum ${ds.join(' + ')} = ${sum}: ${sum % 3 ? 'not' : ''} a multiple of 3`);
+    if (k === 11) { let alt = 0; ds.forEach((d, i) => alt += (i % 2 ? -d : d)); st.push(`Alternate: ${ds.map((d, i) => (i ? (i % 2 ? '− ' : '+ ') : '') + d).join(' ')} = ${K(alt)}`, `${alt} ${alt % 11 ? 'is not' : 'is'} a multiple of 11 (0 counts)`); }
+    st.push(`<b>${ok ? 'Yes' : 'No'}</b>, ${fmt(n)} ${ok ? 'is' : 'is not'} divisible by ${k}`);
+    return { q: `Is ${fmt(n, 0).replace(/,/g, '')} divisible by ${k}?`, choices: ['Yes', 'No'], ans: ok ? 0 : 1, steps: st };
+  });
+T('div', 'splitdiv', 'Split it up',
+  `Break the big number into pieces that divide easily. ${K('156 ÷ 12 = (120 + 36) ÷ 12')} = 10 + 3 = 13.`,
+  { k: 12, q: 13 },
+  (p = {}) => {
+    const k = p.k || R(3, 15), q = p.q || R(11, 39), n = k * q, big = Math.floor(q / 10) * 10, rest = q - big;
+    return { q: `${n} ÷ ${k}`, a: q, steps: [`${n} = ${K(k * big)} + ${k * rest}`, `${k * big} ÷ ${k} = ${big}, ${k * rest} ÷ ${k} = ${rest}`, `${big} + ${rest} = <b>${q}</b>`] };
+  });
+
+// ---------- Squares & roots ----------
+T('sq', 'end5', 'Squares ending in 5',
+  `${K('Front × (front + 1), then stick 25 on the end')}. 65²: 6 × 7 = 42 → 4225.`,
+  { n: 6 },
+  (p = {}) => { const n = p.n || R(1, 12), x = n * 10 + 5; return { q: `${x}²`, a: x * x, steps: [`Front: ${n}`, `${n} × ${n + 1} = ${K(n * (n + 1))}`, `Add 25 on the end: <b>${fmt(x * x)}</b>`] }; });
+T('sq', 'near50', 'Squares near 50',
+  `For 50 + d: ${K('first part is 25 + d, last two digits are d²')}. 53² → 28 | 09 = 2809. 47² → 22 | 09 = 2209.`,
+  { d: 3 },
+  (p = {}) => {
+    const d = p.d || pick([-9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9]), x = 50 + d, ad = Math.abs(d);
+    return { q: `${x}²`, a: x * x, steps: [`${x} = 50 ${d > 0 ? '+' : '−'} ${ad}`, `First part: 25 ${d > 0 ? '+' : '−'} ${ad} = ${K(25 + d)}`, `Last two digits: ${ad}² = ${K(pad2(d * d))}`, `<b>${fmt(x * x)}</b>`] };
+  });
+T('sq', 'neighbor', 'From a round neighbor',
+  `${K('(n + 1)² = n² + n + (n + 1)')}. 31² = 900 + 30 + 31 = 961. Going down: 29² = 900 − 30 − 29 = 841.`,
+  { m: 3, up: true },
+  (p = {}) => {
+    const m = p.m || R(2, 9), up = p.up !== undefined ? p.up : Math.random() < .5, n = m * 10, x = up ? n + 1 : n - 1;
+    return { q: `${x}²`, a: x * x, steps: [`You know ${n}² = ${K(n * n)}`, up ? `Add ${n} and ${x}: ${n * n} + ${n} + ${x}` : `Take away ${n} and ${x}: ${n * n} − ${n} − ${x}`, `= <b>${fmt(x * x)}</b>`] };
+  });
+T('sq', 'rootest', 'Estimate a square root',
+  `Find the nearest square you know, then ${K('add the gap ÷ (2 × root)')}. √50: 49 is 7², gap 1, so 7 + 1/14 ≈ 7.07.`,
+  { x: 50 },
+  (p = {}) => {
+    let x = p.x; if (!x) do { x = R(10, 300); } while (Number.isInteger(Math.sqrt(x)));
+    const b = Math.round(Math.sqrt(x)), g = x - b * b, est = b + g / (2 * b), a = Math.sqrt(x);
+    return { q: `√${x} ≈ ?`, a, tol: .1, ask: 'one decimal place', steps: [`Nearest square: ${b}² = ${K(b * b)}`, `Gap: ${x} − ${b * b} = ${g}`, `${b} ${g < 0 ? '−' : '+'} ${Math.abs(g)}/${2 * b} ≈ ${fmt(est, 2)}`, `√${x} ≈ <b>${fmt(a, 2)}</b>`] };
+  });
+T('sq', 'root', 'Square roots of perfect squares',
+  `√2304: ignore the last two digits → 23, which is between 4² and 5², so it's ${K('40-something')}. It ends in 4, so the root ends in 2 or 8. 45² = 2025 is less, so it's 48.`,
+  { n: 48 },
+  (p = {}) => {
+    const n = p.n || R(32, 99), x = n * n, front = Math.floor(x / 100), t = Math.floor(n / 10), last = x % 10;
+    const ends = { 0: [0], 1: [1, 9], 4: [2, 8], 5: [5], 6: [4, 6], 9: [3, 7] }[last], st = [`Drop the last two digits: ${front}`, `${t}² = ${t * t} ≤ ${front} < ${(t + 1) ** 2} = ${t + 1}², so the root is ${K(t + '0-something')}`];
+    st.push(`It ends in ${last}, so the root ends in ${ends.join(' or ')}`);
+    if (ends.length > 1) { const m = t * 10 + 5; st.push(`${m}² = ${fmt(m * m)} is ${x > m * m ? 'smaller' : 'bigger'} than ${fmt(x)}, so pick the ${x > m * m ? 'bigger' : 'smaller'} one`); }
+    st.push(`√${fmt(x)} = <b>${n}</b>`);
+    return { q: `√${fmt(x)}`, a: n, steps: st };
+  });
+
+// ---------- Estimate & compare ----------
+T('est', 'roundmul', 'Round, then multiply',
+  `For a quick estimate, ${K('round each number to something friendly')}. 48 × 61 ≈ 50 × 60 = 3000 (exact: 2928).`,
+  { a: 48, b: 61 },
+  (p = {}) => {
+    const a = p.a || pick([R(18, 98), R(110, 490)]), b = p.b || R(18, 98), ra = Number((+a.toPrecision(1)).toPrecision(1)), rb = Math.round(b / 10) * 10;
+    return { q: `About how much is ${a} × ${b}?`, a: a * b, tol: a * b * .12, ask: 'within about 10%', steps: [`Round: ${a} ≈ ${ra}, ${b} ≈ ${rb}`, `${ra} × ${rb} = ${K(fmt(ra * rb))}`, `Exact is <b>${fmt(a * b)}</b>, so ${fmt(ra * rb)} is close enough`] };
+  });
+T('est', 'r72', 'Rule of 72',
+  `How long until money doubles? ${K('72 ÷ the yearly rate')}. At 6% a year: 72 ÷ 6 = about 12 years.`,
+  { r: 6 },
+  (p = {}) => {
+    const r = p.r || pick([2, 3, 4, 6, 8, 9, 12, 18, 24]), a = 72 / r;
+    return { q: `Growing ${r}% a year: about how many years to double?`, a, tol: .6, steps: [`72 ÷ ${r} = <b>${fmt(a, 1)}</b> years`] };
+  });
+T('est', 'cmp', 'Which fraction is bigger?',
+  `${K('Cross-multiply')}: for ${F('a', 'b')} vs ${F('c', 'd')}, compare a × d with c × b. Or compare each to ½ first.`,
+  { a: 5, b: 8, c: 7, d: 11 },
+  (p = {}) => {
+    let a, b, c, d;
+    if (p.a) ({ a, b, c, d } = p); else do { b = R(3, 12); d = R(3, 12); a = R(1, b - 1); c = R(1, d - 1); } while (a * d === c * b || gcd(a, b) > 1 || gcd(c, d) > 1 || b === d);
+    const l = a * d, r = c * b, first = l > r, st = [];
+    const ha = a * 2 - b, hc = c * 2 - d;
+    if (Math.sign(ha) !== Math.sign(hc) && ha && hc) st.push(`Compare to ½: ${F(a, b)} is ${ha > 0 ? 'more' : 'less'} than half, ${F(c, d)} is ${hc > 0 ? 'more' : 'less'}`);
+    st.push(`Cross-multiply: ${a} × ${d} = ${K(l)} vs ${c} × ${b} = ${K(r)}`);
+    st.push(`<b>${first ? `${a}/${b}` : `${c}/${d}`}</b> is bigger`);
+    return { q: `Which is bigger?`, choicesHTML: [F(a, b), F(c, d)], choices: [`${a}/${b}`, `${c}/${d}`], ans: first ? 0 : 1, steps: st };
+  });
+T('est', 'buy', 'The better buy',
+  `Make the sizes match. 12 oz for $3 vs 20 oz for $4.40: ${K('price per oz')} is 25¢ vs 22¢, so the big one wins.`,
+  { q1: 12, p1: 300, q2: 20, p2: 440 },
+  (p = {}) => {
+    let q1, p1, q2, p2;
+    if (p.q1) ({ q1, p1, q2, p2 } = p);
+    else do { q1 = pick([6, 8, 10, 12, 16]); q2 = q1 * pick([1.5, 2, 2.5, 3]); const u1 = R(15, 60), u2 = u1 + pick([-6, -4, -3, -2, 2, 3, 4, 6]); p1 = q1 * u1; p2 = Math.round(q2 * u2); } while (p2 <= 0 || p1 / q1 === p2 / q2);
+    const u1 = p1 / q1, u2 = p2 / q2, best = u1 < u2 ? 0 : 1;
+    return { q: `Which is the better buy?`, choices: [`${q1} oz for ${money(p1 / 100)}`, `${q2} oz for ${money(p2 / 100)}`], ans: best, steps: [
+      `Price per oz: ${money(p1 / 100)} ÷ ${q1} = ${K(fmt(u1, 1) + '¢')}`, `${money(p2 / 100)} ÷ ${q2} = ${K(fmt(u2, 1) + '¢')}`, `<b>${best ? q2 : q1} oz</b> costs less per ounce`] };
+  });
+
+// ---------- Everyday ----------
+T('life', 'temp', '°C to °F',
+  `Exact: ${K('double it, take off 10%, add 32')}. 25°C: 50 − 5 = 45, + 32 = 77°F. Rough: double and add 30.`,
+  { c: 25 },
+  (p = {}) => {
+    const c = p.c !== undefined ? p.c : pick([-10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40]), a = c * 1.8 + 32;
+    return { q: `${c}°C = ?°F`, a, unit: '°F', steps: [`Double: ${K(2 * c)}`, `Take off 10% of that: ${2 * c} − ${fmt(.2 * c)} = ${fmt(1.8 * c)}`, `Add 32: <b>${fmt(a)}°F</b>`] };
+  });
+T('life', 'km', 'Kilometers to miles',
+  `${K('A kilometer is about 0.6 miles')}: × 6, then ÷ 10. 50 km ≈ 30 miles (exact 31.1).`,
+  { k: 50 },
+  (p = {}) => {
+    const k = p.k || pick([5, 10, 15, 20, 25, 40, 50, 60, 80, 100, 120, 160, 200]), a = k * .621371;
+    return { q: `${k} km ≈ ? miles`, a, tol: a * .06, ask: 'a close guess is fine', steps: [`× 6: ${k * 6}`, `÷ 10: ${K(fmt(k * .6, 1))} miles`, `Exact: <b>${fmt(a, 1)}</b> miles`] };
+  });
+T('life', 'time', 'Hours to minutes',
+  `${K('0.1 hour = 6 minutes')}. So 3.4 hours = 3 × 60 + 4 × 6 = 180 + 24 = 204 minutes. And 0.25 hour = 15 minutes.`,
+  { h: 3, t: 4 },
+  (p = {}) => {
+    const h = p.h !== undefined ? p.h : R(1, 6), t = p.t !== undefined ? p.t : R(1, 9), a = h * 60 + t * 6;
+    return { q: `${h}.${t} hours = ? minutes`, a, steps: [`${h} hours = ${K(h * 60)} minutes`, `0.${t} hour = ${t} × 6 = ${t * 6} minutes`, `<b>${a}</b> minutes`] };
+  });
+T('life', 'speed', 'Speed: make the divisor whole',
+  `150 miles in 2.5 hours? ${K('Double both')}: 300 ÷ 5 = 60 mph. Scaling both numbers doesn't change the answer.`,
+  { v: 60, t: 2.5 },
+  (p = {}) => {
+    const t = p.t || pick([1.5, 2.5, 0.5, 3.5]), v = p.v || pick([20, 30, 40, 50, 60, 70]), d = v * t, f = 2;
+    return { q: `${fmt(d)} miles in ${t} hours`, ask: 'how many miles per hour?', a: v, unit: 'mph', steps: [`Double both: ${fmt(d * f)} ÷ ${t * f}`, `${fmt(d * f)} ÷ ${t * f} = <b>${v} mph</b>`] };
+  });
+
+// ---------- Big & small numbers ----------
+T('pow', 'two', 'Powers of 2',
+  `Anchor: ${K('2¹⁰ = 1024')} (about a thousand). Double up from there, or halve down.`,
+  { n: 13 },
+  (p = {}) => {
+    const n = p.n || R(5, 16), a = 2 ** n, st = [`You know ${pow(2, 10)} = ${K('1,024')}`];
+    if (n > 10) st.push(`Double ${n - 10} time${n - 10 > 1 ? 's' : ''}: ${Array.from({ length: n - 10 }, (_, i) => fmt(2 ** (11 + i))).join(', ')}`);
+    if (n < 10) st.push(`Halve ${10 - n} time${10 - n > 1 ? 's' : ''}: ${Array.from({ length: 10 - n }, (_, i) => fmt(2 ** (9 - i))).join(', ')}`);
+    st.push(`${pow(2, n)} = <b>${fmt(a)}</b>`);
+    return { q: `${pow(2, n)} = ?`, a, steps: st };
+  });
+T('pow', 'zeros', 'Count the zeros',
+  `${K('Multiply the front numbers, then add up the zeros')}. 3000 × 400: 3 × 4 = 12, and 3 + 2 = 5 zeros → 1,200,000.`,
+  { a: 3, i: 3, b: 4, j: 2 },
+  (p = {}) => {
+    const a = p.a || R(2, 9), b = p.b || R(2, 9), i = p.i || R(1, 4), j = p.j || R(1, 3), x = a * 10 ** i, y = b * 10 ** j;
+    return { q: `${fmt(x)} × ${fmt(y)}`, a: x * y, steps: [`Fronts: ${a} × ${b} = ${K(a * b)}`, `Zeros: ${i} + ${j} = ${K(i + j)}`, `${a * b} with ${i + j} zeros: <b>${fmt(x * y)}</b>`] };
+  });
+T('pow', 'dec', 'Multiplying decimals',
+  `${K('Ignore the decimal points, multiply, then put back as many decimal places as you started with')}. 0.3 × 0.04: 3 × 4 = 12, 1 + 2 = 3 places → 0.012.`,
+  { a: 3, i: 1, b: 4, j: 2 },
+  (p = {}) => {
+    const a = p.a || R(2, 9), b = p.b || R(2, 12), i = p.i || R(1, 2), j = p.j || R(1, 2), x = a / 10 ** i, y = b / 10 ** j, ans = a * b / 10 ** (i + j);
+    return { q: `${x} × ${y}`, a: ans, tol: 1e-9, steps: [`Without decimals: ${a} × ${b} = ${K(a * b)}`, `Decimal places: ${i} + ${j} = ${i + j}`, `Move the point ${i + j} places: <b>${+ans.toFixed(6)}</b>`] };
+  });
+T('pow', 'fracof', 'A fraction of a number',
+  `${K('Divide by the bottom, multiply by the top')}. ¾ of 48: 48 ÷ 4 = 12, × 3 = 36.`,
+  { n: 3, d: 4, x: 48 },
+  (p = {}) => {
+    const d = p.d || pick([3, 4, 5, 6, 8, 10]); let n = p.n || R(1, d - 1); while (!p.n && gcd(n, d) > 1) n = R(1, d - 1);
+    const x = p.x || d * R(3, 30), a = x / d * n;
+    return { q: `${F(n, d)} of ${x} = ?`, a, steps: [`÷ ${d}: ${x} ÷ ${d} = ${K(x / d)}`, `× ${n}: <b>${a}</b>`] };
+  });
+
+for (const t of TRICKS) t.topicObj = TOPICS.find(x => x.id === t.topic);
+
+// ---------- state ----------
+const KEY = 'mathtricks-v1';
+let S = { stars: {}, best: 0, solved: 0 };
+try { S = Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } };
+const starHTML = (n, of = 3) => `<span class="stars">${'★'.repeat(n)}<span class="off">${'★'.repeat(of - n)}</span></span>`;
+const topicStars = id => TRICKS.filter(t => t.topic === id).reduce((s, t) => s + (S.stars[t.id] || 0), 0);
+
+// ---------- screens ----------
+let stack = ['home'];
+function show(id, push = true) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id));
+  if (push && stack[stack.length - 1] !== id) stack.push(id);
+  window.scrollTo(0, 0);
+}
+function back() {
+  stopTimer();
+  if (stack.length > 1) stack.pop();
+  let id = stack[stack.length - 1];
+  if (id === 'play' || id === 'done' || id === 'lesson' && cur.mode !== 'lesson') { stack = stack.filter(s => s !== 'play' && s !== 'done'); id = stack[stack.length - 1]; }
+  if (id === 'topic') renderTopic(curTopic); if (id === 'home') renderHome();
+  show(id, false);
+}
+document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', back));
+
+function renderHome() {
+  $('#topics').innerHTML = TOPICS.map(t => {
+    const n = TRICKS.filter(x => x.topic === t.id).length;
+    return `<button class="topic" data-t="${t.id}"><div class="sym" style="background:${t.color}">${t.sym}</div><div><b>${t.name}</b><small>${n} tricks</small><br>${starHTML(Math.round(topicStars(t.id) / n), 3)}</div></button>`;
+  }).join('');
+  const total = TRICKS.reduce((s, t) => s + (S.stars[t.id] || 0), 0);
+  $('#homeStats').textContent = `${total} of ${TRICKS.length * 3} stars · ${S.solved} solved` + (S.best ? ` · speed best ${S.best}` : '');
+  document.querySelectorAll('.topic').forEach(b => b.onclick = () => { curTopic = b.dataset.t; renderTopic(curTopic); show('topic'); });
+}
+let curTopic = 'frac';
+function renderTopic(id) {
+  const t = TOPICS.find(x => x.id === id), list = TRICKS.filter(x => x.topic === id);
+  $('#tTitle').textContent = t.name; $('#tLead').textContent = t.lead;
+  $('#tStars').innerHTML = `${topicStars(id)}/${list.length * 3} ★`;
+  $('#tricks').innerHTML = list.map(x => `<button class="trick" data-id="${x.id}"><div><b>${x.title}</b><span>${x.ex ? strip(x.gen(x.ex).q) : ''}</span></div>${starHTML(S.stars[x.id] || 0)}</button>`).join('');
+  document.querySelectorAll('.trick').forEach(b => b.onclick = () => openLesson(TRICKS.find(x => x.id === b.dataset.id)));
+}
+const strip = h => h.replace(/<span class="fr"><span>(.*?)<\/span><span>(.*?)<\/span><\/span>/g, '$1/$2').replace(/<[^>]+>/g, '');
+
+// ---------- lesson walkthrough ----------
+let cur = { mode: 'lesson' };
+function openLesson(tr) {
+  cur = { mode: 'lesson', trick: tr };
+  $('#lTitle').textContent = tr.title; $('#lIdea').innerHTML = tr.idea;
+  const p = tr.gen(tr.ex); cur.ex = p; cur.shown = 0;
+  $('#lQ').innerHTML = p.q + (p.ask ? `<span class="sub">${p.ask}</span>` : '');
+  $('#lSteps').innerHTML = ''; $('#bStep').textContent = 'Show the first step';
+  show('lesson');
+}
+$('#bStep').onclick = () => {
+  const st = cur.ex.steps;
+  if (cur.shown < st.length) {
+    const li = document.createElement('li'); li.innerHTML = st[cur.shown]; if (cur.shown === st.length - 1) li.className = 'ans';
+    $('#lSteps').append(li); cur.shown++;
+    $('#bStep').textContent = cur.shown < st.length ? 'Next step' : 'Now you try →';
+  } else startPractice([cur.trick], 6, 'trick');
+};
+
+// ---------- practice ----------
+let P = null, timer = null;
+function stopTimer() { if (timer) clearInterval(timer); timer = null; }
+function startPractice(pool, n, kind) {
+  stopTimer();
+  P = { pool, n, kind, i: 0, first: 0, hints: 0, results: [], q: null, entry: '', tries: 0, hintN: 0, t0: 0, locked: false, score: 0, time: 60 };
+  show('play'); nextQ();
+  if (kind === 'speed') { P.end = Date.now() + 60000; timer = setInterval(tick, 200); tick(); }
+}
+function tick() {
+  const left = Math.max(0, (P.end - Date.now()) / 1000);
+  $('#pInfo').textContent = `${Math.ceil(left)}s · ${P.score}`; $('#pBar').style.width = (100 - left / 60 * 100) + '%';
+  if (left <= 0) { stopTimer(); finish(); }
+}
+function nextQ() {
+  if (P.kind !== 'speed' && P.i >= P.n) return finish();
+  const tr = pick(P.pool); let q; for (let k = 0; k < 6; k++) { q = tr.gen(); if (!P.q || strip(q.q) !== strip(P.q.q)) break; }
+  P.tr = tr; P.q = q; P.entry = ''; P.tries = 0; P.hintN = 0; P.t0 = Date.now(); P.locked = false;
+  $('#pTag').textContent = P.kind === 'trick' ? tr.title : `${tr.topicObj.name} · ${tr.title}`;
+  $('#pQ').innerHTML = q.q + (q.ask ? `<span class="sub">${q.ask}</span>` : '');
+  $('#pMsg').textContent = ''; $('#pMsg').className = 'msg'; $('#pExplain').classList.remove('on'); $('#pSteps').innerHTML = '';
+  if (P.kind !== 'speed') { $('#pInfo').textContent = `${P.i + 1}/${P.n}`; $('#pBar').style.width = (P.i / P.n * 100) + '%'; }
+  if (q.choices) {
+    $('#pEntryWrap').style.display = 'none';
+    $('#pInput').innerHTML = `<div class="choices">${q.choices.map((c, i) => `<button data-c="${i}">${q.choicesHTML ? q.choicesHTML[i] : c}</button>`).join('')}</div>`;
+    document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => answer(+b.dataset.c));
+  } else {
+    $('#pEntryWrap').style.display = '';
+    $('#pInput').innerHTML = `<div class="pad">${['7', '8', '9', '⌫', '4', '5', '6', '.', '1', '2', '3', '0'].map(k => `<button data-k="${k}">${k}</button>`).join('')}
+      <button class="hintb" id="bHint"${P.kind === 'speed' ? ' disabled' : ''}>Hint</button><button class="go" data-k="go">Check</button></div>`;
+    document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => key(b.dataset.k));
+    $('#bHint').onclick = hint;
+    drawEntry();
+  }
+}
+function drawEntry(cls = '') {
+  const q = P.q, e = $('#pEntry');
+  e.className = 'entry ' + cls;
+  e.innerHTML = `${q.pre ? `<span class="unit">${q.pre}</span>` : ''}<span>${P.entry || ''}</span>${P.locked ? '' : '<span class="caret"></span>'}${q.unit ? `<span class="unit">${q.unit}</span>` : ''}`;
+}
+function key(k) {
+  if (!P || P.locked) { if (k === 'go' && P && $('#pExplain').classList.contains('on')) next(); return; }
+  if (k === '⌫') P.entry = P.entry.slice(0, -1);
+  else if (k === 'go') { if (P.entry && P.entry !== '.') answer(parseFloat(P.entry)); return; }
+  else if (k === '.') { if (!P.entry.includes('.')) P.entry += P.entry ? '.' : '0.'; }
+  else if (P.entry.length < 12) P.entry = (P.entry === '0' ? '' : P.entry) + k;
+  drawEntry();
+}
+function hint() {
+  if (P.locked || P.kind === 'speed') return;
+  const st = P.q.steps; if (P.hintN >= st.length - 1) { $('#pMsg').textContent = 'That\'s every hint. You\'ve got this!'; return; }
+  $('#pExplain').classList.add('on'); $('#bNext').parentElement.style.display = 'none';
+  const li = document.createElement('li'); li.innerHTML = st[P.hintN++]; $('#pSteps').append(li); P.usedHint = true;
+}
+function check(q, v) { return q.choices ? v === q.ans : Math.abs(v - q.a) <= (q.tol !== undefined ? q.tol : 0.005) + 1e-9; }
+function answer(v) {
+  const q = P.q, ok = check(q, v), secs = (Date.now() - P.t0) / 1000;
+  if (q.choices) document.querySelectorAll('[data-c]').forEach(b => { const i = +b.dataset.c; if (i === q.ans && ok) b.classList.add('good'); if (i === v && !ok) b.classList.add('bad'); });
+  if (ok) {
+    P.locked = true; S.solved++; save();
+    const clean = P.tries === 0 && P.hintN === 0;
+    if (P.kind === 'speed') P.score++; else { P.results.push(clean); if (clean) P.first++; }
+    if (!q.choices) drawEntry('good');
+    const exact = !q.choices && q.tol && q.tol >= .05 ? ` Exact: ${q.pre || ''}${rep(q.a, q.a < 10 ? 2 : 1)}${q.unit || ''}.` : '';
+    $('#pMsg').textContent = (clean ? pick(['Nice!', 'Yes!', 'Spot on!', 'Quick!', 'Got it!']) : 'Right!') + ` ${secs.toFixed(1)}s.` + exact; $('#pMsg').className = 'msg good';
+    if (P.kind === 'speed') { setTimeout(() => P && P.kind === 'speed' && timer && nextQ(), 450); return; }
+    P.i++;
+    if (P.hintN > 0) { revealAll(); return; }
+    setTimeout(() => { if (P && P.locked && !$('#pExplain').classList.contains('on')) nextQ(); }, 900);
+  } else {
+    P.tries++;
+    if (!q.choices) { drawEntry('bad'); P.entry = ''; setTimeout(() => P && !P.locked && drawEntry(), 350); }
+    if (P.kind === 'speed') { P.locked = true; $('#pMsg').innerHTML = `Answer: ${answerText(q)}`; $('#pMsg').className = 'msg bad'; setTimeout(() => P && timer && nextQ(), 1300); return; }
+    if (P.tries >= 2 || q.choices) { P.locked = true; P.results.push(false); P.i++; $('#pMsg').textContent = 'Here\'s the trick:'; $('#pMsg').className = 'msg bad'; revealAll(); }
+    else { $('#pMsg').textContent = 'Not quite. Try again, or tap Hint.'; $('#pMsg').className = 'msg bad'; }
+  }
+}
+const answerText = q => q.choices ? strip(q.choices[q.ans]) : `${q.pre || ''}${rep(q.a, 2)}${q.unit || ''}`;
+function revealAll() {
+  const st = P.q.steps; $('#pSteps').innerHTML = st.map((s, i) => `<li${i === st.length - 1 ? ' class="ans"' : ''}>${s}</li>`).join('');
+  $('#pExplain').classList.add('on'); $('#bNext').parentElement.style.display = ''; $('#bNext').focus({ preventScroll: true });
+  $('#pExplain').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function next() { if (P) nextQ(); }
+$('#bNext').onclick = next;
+$('#bQuit').onclick = () => { stopTimer(); P = null; back(); };
+
+function finish() {
+  stopTimer();
+  const pk = P; let stars = 0;
+  if (pk.kind === 'speed') {
+    const nb = pk.score > S.best; if (nb) S.best = pk.score; save();
+    $('#dTitle').textContent = 'Speed round'; $('#dBig').textContent = pk.score; $('#dStars').innerHTML = '';
+    $('#dText').textContent = (nb && pk.score ? 'New best! ' : `Best: ${S.best}. `) + 'Every trick you practice makes this faster.';
+  } else {
+    stars = pk.first === pk.n ? 3 : pk.first >= pk.n - 2 ? 2 : 1;
+    if (pk.kind === 'trick') { const id = pk.pool[0].id; S.stars[id] = Math.max(S.stars[id] || 0, stars); save(); }
+    $('#dTitle').textContent = pk.kind === 'trick' ? pk.pool[0].title : TOPICS.find(t => t.id === pk.pool[0].topic).name;
+    $('#dBig').textContent = `${pk.first}/${pk.n}`; $('#dStars').innerHTML = starHTML(stars);
+    $('#dText').textContent = stars === 3 ? 'Perfect: right first time, no hints.' : 'Stars count answers right the first time without hints.';
+  }
+  $('#bAgain').onclick = () => startPractice(pk.pool, pk.n, pk.kind);
+  stack = stack.filter(s => s !== 'play' && s !== 'done' && (pk.kind !== 'trick' || s !== 'lesson'));
+  P = null; show('done');
+}
+$('#bHome').onclick = () => { stack = ['home']; renderHome(); show('home', false); };
+$('#bMix').onclick = () => startPractice(TRICKS.filter(t => t.topic === curTopic), 10, 'topic');
+$('#bSpeed').onclick = () => {
+  const learned = TRICKS.filter(t => S.stars[t.id]);
+  startPractice(learned.length >= 4 ? learned : TRICKS, 0, 'speed');
+};
+
+document.addEventListener('keydown', e => {
+  if (!P) { if (e.key === 'Enter' && $('#lesson').classList.contains('on')) $('#bStep').click(); return; }
+  if (P.q && P.q.choices) { const n = parseInt(e.key, 10); if (n >= 1 && n <= P.q.choices.length && !P.locked) answer(n - 1); else if (e.key === 'Enter' && P.locked) next(); return; }
+  if (/^[0-9]$/.test(e.key)) key(e.key);
+  else if (e.key === '.' || e.key === ',') key('.');
+  else if (e.key === 'Backspace') key('⌫');
+  else if (e.key === 'Enter') key('go');
+  else if (e.key.toLowerCase() === 'h') hint();
+  else if (e.key === 'Escape') $('#bQuit').click();
+  else return;
+  e.preventDefault();
+});
+
+renderHome();
+// test hooks
+window.MT = { TRICKS, TOPICS, check, strip, get P() { return P; }, S, startPractice, openLesson, answer };
+</script>
+</body>
+</html>

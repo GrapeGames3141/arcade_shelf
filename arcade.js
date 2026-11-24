@@ -14,7 +14,7 @@
   const text = card => [card.dataset.search, card.dataset.category, labels[card.dataset.category] || '',
     card.querySelector('h3')?.textContent || '', card.querySelector('img')?.alt || ''].join(' ').toLowerCase();
   const haystack = new Map(cards.map(card => [card, text(card)]));
-  const SYN = { kid: 'kids', children: 'kids', child: 'kids', toddler: 'kids', learning: 'kids', learn: 'kids', education: 'kids', shooter: 'action', shooting: 'action', rts: 'strategy', tower: 'strategy', farm: 'farm' };
+  const SYN = { kid: 'kids', children: 'kids', child: 'kids', toddler: 'kids', learning: 'kids', learn: 'kids', education: 'kids', shooter: 'action', shooting: 'action', rts: 'strategy', tower: 'strategy', farm: 'farm', math: 'brain', maths: 'brain', mental: 'brain', logic: 'brain', teaser: 'brain', brainteaser: 'brain', thinking: 'brain' };
   const matches = (card, query) => query.split(/\s+/).filter(Boolean).every(word => {
     const h = haystack.get(card); return h.includes(word) || (SYN[word] && h.includes(SYN[word]));
   });

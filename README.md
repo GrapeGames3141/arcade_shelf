@@ -39,6 +39,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Quilt Hill Roll | `quilthill/quilthill.html` | `http://127.0.0.1:8000/quilthill/quilthill.html` |
 | Alley Knights | `alleyknights/alleyknights.html` | `http://127.0.0.1:8000/alleyknights/alleyknights.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
+| Math Tricks | `mathtricks/mathtricks.html` | `http://127.0.0.1:8000/mathtricks/mathtricks.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 
