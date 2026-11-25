@@ -223,6 +223,10 @@ def build(root=ROOT):
         shutil.copyfile(root / "ads.txt", out / "ads.txt")
     for name in ("arcade.css", "arcade.js", ".nojekyll", "privacy.html"):
         shutil.copyfile(root / name, out / name)
+    # site icons and the app manifest live at the root, where browsers and search engines look for them
+    for name in ("favicon.ico", "favicon.svg", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "site.webmanifest"):
+        if (root / name).is_file():
+            shutil.copyfile(root / name, out / name)
     for game in games:
         for item in runtime_files(game):
             dest = out / item.relative_to(root)

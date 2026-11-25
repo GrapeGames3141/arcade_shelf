@@ -18,6 +18,8 @@ class PagesTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         for name in ('index.html', 'arcade.css', 'arcade.js', '.nojekyll', 'privacy.html'):
             shutil.copyfile(ROOT / name, self.root / name)
+        for name in ('favicon.ico', 'favicon.svg', 'favicon-48.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'site.webmanifest'):
+            shutil.copyfile(ROOT / name, self.root / name)
         shutil.copytree(ROOT / 'assets', self.root / 'assets')
         for name in builder.CURATED:
             folder = self.root / name
@@ -58,6 +60,8 @@ class PagesTests(unittest.TestCase):
         for destination in builder.PROMOTED_EXPERIMENTS:
             self.assertIn('href="../../index.html"', (out / destination).read_text(encoding='utf-8'))
         self.assertNotIn('arcade-home', (out / 'index.html').read_text(encoding='utf-8'))
+        for name in ('favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-512.png', 'site.webmanifest', 'assets/brand/share-card.jpg'):
+            self.assertTrue((out / name).is_file(), name)
         builder.build(self.root)
         self.assertEqual((out / 'littles/littles.html').read_text(encoding='utf-8').count('id="arcade-home"'), 1)
     def test_games_with_their_own_home_link_get_no_tab(self):
