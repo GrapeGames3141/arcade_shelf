@@ -93,7 +93,13 @@ body.touch #miniw { left: auto; right: calc(10px + env(safe-area-inset-right)); 
 /* touch stick */
 #stick { position: fixed; z-index: 12; left: calc(22px + env(safe-area-inset-left)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .05); display: none; }
 #stick i { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
-body.touch.playing.driving #stick { display: block; }
+body.touch.playing #stick { display: block; }
+#bDrive { position: fixed; z-index: 12; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); display: none; align-items: center; gap: 10px; }
+body.mapview #bDrive { display: inline-flex; }
+body.touch #bDrive kbd { display: none; }
+#bDrive kbd { color: #10170f; background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); margin: 0; }
+#bShopClose kbd { color: #10170f; background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); margin: 0 0 0 4px; }
+body.touch #bShopClose kbd { display: none; }
 body:not(.driving) #miniw { display: none; }
 @media (max-width: 640px) { #mini { width: 144px; height: 90px; } #hp { top: calc(56px + env(safe-area-inset-top)); height: 30px; font-size: 10px; } .bar { width: 70px; } #rivals.one .rb { width: 70px; } #rivals .rb { width: 20px; } #bShop .t { display: none; } .up { padding: 5px 8px; } #msg { top: 96px; font-size: 14px; } }
 </style>
@@ -115,10 +121,11 @@ body:not(.driving) #miniw { display: none; }
     <div class="tag">You can't drive or fire while you're in here.</div>
     <div class="stats"><span id="shopMoney" style="color:var(--gold)">$0</span></div>
     <div id="shopList" class="panel"></div>
-    <div><button class="btn big" id="bShopClose">▶ Back to driving</button></div>
+    <div><button class="btn big" id="bShopClose">▶ Drive <kbd>W</kbd></button></div>
   </div>
 </div>
 <div id="stick"><i></i></div>
+<button class="btn" id="bDrive">▶ Drive <kbd>W</kbd></button>
 
 <div id="title" class="screen">
   <div class="col">
@@ -141,9 +148,9 @@ body:not(.driving) #miniw { display: none; }
       <div class="grp"><h5>THE IDEA</h5><p>You can't see your rivals. Fire anyway. The closer you land, the more you earn. Spend it on bigger blasts. Last launcher standing wins.</p></div>
       <div class="grp"><h5>CLUES</h5><p>Every landing is marked Cold → Scorching. A flash shows roughly where a rival fired from.</p></div>
       <div class="grp"><h5>DANGER</h5><p>Your own blast kills you. The aim ring turns red when you're inside it. Forest hides your launches.</p></div>
-      <div class="grp"><h5>THREE MODES</h5><p>Drive, look at the map, or upgrade, one at a time. The match keeps going while you're in the map or the upgrades, so be quick.</p></div>
+      <div class="grp"><h5>THREE MODES</h5><p>Drive, look at the map, or upgrade, one at a time. The match keeps going while you're in the map or the upgrades, so be quick: any driving key takes you straight back, and firing drops you back into the driver's seat.</p></div>
       <div class="grp keyOnly"><h5>DRIVE</h5><div class="ks"><span><kbd>W S</kbd>throttle</span><span><kbd>A D</kbd>steer</span><span><kbd>M</kbd>open the map</span><span><kbd>B</kbd>upgrades</span></div></div>
-      <div class="grp keyOnly"><h5>MAP</h5><div class="ks"><span><kbd>Click</kbd>fire</span><span><kbd>Drag</kbd>scroll</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>M</kbd>back to driving</span></div></div>
+      <div class="grp keyOnly"><h5>MAP</h5><div class="ks"><span><kbd>Click</kbd>fire</span><span><kbd>Drag</kbd>scroll</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>W</kbd> or <kbd>M</kbd> back to driving</span></div></div>
       <div class="grp touchOnly"><h5>CONTROLS</h5><div class="ks"><span>Stick drives and steers</span><span>Map button, then tap to fire</span><span>Drag to scroll · pinch to zoom</span></div></div>
     </div>
     <div class="panel drawer hidden" id="settings">
@@ -1018,6 +1025,7 @@ function refreshShop() {
 function setView(v) {
   if (!G) return; G.view = v;
   document.body.classList.toggle('driving', v === 'drive');
+  document.body.classList.toggle('mapview', v === 'map' && ME().alive && !G.over);
   $('bMap').classList.toggle('on', v === 'map'); $('bMap').querySelector('.t').textContent = v === 'map' ? 'Drive' : 'Map';
   $('shop').classList.toggle('hidden', v !== 'shop');
   if (v !== 'map') AIM.on = false;
@@ -1042,6 +1050,8 @@ addEventListener('keydown', e => {
   KEYS.add(e.code);
   if (!G || !$('title').classList.contains('hidden')) return;
   if (e.repeat) return;
+  if (G.view !== 'drive' && ME().alive && !G.over && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) { setView('drive'); return; }
+  if (G.view === 'shop' && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); setView('drive'); return; }
   if (e.code === 'KeyB') toggleShop();
   if (e.code === 'KeyM' || e.code === 'Tab') { e.preventDefault(); toggleMap(); }
   if (/^Digit[1-6]$/.test(e.code) && G.view === 'shop') buy(ME(), UP[+e.code[5] - 1].k);
@@ -1063,20 +1073,20 @@ cv.addEventListener('mouseleave', () => { AIM.on = false; MOUSE.in = false; });
 document.addEventListener('mouseleave', () => { MOUSE.in = false; });
 cv.addEventListener('mousedown', e => {
   if (!G || G.paused || G.view !== 'map') return; AUD.init();
-  if (e.button === 1 || e.button === 2) { e.preventDefault(); MOUSE.drag = { x: e.clientX, y: e.clientY }; return; }
+  if (e.button === 1 || e.button === 2) { e.preventDefault(); MOUSE.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, right: e.button === 2 }; return; }
   if (e.button !== 0) return;
-  AIM.w = s2w(e.clientX, e.clientY); tryFire();
+  AIM.w = s2w(e.clientX, e.clientY); tryFire(e.shiftKey);
 });
-addEventListener('mouseup', () => { MOUSE.drag = null; });
+addEventListener('mouseup', e => { const d = MOUSE.drag; MOUSE.drag = null; if (d && d.right && hyp(e.clientX - d.x0, e.clientY - d.y0) < 5 && G && G.view === 'map') toggleMap(false); });
 cv.addEventListener('wheel', e => { if (!G || G.view !== 'map') return; e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
-function tryFire() {
+function tryFire(keepOpen) {
   const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
-  fire(me, ...AIM.w);
+  if (fire(me, ...AIM.w) && !keepOpen && SET.autoDrive !== 0) setTimeout(() => { if (G && G.view === 'map' && ME().alive && !G.over) setView('drive'); }, 350);
 }
 // touch: stick drives, tap the map to fire, drag to scroll, pinch to zoom
 const stick = $('stick'), knob = stick.firstElementChild, TCH = new Map();
-stick.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); const t = e.changedTouches[0]; STK.id = t.identifier; stkMove(t); }, { passive: false });
+stick.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); if (G && G.view !== 'drive') toggleMap(false), toggleShop(false); const t = e.changedTouches[0]; STK.id = t.identifier; stkMove(t); }, { passive: false });
 function stkMove(t) { const r = stick.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const l = hyp(dx, dy); if (l > 1) { dx /= l; dy /= l; } STK.dx = dx; STK.dy = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; }
 let pinch = null, tapArm = null;
 cv.addEventListener('touchstart', e => {
@@ -1119,6 +1129,8 @@ $('bCpu').onclick = () => { mpLeave(); cpuMatch(); };
 $('bShop').onclick = () => toggleShop();
 $('bMap').onclick = () => toggleMap();
 $('bShopClose').onclick = () => toggleShop(false);
+$('bDrive').onclick = () => toggleMap(false);
+$('shop').addEventListener('click', e => { if (e.target === $('shop') || e.target.classList.contains('col')) toggleShop(false); });
 $('bPause').onclick = () => pauseMenu(true);
 $('bResume').onclick = () => pauseMenu(false);
 $('bQuit').onclick = () => { if (G && G.mode === 'online') { mpSend({ k: 'quit', from: G.me }); mpLeave(); } toMenu(); };
@@ -1247,9 +1259,9 @@ function driveOverlay() {
 function hudStatus() {
   const me = ME(), el = $('status'); let t = '', ready = false;
   if (!me.alive || G.over) t = me.alive ? '' : 'Out · watching the rest';
-  else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · you're stopped while the map is open` : 'Click to fire · you\'re stopped while the map is open';
+  else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : 'Click to fire, then you\'re straight back to driving · Shift-click stays';
   else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
-  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace('Click', 'Tap');
+  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace(' · W to drive', '').replace('Click to fire, then you\'re straight back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving');
   if (el.textContent !== t) el.textContent = t;
   el.classList.toggle('ready', ready); el.classList.toggle('hidden', !t);
 }
