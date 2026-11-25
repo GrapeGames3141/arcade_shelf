@@ -28,20 +28,24 @@ function journalDone(id) {
   GAME.done[id] = 1; journalSave(); journalRender();
   const g = GOALS.find(g => g.id === id);
   const n = GOALS.filter(g => GAME.done[g.id]).length;
-  GAME.toastQ.push([g.icon + ' ' + g.t, n === GOALS.length ? 'Every page filled. Bear of the year!' : 'Journal ' + n + ' of ' + GOALS.length]);
+  GAME.toastQ.push([g.icon + ' ' + g.t, n === GOALS.length ? 'Bear of the year!' : n + ' / ' + GOALS.length]);
   AUD.chime();
   const li = document.querySelector('#jList li[data-id="' + id + '"]'); if (li) { li.animate([{ background: 'rgba(168,224,124,.35)' }, { background: 'transparent' }], { duration: 1400 }); }
 }
 function journalCount(id, n) { const g = GOALS.find(g => g.id === id); if (g && n >= g.n) journalDone(id); journalRender(); }
 function journalRender() {
   const st = { fish: GAME.stats.fish, scare: GAME.stats.scared, berries: GAME.stats.berries };
-  let n = 0;
-  document.getElementById('jList').innerHTML = GOALS.map(g => {
-    const d = !!GAME.done[g.id]; if (d) n++;
-    const c = g.n ? `<b>${Math.min(g.n, st[g.id] || 0)}/${g.n}</b>` : '';
-    return `<li data-id="${g.id}" class="${d ? 'done' : ''}"><i>${d ? '✔' : g.icon}</i><span>${g.t}</span>${c}</li>`;
-  }).join('');
-  document.getElementById('jCount').textContent = n + '/' + GOALS.length;
+  const li = (g, d) => `<li data-id="${g.id}" class="${d ? 'done' : ''}"><i>${d ? '✓' : g.icon}</i><span>${g.t}</span>${g.n && !d ? `<b>${Math.min(g.n, st[g.id] || 0)}/${g.n}</b>` : ''}</li>`;
+  const open = GOALS.filter(g => !GAME.done[g.id]), done = GOALS.filter(g => GAME.done[g.id]);
+  document.getElementById('jList').innerHTML = open.map(g => li(g, 0)).join('') + (open.length && done.length ? '<li class="sep"></li>' : '') + done.map(g => li(g, 1)).join('');
+  document.getElementById('jCount').textContent = done.length + '/' + GOALS.length;
+}
+function drawer(id, btn) {
+  for (const [d, bt] of [['how', 'bHow'], ['settings', 'bSet']]) {
+    const el = document.getElementById(d), show = d === id && (el.classList.contains('hidden') || el.parentNode.id === 'pauseSlot');
+    if (d === 'settings' && el.parentNode.id === 'pauseSlot') document.querySelector('#title .tcol').append(el);
+    el.classList.toggle('hidden', !show); document.getElementById(bt).classList.toggle('on', show);
+  }
 }
 function toast(a, b) { GAME.toastQ.push([a, b]); if (GAME.toastQ.length > 3) GAME.toastQ.splice(0, GAME.toastQ.length - 3); }
 
@@ -55,7 +59,7 @@ function initInput() {
     if (GAME.mode === 'play') {
       if (e.code === 'KeyE' && !e.repeat) bearSwipe();
       if (e.code === 'KeyR' && !e.repeat) bearRoar();
-      if (e.code === 'KeyJ' && !e.repeat) document.getElementById('journal').classList.toggle('mini');
+      if (e.code === 'KeyJ' && !e.repeat) document.getElementById('journal').classList.toggle('open');
       if (e.code === 'Space') e.preventDefault();
       if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat && !document.pointerLockElement) pauseGame(true);
     } else if (GAME.mode === 'paused' && (e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) pauseGame(false);
@@ -79,7 +83,7 @@ function initInput() {
   // touch: left stick, drag anywhere else to look, buttons
   const joy = document.getElementById('joy'), knob = joy.querySelector('i');
   const joyMove = (t) => { const r = joy.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2; let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2); const l = Math.hypot(dx, dy); if (l > 1) { dx /= l; dy /= l; } INP.joy.dx = dx; INP.joy.dy = dy; knob.style.transform = `translate(${dx * 38}px,${dy * 38}px)`; };
-  joy.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); const t = e.changedTouches[0]; INP.joy = { id: t.identifier, dx: 0, dy: 0 }; joyMove(t); }, { passive: false });
+  joy.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); const t = e.changedTouches[0]; INP.joy = { id: t.identifier, dx: 0, dy: 0 }; joyMove(t); document.getElementById('journal').classList.remove('open'); }, { passive: false });
   cv.addEventListener('touchstart', e => { AUD.init(); for (const t of e.changedTouches) if (!INP.look) INP.look = { id: t.identifier, x: t.clientX, y: t.clientY }; }, { passive: true });
   addEventListener('touchmove', e => {
     for (const t of e.changedTouches) {
@@ -151,10 +155,9 @@ function hudUpdate(dt) {
   // what's in reach
   const pr = document.getElementById('prompt');
   const r = GAME.mode === 'play' && !BR.carry ? reachable() : null;
-  const key = document.body.classList.contains('touch') ? 'SWIPE' : 'E';
-  const msg = r ? (r.kind === 'fish' ? key + ' · grab the salmon' : r.kind === 'berry' ? key + ' · eat berries' : r.kind === 'snack' ? key + ' · eat the dropped lunch' : key + ' · raid the picnic basket')
-    : (BR.swim ? (Math.hypot(BR.x - LAKE.x, BR.z - LAKE.z) < LAKE.r + 3 ? 'Swimming… keep going to cross the lake' : 'Swimming… salmon gather below the falls') : GAME.belly < 0.12 ? 'Hungry! Look for berries and fish' : '');
-  if (pr.textContent !== msg) pr.textContent = msg;
+  const key = document.body.classList.contains('touch') ? '' : '<kbd>E</kbd>';
+  const msg = r ? key + ({ fish: 'Grab the salmon', berry: 'Eat berries', snack: 'Eat the lunch', basket: 'Raid the basket' })[r.kind] : (GAME.belly < 0.12 ? 'Hungry' : '');
+  if (pr.innerHTML !== msg) pr.innerHTML = msg;
   pr.classList.toggle('on', !!msg);
   bubblesUpdate(dt);
 }
@@ -184,24 +187,24 @@ function startGame() {
   document.getElementById('title').classList.add('hidden'); document.getElementById('pause').classList.add('hidden');
   document.getElementById('hud').classList.remove('hidden');
   if (GAME.mode === 'title') { CAM.yaw = BR.yaw; CAM.curD = undefined; }
-  GAME.mode = 'play';
-  if (!GAME.greeted) { GAME.greeted = true; toast('Good morning, bear', document.body.classList.contains('touch') ? 'Left stick to walk. Follow the river north to the waterfall.' : 'WASD to walk, Shift to run. The waterfall is up the river.'); }
+  GAME.mode = 'play'; document.body.classList.add('playing'); document.body.classList.remove('paused');
+  if (!GAME.greeted) { GAME.greeted = true; toast('Good morning, bear', 'Follow the river to the waterfall'); }
 }
 function pauseGame(on) {
   if (on && GAME.mode !== 'play') return;
-  GAME.mode = on ? 'paused' : 'play';
+  GAME.mode = on ? 'paused' : 'play'; document.body.classList.toggle('paused', on); document.body.classList.toggle('playing', !on);
   document.getElementById('pause').classList.toggle('hidden', !on);
   if (on) {
     if (document.pointerLockElement) document.exitPointerLock();
     const s = GAME.stats, n = GOALS.filter(g => GAME.done[g.id]).length;
-    document.getElementById('pauseStats').textContent = `${s.fish} salmon · ${s.berries} berries · ${s.scared} hikers spooked · journal ${n}/${GOALS.length}`;
+    document.getElementById('pauseStats').innerHTML = `<span title="Salmon">🐟 ${s.fish}</span><span title="Berries">🫐 ${s.berries}</span><span title="Hikers spooked">😱 ${s.scared}</span><span title="Journal">📖 ${n}/${GOALS.length}</span>`;
   }
 }
 function newDay() {
   GAME.done = {}; GAME.stats = { fish: 0, scared: 0, berries: 0, snacks: 0, photos: 0 }; GAME.belly = 0.45; journalSave(); journalRender();
   bearSpawn(...START); CAM.yaw = BR.yaw; CAM.curD = undefined;
   for (const b of SCENERY.berries) b.left = b.pts.length; for (const k of SCENERY.baskets) k.full = true; SNACKS.length = 0;
-  spawnHikers(HIKERS.length); pauseGame(false); toast('A new day', 'The journal is blank again.');
+  spawnHikers(HIKERS.length); pauseGame(false); toast('A new day', '');
 }
 
 // ---------- simulation ----------
@@ -279,17 +282,19 @@ function boot() {
     initInput();
     // menus
     document.getElementById('bPlay').onclick = startGame;
-    document.getElementById('bHow').onclick = () => document.getElementById('how').classList.toggle('hidden');
+    document.getElementById('bHow').onclick = () => drawer('how', 'bHow');
+    document.getElementById('bSet').onclick = () => drawer('settings', 'bSet');
+    document.getElementById('bSet2').onclick = () => { const st = document.getElementById('settings'), slot = document.getElementById('pauseSlot'); if (st.parentNode !== slot) { slot.append(st); st.classList.remove('hidden'); } else st.classList.toggle('hidden'); document.getElementById('bSet2').classList.toggle('on', !st.classList.contains('hidden')); };
     document.getElementById('bResume').onclick = () => pauseGame(false);
     document.getElementById('bNewDay').onclick = newDay;
     document.getElementById('bPause').onclick = () => pauseGame(true);
     document.getElementById('bSound').onclick = () => setSound(SET.sound ? 0 : 1);
-    document.getElementById('journal').onclick = () => document.getElementById('journal').classList.toggle('mini');
+    document.getElementById('jBtn').onclick = () => document.getElementById('journal').classList.toggle('open');
+    document.getElementById('bJournal2').onclick = () => { pauseGame(false); document.getElementById('journal').classList.add('open'); };
     document.querySelectorAll('#segQ button').forEach(b => b.onclick = () => { SET.quality = +b.dataset.v; saveSet(); applyQuality(); });
     document.querySelectorAll('#segS button').forEach(b => b.onclick = () => { AUD.init(); setSound(+b.dataset.v); });
     if (!localStorage.getItem('bramblebear.settings') && document.body.classList.contains('touch')) SET.quality = 0;
     applyQuality(); setSound(SET.sound);
-    if (innerWidth < 640) document.getElementById('journal').classList.add('mini');
     addEventListener('resize', resize);
     titleCamera(); tick(0.016);
     document.getElementById('loading').remove();

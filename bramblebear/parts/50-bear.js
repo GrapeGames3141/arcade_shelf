@@ -144,7 +144,7 @@ function swipeResolve() {
     if (grng() < chance) {
       f.alive = false; f.respawn = 10; BR.carry = 'fish'; BR.carryT = 2.2;
       GAME.stats.fish++; journalCount('fish', GAME.stats.fish); if (f.leap) journalDone('leap');
-      toast(f.leap ? 'Caught it mid-leap!' : pick(['Got one!', 'Salmon!', 'Gotcha!', 'Lunch!']), f.leap ? 'The salmon jumped right into your paws.' : GAME.stats.fish + (GAME.stats.fish === 1 ? ' fish caught' : ' fish caught'));
+      toast(f.leap ? 'Caught it mid-leap!' : pick(['Got one!', 'Salmon!', 'Gotcha!', 'Lunch!']), '🐟 ' + GAME.stats.fish);
       AUD.catchFish();
     } else { f.spooked = 2; f.dart = 1.2; f.heading += Math.PI * (0.6 + grng() * 0.8); toast(pick(['Slippery!', 'Missed!', 'So close!']), ''); }
   } else if (r.kind === 'berry') {
@@ -152,14 +152,14 @@ function swipeResolve() {
     GAME.stats.berries += n; journalCount('berries', GAME.stats.berries); feed(0.025 * n); AUD.munch();
   } else if (r.kind === 'snack') {
     SNACKS.splice(SNACKS.indexOf(r.k), 1); BR.eatT = 1.4; feed(0.14); GAME.stats.snacks++; AUD.munch(); AUD.munch(0.35);
-    toast(pick(['Trail mix!', 'A sandwich!', 'Granola bars!']), 'Someone left their lunch behind.');
+    toast(pick(['Trail mix!', 'A sandwich!', 'Granola bars!']), '');
   } else if (r.kind === 'basket') {
     r.k.full = false; r.k.refill = 100; BR.eatT = 1.8; feed(0.3); journalDone('picnic'); AUD.munch(); AUD.munch(0.4); AUD.munch(0.8);
-    toast('Picnic raid!', 'Sandwiches, pie, and a whole jar of honey.');
+    toast('Picnic raid!', '');
   }
 }
 function eat(what) { if (what === 'fish') { feed(0.2); BR.eatT = 1.2; AUD.munch(); AUD.munch(0.35); } }
-function feed(a) { const was = GAME.belly; GAME.belly = Math.min(1, GAME.belly + a); if (was < 1 && GAME.belly >= 1) toast('Belly full', 'A fine time for a nap in the sun.'); }
+function feed(a) { const was = GAME.belly; GAME.belly = Math.min(1, GAME.belly + a); if (was < 1 && GAME.belly >= 1) toast('Belly full', ''); }
 
 // ---------- drawing the bear ----------
 const _BM = new Float32Array(16), _T = new Float32Array(16), _L = new Float32Array(16), _H = new Float32Array(16);
