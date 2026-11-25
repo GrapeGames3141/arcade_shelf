@@ -25,6 +25,8 @@
   #era { padding:4px 10px; display:flex; flex-direction:column; justify-content:center; pointer-events:auto; }
   #era b { font-size:13px; color:var(--gold); letter-spacing:.04em; } #era span { font-size:10.5px; color:var(--dim); }
   #topR { position:fixed; top:8px; right:8px; display:flex; gap:6px; z-index:3; }
+  #bIdle { position:relative; } #bIdle .cnt { position:absolute; right:-5px; top:-5px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:#d9503a; color:#fff; font:700 11px/18px system-ui; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,.5); }
+  #bIdle .cnt:empty { display:none; } #bIdle.zero .cnt { background:#4a4036; color:#cbbfa8; }
   .ib { pointer-events:auto; width:38px; height:38px; display:grid; place-items:center; cursor:pointer; color:var(--ink); font:600 13px/1 system-ui; padding:0; }
   .ib:hover { border-color:rgba(255,224,165,.4); }
   #bottom { left:8px; right:8px; bottom:8px; display:flex; align-items:flex-end; gap:8px; }
@@ -157,7 +159,7 @@
 </div>
 <div id="touchbar" class="hud">
   <button class="pn ib" id="bBox" title="Drag to box-select">▢</button>
-  <button class="pn ib" id="bIdle" title="Next idle worker">💤</button>
+  <button class="pn ib" id="bIdle" title="Next idle worker (.)">💤<b class="cnt" id="idleN"></b></button>
   <button class="pn ib" id="bHome" title="Hearth Hall">⌂</button>
 </div>
 <div id="alerts" class="hud"></div>
@@ -3075,6 +3077,7 @@ const fmt = n => Math.floor(n).toLocaleString('en-US');
 function flashRes(k) { const el = $('r-' + k); if (!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 function noRes(c) { const tm = G.teams[0]; for (const k in c) if (tm.res[k] < c[k]) flashRes(k); sfx('bad'); }
 function updTop() {
+  { const n = G.units.filter(u => u.team === 0 && u.type === 'villager' && !u.dead && u.st === 'idle').length; $('idleN').textContent = n; $('bIdle').classList.toggle('zero', !n); $('bIdle').title = `Next idle worker (.) · ${n} idle`; }
   const tm = G.teams[0];
   for (const k of RES) $('r-' + k).querySelector('span').textContent = fmt(tm.res[k]);
   $('r-pop').querySelector('span').textContent = `${tm.pop}/${tm.cap}`;
