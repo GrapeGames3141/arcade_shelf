@@ -105,6 +105,7 @@ function render(){
   // ---- sled and riders
   const sm=sledMatrix();
   drawModel(sledModel,sm.M,{boil:Math.floor(time*6),boilAmt:0.05});
+  if(LIGHTS_ON){if(!sledLights)sledLights=buildSledLights();drawModel(sledLights,sm.M,{scale:SLED_SCALE});}
   const seats=[[0,0.1,0.35],[0,0.1,-0.2],[0,0.1,-0.72]];
   const riders=CELEB.on?[]:[{key:GAME.rider,variant:0,driver:true}].concat(P.stack);
   if(CELEB.on)drawCelebration(time,qt,boil);
@@ -130,6 +131,8 @@ function render(){
   // snowfall
   gl.uniform1i(su.uMode,1);gl.uniform3fv(su.uBox,snowModel.box);drawModel(snowModel,null,{boil,boilAmt:0.3});gl.uniform1i(su.uMode,0);
   gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
+  if(LIGHTS_ON){beginGlow(cam,time);for(const m of CHUNKS.values())drawGlow(m.glow);drawGlow(archModel.glow);if(sledLights)drawGlow(sledLights.glow,sm.M,SLED_SCALE);
+    if(CELEB.on&&standModels.litBulbs)drawGlow(standModels.litBulbs.glow,CELEB.standM,1.25);endGlow();}
   // resolve + post
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER,R.msFB);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,R.resFB);gl.blitFramebuffer(0,0,w,h,0,0,w,h,gl.COLOR_BUFFER_BIT,gl.NEAREST);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);gl.disable(gl.DEPTH_TEST);

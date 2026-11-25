@@ -60,7 +60,7 @@ function stitchColor(r,c,ncol){
 // ---- chunk baking
 const CHUNKS=new Map();
 function bakeChunk(ci,dens){
-  const rnd=mulberry(1000+ci*7919);const sb=new SB(16000);
+  const rnd=mulberry(1000+ci*7919);const sb=new SB(16000);const glow=LIGHTS_ON?new SB(600):null;
   const sA=ci*TR.CH,sB=sA+TR.CH;const hw=TR.hw;
   const scarfEnd=TR.L+110,scarfStart=-25;
   const ncol=Math.round(2*hw/COLW);
@@ -101,32 +101,36 @@ function bakeChunk(ci,dens){
   for(let s=sA;s<sB;s+=spF){const fr=frame(s);for(const sx of[-1,1])for(let a=16;a<48;a+=spF*(1+(a-16)/30)){const u=sx*(a+rnd()*spF);
     const p=v3.add(surf(s+rnd()*spF,u,fr),v3.sc(fr.N,vnoise(s*0.05,u*0.05)*2.5));sb.add(p[0],p[1],p[2],spF*1.7*(1+(a-16)/40),shade(PAL.snow,0.93+rnd()*0.07),fr.N[0],fr.N[1],fr.N[2],false,rnd());}}
   // candy cane markers
-  for(let s=Math.ceil(sA/15)*15;s<sB;s+=15){if(s<5||s>TR.L+100)continue;const fr=frame(s);for(const sx of[-1,1]){const p=surf(s,sx*(hw+0.9),fr);bakeCane(sb,p,1.1,v3.sc(fr.R,-sx),fr.T,dens,rnd);}}
+  for(let s=Math.ceil(sA/15)*15;s<sB;s+=15){if(s<5||s>TR.L+100)continue;const fr=frame(s);for(const sx of[-1,1]){const p=surf(s,sx*(hw+0.9),fr);bakeCane(sb,p,1.1,v3.sc(fr.R,-sx),fr.T,dens,rnd);
+    if(glow&&s+15<=TR.L+100){const q=surf(s+15,sx*(hw+0.9));lightString(sb,glow,v3.add(p,[0,1.18,0]),v3.add(q,[0,1.18,0]),0.38,0.55,(s/15|0)+(sx>0?2:0));}}}
   // trees, snowmen
   const nt=Math.round((3+rnd()*3)*Math.min(1.2,dens));
   for(let i=0;i<nt;i++){const s=sA+rnd()*TR.CH;const sx=rnd()<0.5?-1:1;const u=sx*(hw+4+rnd()*rnd()*30);const fr=frame(s);const base=surf(s,u,fr);
-    bakeTree(sb,v3.add(base,[0,-0.1,0]),[1,0,0],[0,1,0],[0,0,1],3+rnd()*4.5,rnd,dens);}
+    const tsz=3+rnd()*4.5;bakeTree(sb,v3.add(base,[0,-0.1,0]),[1,0,0],[0,1,0],[0,0,1],tsz,rnd,dens);if(glow)treeLights(sb,glow,v3.add(base,[0,-0.1,0]),tsz,ci*31+i);}
   if(rnd()<0.25&&sA>40){const s=sA+rnd()*TR.CH,sx=rnd()<0.5?-1:1;bakeSnowman(sb,surf(s,sx*(hw+3+rnd()*4)),rnd);}
-  return makeModel(sb);
+  const m=makeModel(sb);if(glow&&glow.n)m.glow=makeModel(glow);return m;
 }
 function updateChunks(sNow,ahead,dens,budget){
   const c0=Math.floor(sNow/TR.CH)-1,c1=Math.floor((sNow+ahead)/TR.CH);
-  for(const[k,m]of CHUNKS)if(k<c0-1||k>c1+1){freeModel(m);CHUNKS.delete(k);}
+  for(const[k,m]of CHUNKS)if(k<c0-1||k>c1+1){freeChunkM(m);CHUNKS.delete(k);}
   let built=0;
   for(let c=c0;c<=c1&&built<budget;c++){if(c<-3||c*TR.CH>TR.s1-40)continue;if(!CHUNKS.has(c)){CHUNKS.set(c,bakeChunk(c,dens));built++;}}
   return built;
 }
-function clearChunks(){for(const m of CHUNKS.values())freeModel(m);CHUNKS.clear();}
+function freeChunkM(m){if(m.glow)freeModel(m.glow);freeModel(m);}
+function clearChunks(){for(const m of CHUNKS.values())freeChunkM(m);CHUNKS.clear();}
 
 // ---- start and finish arches (world baked)
 function buildArches(){
-  const sb=new SB(6000);const rnd=mulberry(5);
+  const sb=new SB(6000);const rnd=mulberry(5);const glow=LIGHTS_ON?new SB(200):null;
   for(const[s,cols]of[[4,[PAL.teal,PAL.mustard,PAL.red,PAL.cream]],[TR.L,[PAL.red,PAL.cream,PAL.green,PAL.mustard,PAL.plum]]]){
     const fr=frame(s);const pl=surf(s,-(TR.hw+0.6),fr),pr=surf(s,TR.hw+0.6,fr);
     bakeCane(sb,pl,4.2,fr.R,fr.T,1,rnd);bakeCane(sb,pr,4.2,v3.sc(fr.R,-1),fr.T,1,rnd);
     const a=v3.add(pl,[0,4.3,0]),b=v3.add(pr,[0,4.3,0]);const N=36;
+    if(glow)for(const[pp,dir]of[[pl,1],[pr,-1]])for(let y=0.3;y<4.1;y+=0.32)addBulb(sb,glow,v3.add(v3.add(pp,[0,y,0]),v3.sc(fr.T,0.12)),BULB_COLS[Math.round(y/0.32)%BULB_COLS.length],0.1,0.75);
     for(let i=0;i<=N;i++){const t=i/N;const p=v3.add(v3.lerp(a,b,t),[0,-Math.sin(t*Math.PI)*0.7,0]);sb.add(p[0],p[1],p[2],0.05,PAL.brownD,0,0,1);
+      if(glow&&i%3===0)addBulb(sb,glow,v3.add(p,[0,-0.09,0]),BULB_COLS[(i/3)%BULB_COLS.length],0.11,0.85);
       if(i%3===1&&i<N-1){const col=cols[(i/3|0)%cols.length];for(let y=0;y<0.6;y+=0.05){const w=0.28*(1-y/0.6);for(let x=-w;x<=w;x+=0.05){const q=v3.add(v3.add(p,v3.sc(fr.R,x)),[0,-y-0.04,0]);sb.add(q[0],q[1],q[2],0.065,col,-fr.T[0],0,-fr.T[2]);}}}}
   }
-  return makeModel(sb);
+  const m=makeModel(sb);if(glow&&glow.n)m.glow=makeModel(glow);return m;
 }

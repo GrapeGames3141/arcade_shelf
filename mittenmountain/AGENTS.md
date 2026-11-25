@@ -25,6 +25,7 @@ Felt-animal sledding down a giant knitted scarf. Everything is Gaussian splats, 
 | 20-render.js | WebGL2 splat shader, MSAA FBO + alpha-to-coverage, sky, blob-shadow quads, tilt-shift/grade post |
 | 30-models.js | felt primitives (ellipsoid, tube, fuzz, bead eyes), 8 species, sled, yarn ball, needles, mitten ramp, button, trees, candy canes, snowman, backdrop |
 | 45-levels.js | level themes (sunrise, clear day, snowfall, sunset, starry night), difficulty per level, themed backdrop (sun/moon disc with glow, stars, tinted mountains, clouds), cocoa mug + cocoa stand models, finish celebration |
+| 47-lights.js | Christmas lights for the night map: emissive bulb splats (alpha byte 70, round, twinkle from the random byte) plus an additive halo pass (`GLOW` shader) attached to models as `m.glow`; light strings between candy canes, spirals on pines with a star, bulbs on arches, sled rails and the cocoa stand |
 | 40-track.js | centre line + frames table (0.5 m), lateral profile, scarf stitch pattern (motif bands), chunk baking (20 m chunks), arches |
 | 50-game.js | course generator, sled physics, collisions, scoring, particles, autopilot |
 | 60-io.js | keyboard, touch joystick, gamepad, procedural WebAudio (sled hiss, music box loop, sfx), HUD |
@@ -46,7 +47,7 @@ Felt-animal sledding down a giant knitted scarf. Everything is Gaussian splats, 
 - An autopilot full run (`test/shot.py full`) finishes in about 90 s with all 8 pals and about 9300 points.
 
 ## Levels (45-levels.js)
-- Level N uses theme (N−1) mod 5: Sunrise, Clear Day, Snowfall, Sunset, Starry Night. Each theme sets sky, light, fog distance, snowflake count and size, and the backdrop (tint, sun/moon, stars, cloud colour).
+- Level N uses theme (N−1) mod 6: Sunrise, Clear Day, Snowfall, Sunset, Starry Night, Christmas Lights. The Christmas Lights theme sets `lights:true`; switching it on or off rebuilds the chunks and arches so the bulbs are baked in or left out. Each theme sets sky, light, fog distance, snowflake count and size, and the backdrop (tint, sun/moon, stars, cloud colour).
 - `diffFor(level)` controls the weights for mogul fields, needle gates and slaloms, plus how many yarn balls a field has and how far apart. Yarn + needle obstacles per level, levels 1–6: 16, 43, 63, 81, 84, 95. Every level has its own course seed.
 - Finishing a run unlocks the next level (`localStorage` keys `mm_unlocked`, `mm_level`). The best score is kept per level (`mm_best_<n>`). The menu has a ◀ ▶ picker for unlocked levels. The end card offers LEVEL n+1, SLED AGAIN and MENU.
 - **Finish celebration**: once the sled stops after the line, every rider hops off into an arc in front of a felt cocoa stand. Even-numbered riders cheer and hop. Odd-numbered riders hold a cocoa mug (marshmallows, rising steam) and sip from time to time (`armRX` forward arm swing, `headNod`, `mug` pose fields in `drawAnimal`). Felt confetti falls, a cheer sound plays, and the camera swings round to the front. The end card sits low on the screen so the party stays visible.

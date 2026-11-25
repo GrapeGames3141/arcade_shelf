@@ -50,7 +50,7 @@ class SB{
   add(x,y,z,s,c,nx,ny,nz,gloss,rnd){
     if(this.n>=this.cap)this.alloc(this.cap*2);
     const o=this.n*6,b=o*4;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.f[o+3]=s;
-    this.u8[b+16]=c[0]*255;this.u8[b+17]=c[1]*255;this.u8[b+18]=c[2]*255;this.u8[b+19]=gloss==='stitch'?128:gloss?0:255;
+    this.u8[b+16]=c[0]*255;this.u8[b+17]=c[1]*255;this.u8[b+18]=c[2]*255;this.u8[b+19]=gloss==='stitch'?128:gloss==='emis'?70:gloss?0:255;
     const l=Math.hypot(nx,ny,nz)||1;this.i8[b+20]=nx/l*127;this.i8[b+21]=ny/l*127;this.i8[b+22]=nz/l*127;
     this.i8[b+23]=(rnd===undefined?Math.random():rnd)*254-127;this.n++;
   }

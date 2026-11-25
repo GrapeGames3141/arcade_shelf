@@ -11,6 +11,8 @@ const THEMES=[
     fogK:0.95,snowMul:0.3,flake:1,disc:{dir:[0.6,0.06,-0.8],col:'#ff9d5c',r:26,glow:'#ff7a62'},cloud:'#f2a28e',mtTint:'#9f7fb0',tintK:0.45,stars:0},
   {name:'Starry Night',skyTop:'#0e1838',skyHor:'#33477a',fog:'#2b3a65',sun:[0.3,0.75,0.5],sunCol:[0.24,0.28,0.42],sky:[0.27,0.31,0.47],ground:[0.31,0.34,0.47],
     fogK:0.85,snowMul:0.5,flake:1.2,disc:{dir:[-0.45,0.45,-0.75],col:'#f4f1dc',r:13,moon:true},cloud:null,mtTint:'#53608f',tintK:0.6,stars:1},
+  {name:'Christmas Lights',skyTop:'#081028',skyHor:'#22305a',fog:'#1c2748',sun:[-0.3,0.8,0.5],sunCol:[0.18,0.22,0.36],sky:[0.2,0.24,0.38],ground:[0.25,0.27,0.38],
+    fogK:0.8,snowMul:0.9,flake:1.3,disc:{dir:[0.4,0.42,-0.8],col:'#f4f1dc',r:12,moon:true},cloud:null,mtTint:'#414d7c',tintK:0.65,stars:1,lights:true},
 ];
 function themeFor(level){return THEMES[(level-1)%THEMES.length];}
 // difficulty grows with every level, and keeps growing after the scenes loop
@@ -26,6 +28,7 @@ function applyTheme(level){
   const T=themeFor(level);
   LIGHT.skyTop=hex(T.skyTop);LIGHT.skyHor=hex(T.skyHor);LIGHT.fog=hex(T.fog);LIGHT.sun=v3.norm(T.sun);LIGHT.sunCol=T.sunCol;LIGHT.sky=T.sky;LIGHT.ground=T.ground;LIGHT.fogK=T.fogK;
   LIGHT.snowMul=T.snowMul;LIGHT.flake=T.flake;
+  const on=!!T.lights;if(on!==LIGHTS_ON){LIGHTS_ON=on;clearChunks();if(typeof archModel!=='undefined'&&archModel){if(archModel.glow)freeModel(archModel.glow);freeModel(archModel);archModel=buildArches();}}
 }
 // backdrop per theme: tinted mountains, sun / moon disc with glow, clouds, stars
 function buildBackdropTheme(level){
@@ -95,11 +98,11 @@ function startCelebration(){
   Sfx.cheer();
 }
 function celebCamera(){const fr=CELEB.fr,C=CELEB.C;const n=CELEB.spots.length;const k=0.75+n*0.05;return{eye:v3.add(v3.add(v3.add(C,v3.sc(fr.T,5.2*k)),v3.sc(fr.R,-0.8)),[0,1.6*k,0]),tgt:v3.add(v3.add(C,v3.sc(fr.T,0.8)),[0,-0.05,0])};}
-let mugModels={},standModel=null;
+let mugModels={},standModels={};
 function drawCelebration(time,qt,boil){
   const fr=CELEB.fr;const X=v3.sc(fr.R,-1),Z=fr.T,Y=fr.N;
-  if(!standModel)standModel=buildCocoaStand();
-  drawModel(standModel,M4.mul(M4.basis(X,Y,Z,CELEB.stand),M4.scale(1.25)),{boil,boilAmt:0.06});
+  const key=LIGHTS_ON?'lit':'plain';if(!standModels[key]){standModels[key]=buildCocoaStand();if(LIGHTS_ON){const sb=new SB(),gw=new SB();addStandLights(sb,gw);standModels.litBulbs=makeModel(sb);standModels.litBulbs.glow=makeModel(gw);}}
+  CELEB.standM=M4.mul(M4.basis(X,Y,Z,CELEB.stand),M4.scale(1.25));drawModel(standModels[key],CELEB.standM,{boil,boilAmt:0.06});if(LIGHTS_ON)drawModel(standModels.litBulbs,CELEB.standM);
   for(const sp of CELEB.spots){const A=getAnimal(sp.r.key,sp.r.variant);const t=clamp((CELEB.t-sp.delay)/0.6,0,1);
     let p=v3.add(v3.lerp(sp.from,sp.to,t),[0,Math.sin(t*Math.PI)*1.2,0]);
     const ph=qt*1+sp.i*1.7;const M=M4.mul(M4.basis(X,Y,Z,p),M4.scale(SLED_SCALE));

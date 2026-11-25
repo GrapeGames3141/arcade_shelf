@@ -40,6 +40,8 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Alley Knights | `alleyknights/alleyknights.html` | `http://127.0.0.1:8000/alleyknights/alleyknights.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 | Math Tricks | `mathtricks/mathtricks.html` | `http://127.0.0.1:8000/mathtricks/mathtricks.html` |
+| Turkey Escape | `turkey-escape/turkey-escape.html` | `http://127.0.0.1:8000/turkey-escape/turkey-escape.html` |
+| Doorbusters | `doorbusters/doorbusters.html` | `http://127.0.0.1:8000/doorbusters/doorbusters.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 

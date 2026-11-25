@@ -366,6 +366,11 @@ function buildWorld() {
   b.face([-120, 0, 120], [CLIFF_X, 0, 120], [CLIFF_X, 0, 52], [-120, 0, 52]);
   b.face([-120, 0, 52], [-46, 0, 52], [-46, 0, -32.2], [-120, 0, -32.2]);
   b.face([CLIFF_X, 0, -32.2], [CLIFF_X, 0, -31], [34, 0, -31], [34, 0, -32.2]);
+  // north-east corner between the store's east wall (x 34) and the cliff edge: grass side yard behind the fence...
+  b.face([34, 0, 52], [CLIFF_X, 0, 52], [CLIFF_X, 0, 30], [34, 0, 30]);
+  // ...and asphalt from the end of the lot up to the fence (physics height 0 here, the lot grid stops at z 28)
+  b.c = [1, 1, 1]; b.p = [0, 0, -2];
+  b.face([34, 0, 30], [CLIFF_X, 0, 30], [CLIFF_X, 0, 28], [34, 0, 28]);
   // sidewalk with curb (red fire lane stretches)
   b.col(0xb9b5ab).par(0.85, 0, -4);
   b.push().tr(-2, 0, 29.5).boxB(72, 0.15, 3.0).pop();

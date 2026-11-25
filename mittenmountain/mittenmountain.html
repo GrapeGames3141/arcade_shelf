@@ -174,7 +174,7 @@ class SB{
   add(x,y,z,s,c,nx,ny,nz,gloss,rnd){
     if(this.n>=this.cap)this.alloc(this.cap*2);
     const o=this.n*6,b=o*4;this.f[o]=x;this.f[o+1]=y;this.f[o+2]=z;this.f[o+3]=s;
-    this.u8[b+16]=c[0]*255;this.u8[b+17]=c[1]*255;this.u8[b+18]=c[2]*255;this.u8[b+19]=gloss==='stitch'?128:gloss?0:255;
+    this.u8[b+16]=c[0]*255;this.u8[b+17]=c[1]*255;this.u8[b+18]=c[2]*255;this.u8[b+19]=gloss==='stitch'?128:gloss==='emis'?70:gloss?0:255;
     const l=Math.hypot(nx,ny,nz)||1;this.i8[b+20]=nx/l*127;this.i8[b+21]=ny/l*127;this.i8[b+22]=nz/l*127;
     this.i8[b+23]=(rnd===undefined?Math.random():rnd)*254-127;this.n++;
   }
@@ -226,11 +226,13 @@ void main(){
   vec3 c=base*(amb+uSunCol*wrap);
   float rim=pow(1.-clamp(ndv,0.,1.),2.5);
   c+=base*rim*0.3+rim*0.05;
+  bool em=aCol.a>0.2&&aCol.a<0.32;
+  if(em){float tw=0.65+0.35*sin(uTime*2.6+rnd*37.);c=aCol.rgb*(0.75+0.7*tw)+vec3(0.12)*tw;}
   if(uMode==1)c=vec3(1.,.99,.97);
   c=mix(c,uTintCol,uTint);
   vCol=c;
   vFog=smoothstep(uFog.x,uFog.y,dist);
-  vGloss=aCol.a<0.25?1.:0.;
+  vGloss=(aCol.a<0.25||em)?1.:0.;
   vRnd=rnd;
   float ang=rnd*6.2831;float cs=cos(ang),sn=sin(ang);
   float sq=(aCol.a>0.4&&aCol.a<0.6)?0.48:0.7+0.3*h1(rnd*17.3);
@@ -679,7 +681,7 @@ function stitchColor(r,c,ncol){
 // ---- chunk baking
 const CHUNKS=new Map();
 function bakeChunk(ci,dens){
-  const rnd=mulberry(1000+ci*7919);const sb=new SB(16000);
+  const rnd=mulberry(1000+ci*7919);const sb=new SB(16000);const glow=LIGHTS_ON?new SB(600):null;
   const sA=ci*TR.CH,sB=sA+TR.CH;const hw=TR.hw;
   const scarfEnd=TR.L+110,scarfStart=-25;
   const ncol=Math.round(2*hw/COLW);
@@ -720,34 +722,38 @@ function bakeChunk(ci,dens){
   for(let s=sA;s<sB;s+=spF){const fr=frame(s);for(const sx of[-1,1])for(let a=16;a<48;a+=spF*(1+(a-16)/30)){const u=sx*(a+rnd()*spF);
     const p=v3.add(surf(s+rnd()*spF,u,fr),v3.sc(fr.N,vnoise(s*0.05,u*0.05)*2.5));sb.add(p[0],p[1],p[2],spF*1.7*(1+(a-16)/40),shade(PAL.snow,0.93+rnd()*0.07),fr.N[0],fr.N[1],fr.N[2],false,rnd());}}
   // candy cane markers
-  for(let s=Math.ceil(sA/15)*15;s<sB;s+=15){if(s<5||s>TR.L+100)continue;const fr=frame(s);for(const sx of[-1,1]){const p=surf(s,sx*(hw+0.9),fr);bakeCane(sb,p,1.1,v3.sc(fr.R,-sx),fr.T,dens,rnd);}}
+  for(let s=Math.ceil(sA/15)*15;s<sB;s+=15){if(s<5||s>TR.L+100)continue;const fr=frame(s);for(const sx of[-1,1]){const p=surf(s,sx*(hw+0.9),fr);bakeCane(sb,p,1.1,v3.sc(fr.R,-sx),fr.T,dens,rnd);
+    if(glow&&s+15<=TR.L+100){const q=surf(s+15,sx*(hw+0.9));lightString(sb,glow,v3.add(p,[0,1.18,0]),v3.add(q,[0,1.18,0]),0.38,0.55,(s/15|0)+(sx>0?2:0));}}}
   // trees, snowmen
   const nt=Math.round((3+rnd()*3)*Math.min(1.2,dens));
   for(let i=0;i<nt;i++){const s=sA+rnd()*TR.CH;const sx=rnd()<0.5?-1:1;const u=sx*(hw+4+rnd()*rnd()*30);const fr=frame(s);const base=surf(s,u,fr);
-    bakeTree(sb,v3.add(base,[0,-0.1,0]),[1,0,0],[0,1,0],[0,0,1],3+rnd()*4.5,rnd,dens);}
+    const tsz=3+rnd()*4.5;bakeTree(sb,v3.add(base,[0,-0.1,0]),[1,0,0],[0,1,0],[0,0,1],tsz,rnd,dens);if(glow)treeLights(sb,glow,v3.add(base,[0,-0.1,0]),tsz,ci*31+i);}
   if(rnd()<0.25&&sA>40){const s=sA+rnd()*TR.CH,sx=rnd()<0.5?-1:1;bakeSnowman(sb,surf(s,sx*(hw+3+rnd()*4)),rnd);}
-  return makeModel(sb);
+  const m=makeModel(sb);if(glow&&glow.n)m.glow=makeModel(glow);return m;
 }
 function updateChunks(sNow,ahead,dens,budget){
   const c0=Math.floor(sNow/TR.CH)-1,c1=Math.floor((sNow+ahead)/TR.CH);
-  for(const[k,m]of CHUNKS)if(k<c0-1||k>c1+1){freeModel(m);CHUNKS.delete(k);}
+  for(const[k,m]of CHUNKS)if(k<c0-1||k>c1+1){freeChunkM(m);CHUNKS.delete(k);}
   let built=0;
   for(let c=c0;c<=c1&&built<budget;c++){if(c<-3||c*TR.CH>TR.s1-40)continue;if(!CHUNKS.has(c)){CHUNKS.set(c,bakeChunk(c,dens));built++;}}
   return built;
 }
-function clearChunks(){for(const m of CHUNKS.values())freeModel(m);CHUNKS.clear();}
+function freeChunkM(m){if(m.glow)freeModel(m.glow);freeModel(m);}
+function clearChunks(){for(const m of CHUNKS.values())freeChunkM(m);CHUNKS.clear();}
 
 // ---- start and finish arches (world baked)
 function buildArches(){
-  const sb=new SB(6000);const rnd=mulberry(5);
+  const sb=new SB(6000);const rnd=mulberry(5);const glow=LIGHTS_ON?new SB(200):null;
   for(const[s,cols]of[[4,[PAL.teal,PAL.mustard,PAL.red,PAL.cream]],[TR.L,[PAL.red,PAL.cream,PAL.green,PAL.mustard,PAL.plum]]]){
     const fr=frame(s);const pl=surf(s,-(TR.hw+0.6),fr),pr=surf(s,TR.hw+0.6,fr);
     bakeCane(sb,pl,4.2,fr.R,fr.T,1,rnd);bakeCane(sb,pr,4.2,v3.sc(fr.R,-1),fr.T,1,rnd);
     const a=v3.add(pl,[0,4.3,0]),b=v3.add(pr,[0,4.3,0]);const N=36;
+    if(glow)for(const[pp,dir]of[[pl,1],[pr,-1]])for(let y=0.3;y<4.1;y+=0.32)addBulb(sb,glow,v3.add(v3.add(pp,[0,y,0]),v3.sc(fr.T,0.12)),BULB_COLS[Math.round(y/0.32)%BULB_COLS.length],0.1,0.75);
     for(let i=0;i<=N;i++){const t=i/N;const p=v3.add(v3.lerp(a,b,t),[0,-Math.sin(t*Math.PI)*0.7,0]);sb.add(p[0],p[1],p[2],0.05,PAL.brownD,0,0,1);
+      if(glow&&i%3===0)addBulb(sb,glow,v3.add(p,[0,-0.09,0]),BULB_COLS[(i/3)%BULB_COLS.length],0.11,0.85);
       if(i%3===1&&i<N-1){const col=cols[(i/3|0)%cols.length];for(let y=0;y<0.6;y+=0.05){const w=0.28*(1-y/0.6);for(let x=-w;x<=w;x+=0.05){const q=v3.add(v3.add(p,v3.sc(fr.R,x)),[0,-y-0.04,0]);sb.add(q[0],q[1],q[2],0.065,col,-fr.T[0],0,-fr.T[2]);}}}}
   }
-  return makeModel(sb);
+  const m=makeModel(sb);if(glow&&glow.n)m.glow=makeModel(glow);return m;
 }
 // ---------- 45-levels: difficulty per level, scene themes, finish celebration (cheering + hot cocoa) ----------
 // Level N uses theme (N-1)%5. Each finished run unlocks the next level.
@@ -762,6 +768,8 @@ const THEMES=[
     fogK:0.95,snowMul:0.3,flake:1,disc:{dir:[0.6,0.06,-0.8],col:'#ff9d5c',r:26,glow:'#ff7a62'},cloud:'#f2a28e',mtTint:'#9f7fb0',tintK:0.45,stars:0},
   {name:'Starry Night',skyTop:'#0e1838',skyHor:'#33477a',fog:'#2b3a65',sun:[0.3,0.75,0.5],sunCol:[0.24,0.28,0.42],sky:[0.27,0.31,0.47],ground:[0.31,0.34,0.47],
     fogK:0.85,snowMul:0.5,flake:1.2,disc:{dir:[-0.45,0.45,-0.75],col:'#f4f1dc',r:13,moon:true},cloud:null,mtTint:'#53608f',tintK:0.6,stars:1},
+  {name:'Christmas Lights',skyTop:'#081028',skyHor:'#22305a',fog:'#1c2748',sun:[-0.3,0.8,0.5],sunCol:[0.18,0.22,0.36],sky:[0.2,0.24,0.38],ground:[0.25,0.27,0.38],
+    fogK:0.8,snowMul:0.9,flake:1.3,disc:{dir:[0.4,0.42,-0.8],col:'#f4f1dc',r:12,moon:true},cloud:null,mtTint:'#414d7c',tintK:0.65,stars:1,lights:true},
 ];
 function themeFor(level){return THEMES[(level-1)%THEMES.length];}
 // difficulty grows with every level, and keeps growing after the scenes loop
@@ -777,6 +785,7 @@ function applyTheme(level){
   const T=themeFor(level);
   LIGHT.skyTop=hex(T.skyTop);LIGHT.skyHor=hex(T.skyHor);LIGHT.fog=hex(T.fog);LIGHT.sun=v3.norm(T.sun);LIGHT.sunCol=T.sunCol;LIGHT.sky=T.sky;LIGHT.ground=T.ground;LIGHT.fogK=T.fogK;
   LIGHT.snowMul=T.snowMul;LIGHT.flake=T.flake;
+  const on=!!T.lights;if(on!==LIGHTS_ON){LIGHTS_ON=on;clearChunks();if(typeof archModel!=='undefined'&&archModel){if(archModel.glow)freeModel(archModel.glow);freeModel(archModel);archModel=buildArches();}}
 }
 // backdrop per theme: tinted mountains, sun / moon disc with glow, clouds, stars
 function buildBackdropTheme(level){
@@ -846,11 +855,11 @@ function startCelebration(){
   Sfx.cheer();
 }
 function celebCamera(){const fr=CELEB.fr,C=CELEB.C;const n=CELEB.spots.length;const k=0.75+n*0.05;return{eye:v3.add(v3.add(v3.add(C,v3.sc(fr.T,5.2*k)),v3.sc(fr.R,-0.8)),[0,1.6*k,0]),tgt:v3.add(v3.add(C,v3.sc(fr.T,0.8)),[0,-0.05,0])};}
-let mugModels={},standModel=null;
+let mugModels={},standModels={};
 function drawCelebration(time,qt,boil){
   const fr=CELEB.fr;const X=v3.sc(fr.R,-1),Z=fr.T,Y=fr.N;
-  if(!standModel)standModel=buildCocoaStand();
-  drawModel(standModel,M4.mul(M4.basis(X,Y,Z,CELEB.stand),M4.scale(1.25)),{boil,boilAmt:0.06});
+  const key=LIGHTS_ON?'lit':'plain';if(!standModels[key]){standModels[key]=buildCocoaStand();if(LIGHTS_ON){const sb=new SB(),gw=new SB();addStandLights(sb,gw);standModels.litBulbs=makeModel(sb);standModels.litBulbs.glow=makeModel(gw);}}
+  CELEB.standM=M4.mul(M4.basis(X,Y,Z,CELEB.stand),M4.scale(1.25));drawModel(standModels[key],CELEB.standM,{boil,boilAmt:0.06});if(LIGHTS_ON)drawModel(standModels.litBulbs,CELEB.standM);
   for(const sp of CELEB.spots){const A=getAnimal(sp.r.key,sp.r.variant);const t=clamp((CELEB.t-sp.delay)/0.6,0,1);
     let p=v3.add(v3.lerp(sp.from,sp.to,t),[0,Math.sin(t*Math.PI)*1.2,0]);
     const ph=qt*1+sp.i*1.7;const M=M4.mul(M4.basis(X,Y,Z,p),M4.scale(SLED_SCALE));
@@ -864,6 +873,52 @@ function drawCelebration(time,qt,boil){
   }
 }
 function spawnSteam(M,pose){const p=M4.apply(M,[0.17,0.62,0.22]);PARTS_P.push({p,v:[(Math.random()-0.5)*0.15,0.45,(Math.random()-0.5)*0.15],t:0,life:1.4,col:hex('#f4f4f4'),s:0.05,slow:true});}
+// ---------- 47-lights: Christmas lights for the night map (emissive bulb splats + additive halo pass) ----------
+// A bulb is two splats with the same random byte: an emissive bead in the felt pass and a soft halo in the glow pass,
+// so both twinkle together. Halo models are attached to chunk/arch models as m.glow.
+const BULB_COLS=[[1,0.2,0.12],[0.15,0.95,0.3],[0.25,0.5,1],[1,0.76,0.15],[1,0.32,0.78],[1,0.52,0.1]];
+let LIGHTS_ON=false;
+function addBulb(sb,glow,p,col,size,halo){const r=Math.random();sb.add(p[0],p[1],p[2],size||0.085,col,0,0,1,'emis',r);if(glow)glow.add(p[0],p[1],p[2],halo||0.6,col,0,0,1,false,r);}
+// a sagging string of bulbs between two points (wire splats + bulbs every `gap` metres)
+function lightString(sb,glow,a,b,sag,gap,ci){
+  const L=v3.len(v3.sub(b,a));const nW=Math.max(2,Math.round(L/0.1));
+  const P=t=>v3.add(v3.lerp(a,b,t),[0,-Math.sin(t*Math.PI)*sag,0]);
+  for(let i=0;i<=nW;i++){const p=P(i/nW);sb.add(p[0],p[1],p[2],0.028,[0.12,0.25,0.14],0,1,0);}
+  const nB=Math.max(1,Math.round(L/gap));for(let i=0;i<nB;i++){const p=v3.add(P((i+0.5)/nB),[0,-0.07,0]);addBulb(sb,glow,p,BULB_COLS[(ci+i)%BULB_COLS.length]);}
+}
+// bulbs spiralling up a felt pine (approximate cone of bakeTree)
+function treeLights(sb,glow,base,size,seed){
+  const rnd=mulberry(seed);const H=size;const turns=3+Math.floor(rnd()*2);const n=Math.round(size*9);const ph=rnd()*6.28;
+  for(let i=0;i<n;i++){const t=i/n;const y=H*(0.2+t*0.72);const r=H*0.36*(1-t)*0.92+0.12;const an=ph+t*turns*Math.PI*2;
+    addBulb(sb,glow,v3.add(base,[Math.cos(an)*r,y,Math.sin(an)*r]),BULB_COLS[i%BULB_COLS.length],0.09,0.7);}
+  addBulb(sb,glow,v3.add(base,[0,H*0.97,0]),[1,0.88,0.4],0.16,1.4); // star bulb on top
+}
+// ---- halo shader (additive, depth-tested, no depth write)
+const GLOW_VS=`#version 300 es
+precision highp float;
+layout(location=0) in vec2 aCorner;layout(location=1) in vec4 aPS;layout(location=2) in vec4 aCol;layout(location=3) in vec4 aNrm;
+uniform mat4 uVP,uM;uniform vec3 uCam,uCamR,uCamU;uniform float uTime,uScale,uGain;uniform vec2 uFog;out vec2 vC;out vec3 vCol;
+void main(){float rnd=aNrm.w*0.5+0.5;vec3 wp=(uM*vec4(aPS.xyz,1.)).xyz;float tw=0.65+0.35*sin(uTime*2.6+rnd*37.);
+  float dist=length(uCam-wp);float f=1.-smoothstep(uFog.x,uFog.y,dist)*0.85;vCol=aCol.rgb*tw*f*uGain;vC=aCorner;
+  gl_Position=uVP*vec4(wp+(uCamR*aCorner.x+uCamU*aCorner.y)*aPS.w*uScale,1.);}`;
+const GLOW_FS=`#version 300 es
+precision highp float;in vec2 vC;in vec3 vCol;out vec4 o;
+void main(){float d2=dot(vC,vC);if(d2>1.)discard;float a=exp(-d2*4.5)*0.42+exp(-d2*30.)*0.55;o=vec4(vCol*a,1.);}`;
+const GLOW=compile(GLOW_VS,GLOW_FS);
+function beginGlow(cam,time){const u=GLOW.u;gl.useProgram(GLOW.p);gl.uniformMatrix4fv(u.uVP,false,cam.vp);gl.uniform3fv(u.uCam,cam.eye);gl.uniform3fv(u.uCamR,cam.right);gl.uniform3fv(u.uCamU,cam.up);
+  gl.uniform1f(u.uTime,time);const fk=LIGHT.fogK||1;gl.uniform2f(u.uFog,85*fk,(Q.ahead+10)*fk);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false);}
+function drawGlow(m,M,scale,gain){if(!m||!m.n)return;const u=GLOW.u;gl.uniformMatrix4fv(u.uM,false,M||IDENT);gl.uniform1f(u.uScale,scale||1);gl.uniform1f(u.uGain,gain||1);
+  gl.bindVertexArray(m.vao);gl.drawArraysInstanced(gl.TRIANGLE_STRIP,0,4,m.n);}
+function endGlow(){gl.depthMask(true);gl.disable(gl.BLEND);}
+// ---- bulbs on the sled rails (sled local space, front +z)
+let sledLights=null;
+function buildSledLights(){const sb=new SB(),gw=new SB();let k=0;
+  for(const sx of[-0.33,0.33])for(let z=-0.92;z<=0.72;z+=0.17)addBulb(sb,gw,[sx,0.25,z],BULB_COLS[(k++)%BULB_COLS.length],0.045,0.32);
+  for(let a=0.3;a<=Math.PI*1.05;a+=0.32){const r=0.22;addBulb(sb,gw,[0,0.14+r-Math.cos(a)*r+0.04,0.9+Math.sin(a)*r+0.03],BULB_COLS[(k++)%BULB_COLS.length],0.045,0.32);}
+  const m=makeModel(sb);m.glow=makeModel(gw);return m;}
+// ---- bulbs along the cocoa stand awning
+function addStandLights(sb,gw){let k=0;for(let x=-0.95;x<=0.96;x+=0.13)addBulb(sb,gw,[x,1.6-Math.abs(Math.sin((x+0.95)/0.26*Math.PI))*0.04,0.66],BULB_COLS[(k++)%BULB_COLS.length],0.04,0.3);
+  for(const sx of[-0.75,0.75])for(let y=0.85;y<=1.65;y+=0.14)addBulb(sb,gw,[sx+0.045*Math.sign(sx),y,0.42],BULB_COLS[(k++)%BULB_COLS.length],0.035,0.26);}
 // ---------- 50-game: course items, sled physics, scoring ----------
 const G=9.8;
 const RIDERS=['bunny','penguin','fox'];
@@ -1250,6 +1305,7 @@ function render(){
   // ---- sled and riders
   const sm=sledMatrix();
   drawModel(sledModel,sm.M,{boil:Math.floor(time*6),boilAmt:0.05});
+  if(LIGHTS_ON){if(!sledLights)sledLights=buildSledLights();drawModel(sledLights,sm.M,{scale:SLED_SCALE});}
   const seats=[[0,0.1,0.35],[0,0.1,-0.2],[0,0.1,-0.72]];
   const riders=CELEB.on?[]:[{key:GAME.rider,variant:0,driver:true}].concat(P.stack);
   if(CELEB.on)drawCelebration(time,qt,boil);
@@ -1275,6 +1331,8 @@ function render(){
   // snowfall
   gl.uniform1i(su.uMode,1);gl.uniform3fv(su.uBox,snowModel.box);drawModel(snowModel,null,{boil,boilAmt:0.3});gl.uniform1i(su.uMode,0);
   gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE);
+  if(LIGHTS_ON){beginGlow(cam,time);for(const m of CHUNKS.values())drawGlow(m.glow);drawGlow(archModel.glow);if(sledLights)drawGlow(sledLights.glow,sm.M,SLED_SCALE);
+    if(CELEB.on&&standModels.litBulbs)drawGlow(standModels.litBulbs.glow,CELEB.standM,1.25);endGlow();}
   // resolve + post
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER,R.msFB);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,R.resFB);gl.blitFramebuffer(0,0,w,h,0,0,w,h,gl.COLOR_BUFFER_BIT,gl.NEAREST);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,w,h);gl.disable(gl.DEPTH_TEST);

@@ -65,7 +65,8 @@ function sharedTextures(){if(KNIT_TEX)return;
     g.fillStyle='rgba(240,200,120,0.5)';for(let y=16;y<256;y+=64)for(let x=8;x<256;x+=32){g.beginPath();g.moveTo(x+8,y);g.lineTo(x+14,y+12);g.lineTo(x+8,y+24);g.lineTo(x+2,y+12);g.fill();}
     UPH_TEX=texFromCanvas(cv,true);}
 }
-function sideY(a,s){const top=H(19.6,s);return Math.max(QH.FY,top-(a-19.6)*0.12-Math.pow((a-19.6)/50,2)*6);}
+// blanket drapes down and away from the quilt's rolled edge, like a throw hanging off a bed, so it never looms over the quilt
+function sideY(a,s){const top=H(18.5,s)-0.7;const d=Math.max(0,a-19.4);return Math.max(QH.FY,top-1.1*d-0.04*d*d);}
 function bakeChunkMesh(ci,ppm,dens){
   sharedTextures();const sA=ci*QH.CH,sB=sA+QH.CH;const out={};
   const quiltA=-20,quiltB=QH.L+90;
@@ -75,13 +76,13 @@ function bakeChunkMesh(ci,ppm,dens){
       return{p:[x,y,-s],n:v3.norm([-gx,1,gs]),uv:[u,v]};});
     out.quilt=m.build();out.quilt.tex=texFromCanvas(paintChunkTex(ci,ppm));
     // rolled striped borders
-    const b=new MB();for(const sx of[-1,1]){const pts=[];for(let s=Math.max(sA,quiltA);s<=Math.min(sB,quiltB)+0.01;s+=1)pts.push([sx*19.7,H(sx*19.5,s)+0.4,-s]);
+    const b=new MB();for(const sx of[-1,1]){const pts=[];for(let s=Math.max(sA,quiltA);s<=Math.min(sB,quiltB)+0.01;s+=1)pts.push([sx*18.85,H(sx*18.5,s)+0.3,-s]);
       if(pts.length>1)b.tube(pts,0.62,14,(t,a,p)=>((Math.floor(-p[2]*1.4+a*4+(sx>0?2:0))%2+2)%2)?[0.81,0.29,0.26]:[0.97,0.93,0.86]);}
     out.border=b.vc?b.build():null;
   }
   // blanket pile beyond the quilt and the upholstery cliff down to the floor
   const sd=new MB();const nsx=Math.round(QH.CH/2),na=24;
-  for(const sx of[-1,1]){sd.grid(na,nsx,(u,v)=>{const a=19.6+u*50.4,s=sA+v*QH.CH;const y=sideY(a,s);const y2=sideY(a+0.5,s),ys=sideY(a,s+0.5);
+  for(const sx of[-1,1]){sd.grid(na,nsx,(u,v)=>{const a=19.4+u*50.6,s=sA+v*QH.CH;const y=sideY(a,s);const y2=sideY(a+0.5,s),ys=sideY(a,s+0.5);
       const n=v3.norm([-(y2-y)/0.5*sx,1,(ys-y)/0.5]);return{p:[sx*a,y,-s],n,uv:[a/6,s/6]};});}
   out.side=sd.build();out.side.tex=KNIT_TEX;
   const cl=new MB();for(const sx of[-1,1])cl.grid(1,nsx,(u,v)=>{const s=sA+v*QH.CH;const top=sideY(70,s);const y=lerp(top,QH.FY,u);return{p:[sx*70,y,-s],n:[sx,0,0],uv:[s/14,y/14]};});
@@ -99,9 +100,9 @@ function buildLOD(){
   for(let j=-8;j<j1;j++)for(let i=0;i<nI;i++){const c=patchMean(i,j);const x0=-QH.half+i*QH.cell,x1=Math.min(QH.half,x0+QH.cell),s0=j*QH.cell,s1=s0+QH.cell;
     const P=(x,s)=>[x,H(x,s)+0.04,-s];const n=normalAt((x0+x1)/2,(s0+s1)/2);
     const a=m.v(P(x0,s0),n,null,c),b=m.v(P(x1,s0),n,null,c),cc=m.v(P(x1,s1),n,null,c),d=m.v(P(x0,s1),n,null,c);m.quad(a,b,cc,d);}
-  for(const sx of[-1,1]){m.grid(10,Math.round((QH.L+110)/8),(u,v)=>{const a=19.5+u*50.5,s=-20+v*(QH.L+110);return{p:[sx*a,sideY(a,s),-s],n:[0,1,0],c:[0.82,0.78,0.68]};});
+  for(const sx of[-1,1]){m.grid(10,Math.round((QH.L+110)/8),(u,v)=>{const a=19.4+u*50.6,s=-20+v*(QH.L+110);return{p:[sx*a,sideY(a,s),-s],n:[0,1,0],c:[0.82,0.78,0.68]};});
     m.grid(1,Math.round((QH.L+110)/8),(u,v)=>{const s=-20+v*(QH.L+110);return{p:[sx*70,lerp(sideY(70,s),QH.FY,u),-s],n:[sx,0,0],c:[0.48,0.19,0.21]};});
-    const pts=[];for(let s=-20;s<=QH.L+90;s+=4)pts.push([sx*19.7,H(sx*19.5,s)+0.4,-s]);m.tube(pts,0.62,6,[0.9,0.62,0.56]);}
+    const pts=[];for(let s=-20;s<=QH.L+90;s+=4)pts.push([sx*18.85,H(sx*18.5,s)+0.3,-s]);m.tube(pts,0.62,6,[0.9,0.62,0.56]);}
   LODM=m.build();
 }
 function loadedEnd(sNow){let c=Math.floor(sNow/QH.CH)-1;while(CHUNKS.has(c))c++;return c*QH.CH;}

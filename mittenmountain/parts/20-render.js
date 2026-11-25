@@ -44,11 +44,13 @@ void main(){
   vec3 c=base*(amb+uSunCol*wrap);
   float rim=pow(1.-clamp(ndv,0.,1.),2.5);
   c+=base*rim*0.3+rim*0.05;
+  bool em=aCol.a>0.2&&aCol.a<0.32;
+  if(em){float tw=0.65+0.35*sin(uTime*2.6+rnd*37.);c=aCol.rgb*(0.75+0.7*tw)+vec3(0.12)*tw;}
   if(uMode==1)c=vec3(1.,.99,.97);
   c=mix(c,uTintCol,uTint);
   vCol=c;
   vFog=smoothstep(uFog.x,uFog.y,dist);
-  vGloss=aCol.a<0.25?1.:0.;
+  vGloss=(aCol.a<0.25||em)?1.:0.;
   vRnd=rnd;
   float ang=rnd*6.2831;float cs=cos(ang),sn=sin(ang);
   float sq=(aCol.a>0.4&&aCol.a<0.6)?0.48:0.7+0.3*h1(rnd*17.3);

@@ -62,6 +62,19 @@ with sync_playwright() as p:
         print('celeb',pg.evaluate("MM.celeb()"),pg.evaluate("MM.lv()"))
         pg.evaluate("document.getElementById('endO').style.display='none'");pg.evaluate("MM.frame()");pg.wait_for_timeout(300);shot('celeb')
         pg.evaluate("document.getElementById('endO').style.display='flex'");pg.wait_for_timeout(200);shot('celebcard')
+    if sc=='xmas':
+        pg.evaluate("MM.level(6,true)");pg.evaluate("MM.start('penguin',true)");pg.evaluate("MM.input({steer:0,push:0,brake:0})")
+        for s0,u in[(60,0),(240,1.5),(470,-1)]:
+            pg.evaluate(f"MM.teleport({s0},{u})");pg.evaluate("MM.sim(0.6)");pg.evaluate("MM.frame()");pg.wait_for_timeout(250);shot(f'xmas{s0}')
+        pg.evaluate("MM.menu()");pg.evaluate("MM.frame()");pg.evaluate("document.getElementById('menu').style.display='none'");pg.evaluate("MM.frame()");shot('xmasmenu')
+        pg.evaluate("MM.start('bunny',true)");pg.evaluate("MM.auto(true)")
+        for i in range(30):
+            st=pg.evaluate("MM.sim(5)")
+            if st['mode']!='run':break
+        for k in range(12):
+            pg.evaluate("MM.sim(0.5)");c=pg.evaluate("MM.celeb()")
+            if c['on'] and c['t']>1.6:break
+        pg.evaluate("document.getElementById('endO').style.display='none'");pg.evaluate("MM.frame()");pg.wait_for_timeout(250);shot('xmasceleb')
     if sc=='perf':
         pg.evaluate("MM.start('bunny',true)");pg.evaluate("MM.auto(true)");pg.wait_for_timeout(6000);shot('perf')
     print('errors',len(errs))

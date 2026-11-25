@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#14102a">
+<title>Doorbusters</title>
+<style>
+/*@CSS*/
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+<div id="hud" class="hidden">
+  <div id="tl">
+    <button id="pauseBtn" aria-label="Pause">II</button>
+    <div class="pill"><div class="cap">SAVED</div><div id="banked">$0</div></div>
+    <div class="pill dim"><div class="cap">BEST</div><div id="bestHud">$0</div></div>
+  </div>
+  <div id="tc">
+    <div id="timer" class="pill big">4:59:52 AM</div>
+    <div id="guide" class="hidden"><span id="guideArrow">&#10148;</span><span id="guideText">CHECKOUT</span></div>
+  </div>
+  <div id="tr">
+    <div class="pill cartpill"><div class="cap">CART <span id="slots">0/6</span></div><div id="cartVal">$0</div><div id="cartIcons"></div></div>
+  </div>
+  <div id="shove"><div id="shoveRing"></div><span>SHOVE</span></div>
+  <div id="pa"></div>
+  <div id="banner"></div>
+</div>
+<div id="touch"><div id="joyBase"><div id="joyKnob"></div></div></div>
+
+<div id="menu" class="overlay">
+  <div class="card">
+    <div class="logo"><span class="l1">DOOR</span><span class="l2">BUSTERS</span></div>
+    <div class="tag">Black Friday. 5:00 AM. Every cart for itself.</div>
+    <div class="how">
+      Wait in line. When the doors open, push your cart through the stampede, grab the deals,
+      ram rival carts to spill their loot, and get it all through a checkout lane before the sale ends.
+      Only what you check out counts.
+    </div>
+    <div class="row"><span class="lab">Rivals</span><div class="seg" id="diffSeg"><button data-v="0">Polite</button><button data-v="1">Pushy</button><button data-v="2">Feral</button></div></div>
+    <div class="row"><span class="lab">Quality</span><div class="seg" id="qualSeg"><button data-v="0">Low</button><button data-v="1">Med</button><button data-v="2">High</button><button data-v="3">Max</button></div></div>
+    <div class="row"><span class="lab">Sound</span><div class="seg" id="sndSeg"><button data-v="1">On</button><button data-v="0">Off</button></div><span class="lab">Voice</span><div class="seg" id="voiceSeg"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div id="bestMenu" class="best"></div>
+    <button id="playBtn" class="go">LINE UP</button>
+    <div class="keys" id="keysHelp">W / S push and brake &middot; A / D steer &middot; Space shove &middot; Esc pause<br>Touch: left thumb joystick &middot; tap the right side to shove</div>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card small">
+    <div class="ptitle">PAUSED</div>
+    <div class="row"><span class="lab">Quality</span><div class="seg" id="qualSeg2"><button data-v="0">Low</button><button data-v="1">Med</button><button data-v="2">High</button><button data-v="3">Max</button></div></div>
+    <div class="row"><span class="lab">Sound</span><div class="seg" id="sndSeg2"><button data-v="1">On</button><button data-v="0">Off</button></div><span class="lab">Voice</span><div class="seg" id="voiceSeg2"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div id="fpsRow" class="best"></div>
+    <button id="resumeBtn" class="go">RESUME</button>
+    <button id="quitBtn" class="go alt">QUIT TO MENU</button>
+  </div>
+</div>
+
+<div id="receipt" class="overlay hidden">
+  <div class="paper">
+    <div class="rhead">BUYGANTIC<br><small>SUPERSTORE #0451 &middot; BLACK FRIDAY</small></div>
+    <div id="rbody"></div>
+    <div class="rbtns"><button id="againBtn" class="go">LINE UP AGAIN</button><button id="menuBtn" class="go alt">MENU</button></div>
+  </div>
+</div>
+
+<script>
+/*@JS*/
+</script>
+</body>
+</html>

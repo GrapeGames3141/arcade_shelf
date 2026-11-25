@@ -82,7 +82,7 @@ function buildRoom(){
     out.winframe=wf.build();
   }
   // finish: two giant pins with a gingham ribbon between them
-  {const m=new MB();const s=L,a=[-19.9,H(-19.5,s)+5.4,-s],b=[19.9,H(19.5,s)+5.4,-s];
+  {const m=new MB();const s=L,a=[-19.2,H(-18.5,s)+5.6,-s],b=[19.2,H(18.5,s)+5.6,-s];
     for(let i=0;i<=80;i++)for(const k of[0,1]){}
     m.grid(80,6,(u,v)=>{const p=v3.add(v3.lerp(a,b,u),[0,-Math.sin(u*Math.PI)*1.1-v*1.1,0]);const c=(Math.floor(u*40)+Math.floor(v*6))%2?[0.81,0.29,0.26]:[0.97,0.93,0.86];return{p,n:[0,0,1],c};});
     out.ribbon=m.build();}
@@ -101,8 +101,8 @@ function drawRoom(time){
   drawMesh(R0.shelf,null,{});drawMesh(R0.win,null,{emis:0.6});drawMesh(R0.winframe,null,{});drawMesh(R0.ribbon,null,{weave:12});
   // finish pins and two tomato pincushions
   if(!PINM){PINM=buildPin();PINH=buildPinHead();}
-  for(const sx of[-1,1]){const M=M4.mul(M4.trans(sx*19.9,H(sx*19.5,QH.L)-0.3,-QH.L),M4.scale(4.5));drawMesh(PINM,M,MAT.steel);drawMesh(PINH,M,Object.assign({tint:sx<0?[0.25,0.56,0.58]:[0.88,0.48,0.63]},MAT.glossy));}
-  drawMesh(TOMATO,M4.trans(25,H(19.5,14)-1.5,-14),{weave:8});drawMesh(TOMATO,M4.mul(M4.trans(-30,H(19.5,QH.L+30)-1.2,-(QH.L+30)),M4.scale(1.3)),{weave:8});
+  for(const sx of[-1,1]){const M=M4.mul(M4.trans(sx*19.2,H(sx*18.5,QH.L)-0.1,-QH.L),M4.scale(4.5));drawMesh(PINM,M,MAT.steel);drawMesh(PINH,M,Object.assign({tint:sx<0?[0.25,0.56,0.58]:[0.88,0.48,0.63]},MAT.glossy));}
+  drawMesh(TOMATO,M4.trans(22,sideY(22,14)-0.6,-14),{weave:8});drawMesh(TOMATO,M4.mul(M4.trans(-24,sideY(24,QH.L+30)-0.6,-(QH.L+30)),M4.scale(1.3)),{weave:8});
 }
 function drawFire(cam,time){
   const s=MR.fire;gl.useProgram(s.p);gl.uniformMatrix4fv(s.u.uVP,false,cam.vp);gl.bindVertexArray(R.shVao);
