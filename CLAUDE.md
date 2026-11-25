@@ -67,6 +67,7 @@ Technique guides live as Markdown in this root folder. Read the matching guide i
 - Every new game gets its own folder: `E:\html games\<game>\`, with a short, meaningful folder name.
 - Name the main file meaningfully, never `index.html`. The default is the folder name: `<game>\<game>.html`.
 - Add the new game to the table above (and to the root `README.md`) in the first commit. The Pages build auto-discovers valid top-level game folders; run it after an arcade-ready game to verify the generated lobby. Experiments follow the separate exclusion rule above.
+- Every arcade-ready game gets a curated lobby card in the same check-in that publishes it; never leave the build's placeholder icon. Add `assets/arcade/<game>.webp` (800x560, a real gameplay screenshot that shows the player character in action, HUD hidden) and an `<article class="game-card">` in the root `index.html` after the newest card, with the next display number, a lobby category, search terms, descriptive alt text and a short tagline. Then run `python tools/build-pages.py` and confirm the built card points at the image. Playwright is not installed on this machine; capture with headless Edge over the DevTools protocol from a throwaway harness page, then crop with Pillow.
 - New games are root-owned. Never initialize a child repository for one.
 - Commit as you go: check in at each working milestone (first playable scaffold, each feature that works, each fix) rather than one large commit at the end, and push `main` to origin after each check-in.
 
