@@ -1,0 +1,7 @@
+{
+  "title": "Blindfire",
+  "description": "Artillery in the dark. Drive your launcher around a map you can only partly see and fire blind at a rival doing the same. Every landing is rated Cold to Scorching and pays more the closer it was. Spend it on bigger warheads, faster reloads, radar and armor until one blast covers half the map. Land inside your own blast and you lose. Play the CPU or a friend with a room code.",
+  "category": "Strategy",
+  "controls": "WASD or arrows move, click to fire, B upgrades (1-6 buy), Esc menu, M sound. Touch: stick moves, drag on the map to aim and lift to fire.",
+  "requirements": "Any modern browser. Playing a friend needs an internet connection."
+}
