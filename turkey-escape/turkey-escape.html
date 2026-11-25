@@ -97,7 +97,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#b9a777;color:var(--in
   <p>It's the Friday before Thanksgiving. The farmer has a pitchfork and a plan. You have legs. Make it to next Friday.</p>
   <div class="keys"><span>← → change lanes</span><span>↑ jump</span><span>↓ duck</span></div>
   <p class="small">On a phone: swipe, or tap to jump. Two stumbles in a row and he's got you.</p>
-  <button class="go" id="startBtn">Run!</button>
+  <button class="go" id="startBtn">Run!</button><button type="button" class="go" data-arcade-home onclick="location.href='../index.html'" style="margin-left:8px">🏠 Arcade Shelf</button>
   <p class="small" id="bestLine"></p>
 </div>
 
@@ -111,13 +111,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#b9a777;color:var(--in
     <div><b id="ovBest">0</b><span>best</span></div>
   </div>
   <p id="newBest" hidden>New best!</p>
-  <button class="go" id="againBtn">Run again</button>
+  <button class="go" id="againBtn">Run again</button><button type="button" class="go" data-arcade-home onclick="location.href='../index.html'" style="margin-left:8px">🏠 Arcade Shelf</button>
 </div>
 
 <div class="card" id="pauseCard" hidden>
   <h2>Paused</h2>
   <p>The farmer is also taking a breather.</p>
-  <button class="go" id="resumeBtn">Keep running</button>
+  <button class="go" id="resumeBtn">Keep running</button><button type="button" class="go" data-arcade-home onclick="location.href='../index.html'" style="margin-left:8px">🏠 Arcade Shelf</button>
 </div>
 
 <div id="nogl" hidden><p>This game needs WebGL, and this browser didn't provide it.</p></div>

@@ -60,6 +60,12 @@ class PagesTests(unittest.TestCase):
         self.assertNotIn('arcade-home', (out / 'index.html').read_text(encoding='utf-8'))
         builder.build(self.root)
         self.assertEqual((out / 'littles/littles.html').read_text(encoding='utf-8').count('id="arcade-home"'), 1)
+    def test_games_with_their_own_home_link_get_no_tab(self):
+        game = self.root / 'homey'
+        game.mkdir()
+        (game / 'homey.html').write_text('<!doctype html><html><body><a data-arcade-home href="../index.html">Arcade Shelf</a></body></html>', encoding='utf-8')
+        out = builder.build(self.root)
+        self.assertNotIn('id="arcade-home"', (out / 'homey/homey.html').read_text(encoding='utf-8'))
     def test_discovery_metadata_assets_and_rebuild(self):
         game = self.root / 'future fields'
         (game / 'nested').mkdir(parents=True)

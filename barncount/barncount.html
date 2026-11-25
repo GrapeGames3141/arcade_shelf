@@ -80,7 +80,7 @@
       <label><button class="tog" id="tLock"></button> Kid lock (full screen)</label>
     </div>
     <p class="note">The voice asks for a number of animals. Kids slide that many into the barn while every animal is counted out loud and lit up on the fence. With "Mix in other animals" on, they also have to pick the right kind. With Kid lock on, press and hold ⚙️ Grown-ups to open this page.</p>
-    <div class="row"><button class="big" id="bSetDone">✓ Done</button></div>
+    <div class="row"><button class="big" id="bSetDone">✓ Done</button><a class="big" id="bArcade" href="../index.html" data-arcade-home style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🏠 Arcade Shelf</a></div>
   </div>
 </div>
 <script>
@@ -483,7 +483,9 @@ function kidLock() {
 function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
 document.addEventListener('click', kidLock, true);
 window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
-window.addEventListener('beforeunload', e => { if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
+let leavingToArcade = false;
+document.getElementById('bArcade').addEventListener('click', () => { leavingToArcade = true; });
+window.addEventListener('beforeunload', e => { if (leavingToArcade) return; if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('contextmenu', e => { if (lockOn()) e.preventDefault(); });
 { const b = $('bSettings'); let t = 0, held = false, swallow = false; b.classList.add('hold');
   const stop = () => { clearTimeout(t); t = 0; b.classList.remove('holding'); };

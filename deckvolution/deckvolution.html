@@ -335,7 +335,7 @@ button { font-family: 'Cinzel', Georgia, serif; cursor: pointer; }
       <div class="menu">
         <button class="btn" id="btnNew">Begin Ascent</button>
         <button class="btn ghost" id="btnContinue" style="display:none">Continue Ascent</button>
-        <button class="btn ghost" id="btnHow">How to Play</button>
+        <button class="btn ghost" id="btnHow">How to Play</button><button type="button" class="btn ghost" data-arcade-home onclick="location.href='../index.html'">🏠 Arcade Shelf</button>
       </div>
       <div class="tag">How a creature wins decides what it becomes.<br>Six foes stand between your host and the Ember Throne.</div>
     </section>
@@ -1858,7 +1858,7 @@ const DV = (() => {
         <div><div style="font-family:Cinzel;font-size:11px;letter-spacing:.2em;color:#7a5a28">FINEST CREATURE</div><div style="font-family:Cinzel;font-weight:800;font-size:17px">${K(best).name}</div>
         <div style="font-style:italic">${formLine(best)} · Power ${DV.printedPower(best)}</div><div style="font-size:13px;margin-top:4px">${best.deeds.length ? 'Deeds: ' + best.deeds.join(', ') : 'Untested'}</div></div></div>
       <ul><li>Foes defeated: <b>${run.stats.won}</b> of ${DV.STAGES.length}</li><li>Evolutions earned: <b>${run.stats.evolutions}</b></li><li>Rounds fought: <b>${run.stats.rounds}</b></li><li>Final host: <b>${run.deck.length}</b> creatures, ${run.deck.filter(c => c.tier).length} evolved</li></ul>
-      <div class="ctr"><button class="btn" id="roNew">New Ascent</button><button class="btn ghost small" id="roTitle">Title</button></div>`);
+      <div class="ctr"><button class="btn" id="roNew">New Ascent</button><button type="button" class="btn ghost" data-arcade-home onclick="location.href='../index.html'">🏠 Arcade Shelf</button><button class="btn ghost small" id="roTitle">Title</button></div>`);
     if (victory) { const c = FX.centerOf(p); for (let i = 0; i < 4; i++) setTimeout(() => FX.burst(c.x + (Math.random() - 0.5) * 200 * UI.scale, c.y - 200 * UI.scale, 'star', 40, 1.5), i * 300); }
     $('#roNew').onclick = () => { Snd.click(); closeModal(); newRun(); };
     $('#roTitle').onclick = () => { Snd.click(); closeModal(); titleScreen(); };
@@ -1873,7 +1873,7 @@ const DV = (() => {
         <button class="btn ghost" id="mHow">How to Play</button>
         ${inBattle ? '<button class="btn ghost" id="mHost">View Host</button>' : ''}
         <button class="btn red small" id="mQuit">Abandon Ascent</button>
-        <button class="btn" id="mResume">Resume</button>
+        <button class="btn" id="mResume">Resume</button><button type="button" class="btn ghost" data-arcade-home onclick="location.href='../index.html'">🏠 Arcade Shelf</button>
       </div>`);
     $('#mClose').onclick = $('#mResume').onclick = () => { Snd.click(); closeModal(); };
     $('#mSound').onclick = () => { UI.prefs.muted = !UI.prefs.muted; savePrefs(); Snd.init(); Snd.click(); $('#mSound').textContent = `Sound: ${UI.prefs.muted ? 'Off' : 'On'}`; };

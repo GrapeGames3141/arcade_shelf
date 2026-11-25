@@ -153,7 +153,7 @@ body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webki
       <label><button class="tog" id="tLock"></button> Kid lock (full screen)</label>
       <p class="locknote">With Kid lock on, press and hold ⚙️ Grown-ups to open this page. For a complete lock on Android, also turn on App pinning (Settings → Security → App pinning).</p>
     </div>
-    <div class="row"><button class="big" id="bSetDone">✓ Done</button></div>
+    <div class="row"><button class="big" id="bSetDone">✓ Done</button><a class="big" id="bArcade" href="../index.html" data-arcade-home style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🏠 Arcade Shelf</a></div>
     <div class="note">Turn on any mix. Each problem is picked from what's on.</div>
   </div>
 </div>
@@ -970,7 +970,9 @@ function kidLock() {
 function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
 document.addEventListener('click', kidLock, true);
 window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
-window.addEventListener('beforeunload', e => { if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
+let leavingToArcade = false;
+document.getElementById('bArcade').addEventListener('click', () => { leavingToArcade = true; });
+window.addEventListener('beforeunload', e => { if (leavingToArcade) return; if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('contextmenu', e => { if (lockOn()) e.preventDefault(); });
 for (const id of ['bSettings', 'bPauseSet']) {
   const b = $(id); let t = 0, held = false, swallow = false;

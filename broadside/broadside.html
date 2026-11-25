@@ -68,6 +68,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud">
+  <button type="button" data-arcade-home onclick="if(confirm('Leave this game and go back to the Arcade Shelf?'))location.href='../index.html'" title="Back to the Arcade Shelf" style="position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;pointer-events:auto;padding:5px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(10,20,30,.55);color:#e8e2d0;font:600 13px system-ui;cursor:pointer">🏠 Arcade</button>
   <div id="pPanel" class="panel ship"><h4>Your galleon <b id="pName">—</b></h4><canvas id="pDiag" width="440" height="224"></canvas><div class="rows" id="pRows"></div></div>
   <div id="ePanel" class="panel ship"><h4>Enemy <b id="eName">—</b></h4><canvas id="eDiag" width="440" height="224"></canvas><div class="rows" id="eRows"></div></div>
   <div id="guns" class="panel"><div class="gunrow" id="gunsP"><label>PORT</label></div><div class="gunrow" id="gunsS"><label>STARBOARD</label></div><div class="gunrow" id="gunsC"><label>BOW · STERN</label></div></div>
@@ -93,7 +94,7 @@
     <tr><td>Targets</td><td>Mast base: topple it · Rudder: wreck her steering · Gun deck: knock out guns · Waterline: flood her · Hold amidships: spill her stores</td></tr>
     <tr><td>Right-drag · wheel</td><td>Look around · zoom</td></tr>
   </table>
-  <button id="bPlay" class="primary">Engage</button>
+  <button id="bPlay" class="primary">Engage</button><button type="button" data-arcade-home onclick="location.href='../index.html'" style="margin-left:8px">Arcade Shelf</button>
   <div id="prog"></div>
 </div></div>
 <script>

@@ -218,7 +218,7 @@ body.caps .slot, body.caps .slot *, body.caps .key, body.caps .tile, body.caps .
       <span>Voice speed <span class="seg" id="segR"><button data-r="0">Slow</button><button data-r="1">Normal</button></span></span>
     </div>
     <div class="row"><button class="pill sun" id="bTestVoice">🔊 Test the voice</button></div>
-    <div class="row"><button class="big" id="bSetDone">✓ Done</button></div>
+    <div class="row"><button class="big" id="bSetDone">✓ Done</button><a class="big" id="bArcade" href="../index.html" data-arcade-home style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center">🏠 Arcade Shelf</a></div>
     <div class="note" id="voiceNote"></div>
   </div>
 </div>
@@ -1020,7 +1020,9 @@ function fsNote() {
 function kidUnlock() { try { screen.orientation.unlock(); } catch (e) { /* not locked */ } if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); }
 document.addEventListener('click', kidLock, true);
 window.addEventListener('popstate', () => { if (lockOn()) history.pushState({ kidLock: true }, ''); });
-window.addEventListener('beforeunload', e => { if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
+let leavingToArcade = false;
+document.getElementById('bArcade').addEventListener('click', () => { leavingToArcade = true; });
+window.addEventListener('beforeunload', e => { if (leavingToArcade) return; if (lockOn()) { e.preventDefault(); e.returnValue = ''; } });
 document.addEventListener('contextmenu', e => { if (lockOn()) e.preventDefault(); });
 for (const id of ['bSettings', 'bPauseSet']) {
   const b = $(id); let t = 0, held = false, swallow = false;

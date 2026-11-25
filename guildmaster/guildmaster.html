@@ -2976,7 +2976,7 @@ function renderTitle(main) {
     <canvas id="titlecv" aria-label="A puppet theatre: four heroes face a dragon"></canvas>
     <div class="btns">
       ${has ? `<button class="big brass" data-act="continue">Continue · Day ${sv.day}, ${sv.gold}g</button>` : ''}
-      <button class="big ${has ? 'ghost' : 'brass'}" data-act="newgame">${has ? 'Start a new guild' : 'Take over the guild'}</button>
+      <button class="big ${has ? 'ghost' : 'brass'}" data-act="newgame">${has ? 'Start a new guild' : 'Take over the guild'}</button><button type="button" class="big ghost" data-arcade-home onclick="location.href='../index.html'">🏠 Arcade Shelf</button>
     </div>
     <p class="small">Post petitions. Set the pay. Watch ten adventurers of varying competence decide whether to bother. Reach a Royal Charter before the bank sends its ogre.</p>
   </div>`;

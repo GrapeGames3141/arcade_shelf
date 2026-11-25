@@ -55,6 +55,7 @@
       '<button class="btn" data-a="barracks">🗂️ Personnel</button></div>' +
       '<div class="row2"><button class="btn" data-a="achv">🏆 Achievements</button>' +
       '<button class="btn" data-a="settings">⚙️ Settings</button></div>' +
+      '<div class="row2"><button class="btn" data-a="arcade" data-arcade-home>🏠 Arcade Shelf</button></div>' +
       '</div>' +
       '<div class="tagline">Free forever · No ads · No in-app purchases · Includes dental</div>' +
       '<div class="tapstart">' + (d.stats.played ? 'Supreme Lane Commander: still employed (for now)' : 'You have been appointed Supreme Lane Commander. Nobody else applied.') + '</div>' +
@@ -62,6 +63,7 @@
     on(n, '[data-a=play]', () => U.map());
     on(n, '[data-a=endless]', () => { if (G.save.endlessUnlocked()) U.lineup({ mode: 'endless', diff: 0 }); else U.toast('Defeat Karenthia, Queen of the HOA, to unlock Endless Overtime'); });
     on(n, '[data-a=barracks]', () => U.barracks('title'));
+    on(n, '[data-a=arcade]', () => { location.href = '../index.html'; });
     on(n, '[data-a=settings]', () => U.settings());
     on(n, '[data-a=achv]', () => U.achievements());
   };

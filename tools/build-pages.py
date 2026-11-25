@@ -106,7 +106,7 @@ def runtime_files(folder):
         if path.is_symlink() or not path.is_file(): continue
         if path.suffix.lower() in EXTENSIONS and path.name.lower() != "game.json": yield path
 
-# A small "back to The Arcade Shelf" tab added to every packaged game page. It sits faded on the left edge,
+# A small "back to The Arcade Shelf" tab added to packaged game pages that have no home link of their own. It sits faded on the left edge,
 # opens on hover or a first tap and only leaves on a click or a second tap; kids games need a press and hold.
 # It hides in full screen, so game kid locks keep working.
 HOME_TAB = """<style id="arcade-home-style">
@@ -143,7 +143,8 @@ document.addEventListener('fullscreenchange',fs);document.addEventListener('webk
 
 def add_home_tab(page, depth, kids):
     text = page.read_text(encoding="utf-8-sig")
-    if 'id="arcade-home"' in text: return
+    # a game that already has its own home link (data-arcade-home, in its menu or top bar) gets no floating tab
+    if 'id="arcade-home"' in text or "data-arcade-home" in text: return
     tab = (HOME_TAB.replace("{href}", "../" * depth + "index.html").replace("{kids}", "1" if kids else "0")
            .replace("{label}", "Hold for Arcade Shelf" if kids else "Arcade Shelf"))
     i = text.lower().rfind("</body>")
