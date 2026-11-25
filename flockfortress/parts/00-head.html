@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Flock &amp; Fortress</title>
+<meta name="description" content="Build a fort, hide your bell, then take turns launching exploding sheep at each other's walls. Blasts set off nearby sheep in growing chain reactions. Knock the other bell to the ground to win.">
+<style>
+:root { --ink: #fffaf0; --soft: #e2dccb; --dim: #a89f88; --gold: #f2c14a; --p0: #4fb3ff; --p1: #ff7b54; --panel: rgba(38, 30, 22, .82); --line: rgba(255, 240, 210, .18); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #8fc6ea; color: var(--ink); font: 15px/1.4 ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+.hidden { display: none !important; }
+kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; background: rgba(255, 255, 255, .14); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 5px; margin-right: 5px; }
+.btn { font-weight: 800; font-size: 16px; color: #2b1d0e; background: linear-gradient(#ffe08a, #f2b443); border: 0; border-radius: 14px; padding: 13px 24px; box-shadow: 0 4px 0 #9a6a20, 0 10px 24px rgba(0, 0, 0, .3); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9a6a20; }
+.btn:disabled { filter: grayscale(.7) brightness(.85); cursor: default; }
+.btn.big { font-size: 20px; padding: 16px 32px; }
+.btn.alt { background: rgba(255, 255, 255, .12); color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.btn.sm { font-size: 13px; padding: 9px 12px; border-radius: 10px; }
+.btn.sm.done { background: var(--gold); color: #2b1d0e; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.sub { display: flex; gap: 4px; flex-wrap: wrap; }
+.sub button, .sub a { white-space: nowrap; font-weight: 700; font-size: 14px; color: var(--soft); background: none; border: 0; border-radius: 10px; padding: 9px 12px; text-decoration: none; }
+.sub button:hover, .sub a:hover, .sub button.on { color: var(--ink); background: rgba(255, 255, 255, .12); }
+/* menus */
+.screen { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; padding: 24px 7vw calc(24px + env(safe-area-inset-bottom)); background: linear-gradient(90deg, rgba(40, 28, 16, .82), rgba(40, 28, 16, .35) 60%, rgba(40, 28, 16, 0)); overflow: auto; }
+.screen.center { justify-content: center; background: rgba(30, 22, 14, .6); }
+.col { width: min(420px, 100%); display: grid; gap: 18px; }
+.center .col { justify-items: center; text-align: center; }
+.center .sub { justify-content: center; }
+.logo { font: 900 clamp(46px, 9vw, 80px)/.92 ui-rounded, system-ui, sans-serif; letter-spacing: -.02em; text-shadow: 0 4px 0 rgba(60, 40, 20, .5); }
+.logo span { color: var(--gold); }
+.tag { color: var(--soft); font-size: 17px; margin-top: -8px; }
+.drawer { display: grid; gap: 12px; width: 100%; text-align: left; }
+.grp { display: grid; gap: 5px; }
+.grp h5 { margin: 0; font-size: 11px; letter-spacing: .2em; color: var(--gold); }
+.grp p { margin: 0; color: var(--soft); font-size: 14px; }
+.ks { display: flex; flex-wrap: wrap; gap: 5px 14px; color: var(--soft); font-size: 14px; }
+.touchOnly { display: none; } body.touch .touchOnly { display: grid; } body.touch .keyOnly { display: none; }
+.set { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--soft); font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 7px 11px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.seg button.on { background: var(--gold); color: #2b1d0e; }
+.room { display: flex; gap: 8px; }
+.room input { flex: 1; min-width: 0; font: 800 18px/1 ui-monospace, Menlo, monospace; letter-spacing: .25em; text-transform: uppercase; color: var(--ink); background: rgba(255, 255, 255, .1); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+#roomCode { font: 800 22px/1 ui-monospace, Menlo, monospace; letter-spacing: .22em; margin-right: 4px; user-select: all; -webkit-user-select: all; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#mpStatus { color: var(--soft); font-size: 14px; min-height: 1.4em; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.stats span { background: rgba(255, 255, 255, .12); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* HUD */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+.chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-variant-numeric: tabular-nums; }
+#score { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); gap: 12px; font-size: 13px; }
+.side { display: inline-flex; align-items: center; gap: 6px; }
+.pips { display: inline-flex; gap: 3px; } .pips i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; } .pips i.on { background: currentColor; }
+#phase { position: absolute; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); font-size: 15px; white-space: nowrap; }
+#wind { position: absolute; left: 50%; top: calc(58px + env(safe-area-inset-top)); transform: translateX(-50%); font-size: 13px; height: 32px; }
+#topR { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 6px; pointer-events: auto; }
+.ib { width: 40px; height: 40px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: grid; place-items: center; font-size: 16px; padding: 0; }
+#msg { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); text-align: center; background: rgba(38, 30, 22, .5); padding: 10px 20px 12px; border-radius: 18px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); font: 900 30px/1.1 ui-rounded, system-ui, sans-serif; text-shadow: 0 3px 0 rgba(60, 40, 20, .6), 0 8px 24px rgba(0, 0, 0, .35); opacity: 0; transition: opacity .3s; white-space: nowrap; }
+#msg small { display: block; font-size: 15px; font-weight: 700; color: var(--soft); margin-top: 6px; }
+#msg.on { opacity: 1; }
+/* bottom bars: build palette or ammo */
+.bar { position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; pointer-events: auto; max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none; }
+.bar::-webkit-scrollbar { display: none; }
+.slot { position: relative; min-width: 64px; height: 64px; border-radius: 12px; border: 2px solid transparent; background: rgba(255, 255, 255, .08); display: grid; place-items: center; padding: 4px 6px 2px; font-size: 11px; font-weight: 800; color: var(--soft); flex: none; }
+.slot canvas { width: 40px; height: 30px; display: block; }
+.slot.on { border-color: var(--gold); color: var(--ink); background: rgba(242, 193, 74, .18); }
+.slot:disabled { opacity: .35; cursor: default; }
+.slot b { position: absolute; top: 3px; right: 5px; font-size: 11px; color: var(--gold); }
+.slot.act { background: rgba(255, 255, 255, .16); color: var(--ink); min-width: 70px; }
+.slot.go { background: linear-gradient(#ffe08a, #f2b443); color: #2b1d0e; min-width: 84px; font-size: 14px; }
+.slot.go:disabled { filter: grayscale(.8); }
+#money { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(92px + env(safe-area-inset-bottom)); color: var(--gold); font-size: 17px; }
+#timer { position: absolute; right: calc(10px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); font-size: 15px; }
+#hold { position: fixed; z-index: 25; left: 50%; top: 40%; transform: translate(-50%, -50%); display: grid; gap: 12px; justify-items: center; text-align: center; font-weight: 800; max-width: min(520px, 92vw); }
+#rotateHint { position: fixed; inset: auto 0 0 0; z-index: 40; text-align: center; padding: 10px; font-weight: 800; background: rgba(40, 28, 16, .85); display: none; }
+@media (orientation: portrait) and (max-width: 700px) { body.playing #rotateHint { display: block; } }
+@media (max-width: 640px) { .slot { min-width: 54px; height: 56px; } .slot canvas { width: 34px; height: 24px; } #money, #timer { bottom: calc(80px + env(safe-area-inset-bottom)); } #msg { font-size: 22px; } #score { font-size: 11px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hidden">
+  <div id="score" class="chip"></div>
+  <div id="phase" class="chip"></div>
+  <div id="wind" class="chip hidden"></div>
+  <div id="topR"><button class="ib" id="bView" title="Zoom out / in (V)">🔍</button><button class="ib" id="bSound" title="Sound (N)">🔊</button><button class="ib" id="bPause" title="Menu (Esc)">❚❚</button></div>
+  <div id="msg"></div>
+  <div id="money" class="chip hidden"></div>
+  <div id="timer" class="chip hidden"></div>
+  <div id="buildBar" class="bar panel hidden"></div>
+  <div id="ammoBar" class="bar panel hidden"></div>
+</div>
+<div id="hold" class="panel hidden"><div id="holdT"></div><button class="btn alt sm" id="bHoldGo">Continue without them</button></div>
+<div id="rotateHint">Turn your phone sideways for a better view ↻</div>
+
+<div id="title" class="screen">
+  <div class="col">
+    <div class="logo">Flock <span>&amp;</span><br>Fortress</div>
+    <div class="tag">Build a fort. Hide your bell. Launch exploding sheep.</div>
+    <div id="rejoinRow" class="hidden"><button class="btn big" id="bRejoin">↩ Rejoin match</button></div>
+    <div><button class="btn big" id="bCpu">▶ Play the CPU</button></div>
+    <div class="sub"><button id="bFriend">Play online</button><button id="bLocal">Pass &amp; play</button><button id="bHow">How to play</button><button id="bSet">Settings</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+    <div class="panel drawer hidden" id="friend">
+      <div id="joinRows" class="drawer">
+        <div class="grp"><h5>NEW ROOM</h5><div><button class="btn alt" id="bCreate">Create a room</button></div></div>
+        <div class="grp"><h5>JOIN A ROOM</h5><div class="room"><input id="roomIn" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn alt" id="bJoin">Join</button></div></div>
+      </div>
+      <div id="lobby" class="drawer hidden">
+        <div class="grp"><h5>INVITE</h5><div class="row"><b id="roomCode"></b><button class="btn alt sm" id="bCopyLink">🔗 Copy link</button><button class="btn alt sm" id="bCopyCode">Copy code</button><button class="btn alt sm hidden" id="bShare">Share…</button></div></div>
+        <div class="grp"><h5>IN THE ROOM</h5><div class="stats" id="lobbyList" style="justify-content:flex-start"></div></div>
+        <div class="row"><button class="btn" id="bStart">▶ Start</button><div class="sub"><button id="bLeaveRoom">Leave room</button></div></div>
+      </div>
+      <div id="mpStatus"></div>
+    </div>
+    <div class="panel drawer hidden" id="how">
+      <div class="grp"><h5>1 · BUILD</h5><p>Spend your budget on hay, wood and stone, and hide your golden bell somewhere off the ground. Pieces drop where you place them, so test your walls as you go.</p></div>
+      <div class="grp"><h5>2 · SIEGE</h5><p>Take turns pulling back the catapult and launching sheep. They explode a moment after they land, and a blast sets off any sheep nearby, each bigger than the last.</p></div>
+      <div class="grp"><h5>3 · WIN</h5><p>Knock the other bell to the ground to win the round. Out of sheep? Most damage wins. Best of three rounds.</p></div>
+      <div class="grp"><h5>SHEEP</h5><p>Sheep · Lamb trio (tap to split) · Ram (smashes, no blast) · Fluffball (grows as it rolls) · Black sheep (sticks, big blast)</p></div>
+      <div class="grp keyOnly"><h5>KEYS</h5><div class="ks"><span><kbd>Drag</kbd>aim and pull back</span><span><kbd>1–5</kbd>pick sheep</span><span><kbd>Space</kbd>split the trio</span><span><kbd>R</kbd>rotate piece</span><span><kbd>Right-click</kbd>remove piece</span><span><kbd>V</kbd>zoom</span></div></div>
+      <div class="grp touchOnly"><h5>TOUCH</h5><div class="ks"><span>Drag anywhere to aim, let go to launch</span><span>Tap during flight to split the trio</span></div></div>
+    </div>
+    <div class="panel drawer hidden" id="settings">
+      <div class="set">CPU skill<div class="seg" id="segD"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
+      <div class="set">Sound<div class="seg" id="segS"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    </div>
+  </div>
+</div>
+<div id="pause" class="screen center hidden">
+  <div class="col">
+    <div class="logo" style="font-size:52px">Paused</div>
+    <div><button class="btn big" id="bResume">▶ Resume</button></div>
+    <div class="sub"><button id="bQuit">Quit match</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+  </div>
+</div>
+<div id="card" class="screen center hidden">
+  <div class="col">
+    <div class="logo" style="font-size:50px" id="cardT"></div>
+    <div class="tag" id="cardS"></div>
+    <div class="stats" id="cardStats"></div>
+    <div><button class="btn big" id="bCard">Next</button></div>
+    <div class="sub" id="cardSub"><button id="bMenu">Menu</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+  </div>
+</div>

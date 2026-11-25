@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Flock &amp; Fortress</title>
+<meta name="description" content="Build a fort, hide your bell, then take turns launching exploding sheep at each other's walls. Blasts set off nearby sheep in growing chain reactions. Knock the other bell to the ground to win.">
+<style>
+:root { --ink: #fffaf0; --soft: #e2dccb; --dim: #a89f88; --gold: #f2c14a; --p0: #4fb3ff; --p1: #ff7b54; --panel: rgba(38, 30, 22, .82); --line: rgba(255, 240, 210, .18); }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #8fc6ea; color: var(--ink); font: 15px/1.4 ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
+#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+.hidden { display: none !important; }
+kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; background: rgba(255, 255, 255, .14); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 5px; margin-right: 5px; }
+.btn { font-weight: 800; font-size: 16px; color: #2b1d0e; background: linear-gradient(#ffe08a, #f2b443); border: 0; border-radius: 14px; padding: 13px 24px; box-shadow: 0 4px 0 #9a6a20, 0 10px 24px rgba(0, 0, 0, .3); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9a6a20; }
+.btn:disabled { filter: grayscale(.7) brightness(.85); cursor: default; }
+.btn.big { font-size: 20px; padding: 16px 32px; }
+.btn.alt { background: rgba(255, 255, 255, .12); color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.btn.sm { font-size: 13px; padding: 9px 12px; border-radius: 10px; }
+.btn.sm.done { background: var(--gold); color: #2b1d0e; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.sub { display: flex; gap: 4px; flex-wrap: wrap; }
+.sub button, .sub a { white-space: nowrap; font-weight: 700; font-size: 14px; color: var(--soft); background: none; border: 0; border-radius: 10px; padding: 9px 12px; text-decoration: none; }
+.sub button:hover, .sub a:hover, .sub button.on { color: var(--ink); background: rgba(255, 255, 255, .12); }
+/* menus */
+.screen { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; padding: 24px 7vw calc(24px + env(safe-area-inset-bottom)); background: linear-gradient(90deg, rgba(40, 28, 16, .82), rgba(40, 28, 16, .35) 60%, rgba(40, 28, 16, 0)); overflow: auto; }
+.screen.center { justify-content: center; background: rgba(30, 22, 14, .6); }
+.col { width: min(420px, 100%); display: grid; gap: 18px; }
+.center .col { justify-items: center; text-align: center; }
+.center .sub { justify-content: center; }
+.logo { font: 900 clamp(46px, 9vw, 80px)/.92 ui-rounded, system-ui, sans-serif; letter-spacing: -.02em; text-shadow: 0 4px 0 rgba(60, 40, 20, .5); }
+.logo span { color: var(--gold); }
+.tag { color: var(--soft); font-size: 17px; margin-top: -8px; }
+.drawer { display: grid; gap: 12px; width: 100%; text-align: left; }
+.grp { display: grid; gap: 5px; }
+.grp h5 { margin: 0; font-size: 11px; letter-spacing: .2em; color: var(--gold); }
+.grp p { margin: 0; color: var(--soft); font-size: 14px; }
+.ks { display: flex; flex-wrap: wrap; gap: 5px 14px; color: var(--soft); font-size: 14px; }
+.touchOnly { display: none; } body.touch .touchOnly { display: grid; } body.touch .keyOnly { display: none; }
+.set { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--soft); font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 7px 11px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.seg button.on { background: var(--gold); color: #2b1d0e; }
+.room { display: flex; gap: 8px; }
+.room input { flex: 1; min-width: 0; font: 800 18px/1 ui-monospace, Menlo, monospace; letter-spacing: .25em; text-transform: uppercase; color: var(--ink); background: rgba(255, 255, 255, .1); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+#roomCode { font: 800 22px/1 ui-monospace, Menlo, monospace; letter-spacing: .22em; margin-right: 4px; user-select: all; -webkit-user-select: all; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#mpStatus { color: var(--soft); font-size: 14px; min-height: 1.4em; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.stats span { background: rgba(255, 255, 255, .12); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* HUD */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+.chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-variant-numeric: tabular-nums; }
+#score { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); gap: 12px; font-size: 13px; }
+.side { display: inline-flex; align-items: center; gap: 6px; }
+.pips { display: inline-flex; gap: 3px; } .pips i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; } .pips i.on { background: currentColor; }
+#phase { position: absolute; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); font-size: 15px; white-space: nowrap; }
+#wind { position: absolute; left: 50%; top: calc(58px + env(safe-area-inset-top)); transform: translateX(-50%); font-size: 13px; height: 32px; }
+#topR { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 6px; pointer-events: auto; }
+.ib { width: 40px; height: 40px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: grid; place-items: center; font-size: 16px; padding: 0; }
+#msg { position: absolute; left: 50%; top: 28%; transform: translateX(-50%); text-align: center; background: rgba(38, 30, 22, .5); padding: 10px 20px 12px; border-radius: 18px; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); font: 900 30px/1.1 ui-rounded, system-ui, sans-serif; text-shadow: 0 3px 0 rgba(60, 40, 20, .6), 0 8px 24px rgba(0, 0, 0, .35); opacity: 0; transition: opacity .3s; white-space: nowrap; }
+#msg small { display: block; font-size: 15px; font-weight: 700; color: var(--soft); margin-top: 6px; }
+#msg.on { opacity: 1; }
+/* bottom bars: build palette or ammo */
+.bar { position: absolute; left: 50%; bottom: calc(10px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 6px; padding: 6px; pointer-events: auto; max-width: calc(100vw - 20px); overflow-x: auto; scrollbar-width: none; }
+.bar::-webkit-scrollbar { display: none; }
+.slot { position: relative; min-width: 64px; height: 64px; border-radius: 12px; border: 2px solid transparent; background: rgba(255, 255, 255, .08); display: grid; place-items: center; padding: 4px 6px 2px; font-size: 11px; font-weight: 800; color: var(--soft); flex: none; }
+.slot canvas { width: 40px; height: 30px; display: block; }
+.slot.on { border-color: var(--gold); color: var(--ink); background: rgba(242, 193, 74, .18); }
+.slot:disabled { opacity: .35; cursor: default; }
+.slot b { position: absolute; top: 3px; right: 5px; font-size: 11px; color: var(--gold); }
+.slot.act { background: rgba(255, 255, 255, .16); color: var(--ink); min-width: 70px; }
+.slot.go { background: linear-gradient(#ffe08a, #f2b443); color: #2b1d0e; min-width: 84px; font-size: 14px; }
+.slot.go:disabled { filter: grayscale(.8); }
+#money { position: absolute; left: calc(10px + env(safe-area-inset-left)); bottom: calc(92px + env(safe-area-inset-bottom)); color: var(--gold); font-size: 17px; }
+#timer { position: absolute; right: calc(10px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); font-size: 15px; }
+#hold { position: fixed; z-index: 25; left: 50%; top: 40%; transform: translate(-50%, -50%); display: grid; gap: 12px; justify-items: center; text-align: center; font-weight: 800; max-width: min(520px, 92vw); }
+#rotateHint { position: fixed; inset: auto 0 0 0; z-index: 40; text-align: center; padding: 10px; font-weight: 800; background: rgba(40, 28, 16, .85); display: none; }
+@media (orientation: portrait) and (max-width: 700px) { body.playing #rotateHint { display: block; } }
+@media (max-width: 640px) { .slot { min-width: 54px; height: 56px; } .slot canvas { width: 34px; height: 24px; } #money, #timer { bottom: calc(80px + env(safe-area-inset-bottom)); } #msg { font-size: 22px; } #score { font-size: 11px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud" class="hidden">
+  <div id="score" class="chip"></div>
+  <div id="phase" class="chip"></div>
+  <div id="wind" class="chip hidden"></div>
+  <div id="topR"><button class="ib" id="bView" title="Zoom out / in (V)">🔍</button><button class="ib" id="bSound" title="Sound (N)">🔊</button><button class="ib" id="bPause" title="Menu (Esc)">❚❚</button></div>
+  <div id="msg"></div>
+  <div id="money" class="chip hidden"></div>
+  <div id="timer" class="chip hidden"></div>
+  <div id="buildBar" class="bar panel hidden"></div>
+  <div id="ammoBar" class="bar panel hidden"></div>
+</div>
+<div id="hold" class="panel hidden"><div id="holdT"></div><button class="btn alt sm" id="bHoldGo">Continue without them</button></div>
+<div id="rotateHint">Turn your phone sideways for a better view ↻</div>
+
+<div id="title" class="screen">
+  <div class="col">
+    <div class="logo">Flock <span>&amp;</span><br>Fortress</div>
+    <div class="tag">Build a fort. Hide your bell. Launch exploding sheep.</div>
+    <div id="rejoinRow" class="hidden"><button class="btn big" id="bRejoin">↩ Rejoin match</button></div>
+    <div><button class="btn big" id="bCpu">▶ Play the CPU</button></div>
+    <div class="sub"><button id="bFriend">Play online</button><button id="bLocal">Pass &amp; play</button><button id="bHow">How to play</button><button id="bSet">Settings</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+    <div class="panel drawer hidden" id="friend">
+      <div id="joinRows" class="drawer">
+        <div class="grp"><h5>NEW ROOM</h5><div><button class="btn alt" id="bCreate">Create a room</button></div></div>
+        <div class="grp"><h5>JOIN A ROOM</h5><div class="room"><input id="roomIn" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn alt" id="bJoin">Join</button></div></div>
+      </div>
+      <div id="lobby" class="drawer hidden">
+        <div class="grp"><h5>INVITE</h5><div class="row"><b id="roomCode"></b><button class="btn alt sm" id="bCopyLink">🔗 Copy link</button><button class="btn alt sm" id="bCopyCode">Copy code</button><button class="btn alt sm hidden" id="bShare">Share…</button></div></div>
+        <div class="grp"><h5>IN THE ROOM</h5><div class="stats" id="lobbyList" style="justify-content:flex-start"></div></div>
+        <div class="row"><button class="btn" id="bStart">▶ Start</button><div class="sub"><button id="bLeaveRoom">Leave room</button></div></div>
+      </div>
+      <div id="mpStatus"></div>
+    </div>
+    <div class="panel drawer hidden" id="how">
+      <div class="grp"><h5>1 · BUILD</h5><p>Spend your budget on hay, wood and stone, and hide your golden bell somewhere off the ground. Pieces drop where you place them, so test your walls as you go.</p></div>
+      <div class="grp"><h5>2 · SIEGE</h5><p>Take turns pulling back the catapult and launching sheep. They explode a moment after they land, and a blast sets off any sheep nearby, each bigger than the last.</p></div>
+      <div class="grp"><h5>3 · WIN</h5><p>Knock the other bell to the ground to win the round. Out of sheep? Most damage wins. Best of three rounds.</p></div>
+      <div class="grp"><h5>SHEEP</h5><p>Sheep · Lamb trio (tap to split) · Ram (smashes, no blast) · Fluffball (grows as it rolls) · Black sheep (sticks, big blast)</p></div>
+      <div class="grp keyOnly"><h5>KEYS</h5><div class="ks"><span><kbd>Drag</kbd>aim and pull back</span><span><kbd>1–5</kbd>pick sheep</span><span><kbd>Space</kbd>split the trio</span><span><kbd>R</kbd>rotate piece</span><span><kbd>Right-click</kbd>remove piece</span><span><kbd>V</kbd>zoom</span></div></div>
+      <div class="grp touchOnly"><h5>TOUCH</h5><div class="ks"><span>Drag anywhere to aim, let go to launch</span><span>Tap during flight to split the trio</span></div></div>
+    </div>
+    <div class="panel drawer hidden" id="settings">
+      <div class="set">CPU skill<div class="seg" id="segD"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
+      <div class="set">Sound<div class="seg" id="segS"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    </div>
+  </div>
+</div>
+<div id="pause" class="screen center hidden">
+  <div class="col">
+    <div class="logo" style="font-size:52px">Paused</div>
+    <div><button class="btn big" id="bResume">▶ Resume</button></div>
+    <div class="sub"><button id="bQuit">Quit match</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+  </div>
+</div>
+<div id="card" class="screen center hidden">
+  <div class="col">
+    <div class="logo" style="font-size:50px" id="cardT"></div>
+    <div class="tag" id="cardS"></div>
+    <div class="stats" id="cardStats"></div>
+    <div><button class="btn big" id="bCard">Next</button></div>
+    <div class="sub" id="cardSub"><button id="bMenu">Menu</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+  </div>
+</div>
+<script>
+// ===== 10-phys.js =====
+'use strict';
+// ================= basics =================
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v, lerp = (a, b, t) => a + (b - a) * t, TAU = Math.PI * 2;
+const hyp = (x, y) => Math.sqrt(x * x + y * y);
+const Q = new URLSearchParams(location.search), TEST = Q.has('test');
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function hash(x, y, s) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+
+// ================= physics: a small impulse-based rigid body engine =================
+// Boxes and circles, sequential impulses with warm starting and accumulated clamping, box-box contacts by
+// reference-face clipping (after Erin Catto's Box2D-Lite). Screen coordinates: +y is down. Units are pixels.
+const PH = { g: 900, iters: 10, bias: 0.2, slop: 0.6, sub: 3 };
+let BODIES = [], ARB = new Map(), NEXT_ID = 1;
+function mkBody(o) {
+  const b = Object.assign({ id: NEXT_ID++, x: 0, y: 0, a: 0, vx: 0, vy: 0, w: 0, shape: 'box', hw: 10, hh: 10, r: 10, dens: 1, fric: 0.6, rest: 0.05, stat: false, sleep: 0, asleep: false, kind: 'block' }, o);
+  setMass(b); BODIES.push(b); return b;
+}
+function setMass(b) {
+  if (b.stat) { b.m = 0; b.im = 0; b.I = 0; b.iI = 0; return; }
+  if (b.shape === 'box') { const w = b.hw * 2, h = b.hh * 2; b.m = w * h * b.dens / 1000; b.I = b.m * (w * w + h * h) / 12; }
+  else { b.m = Math.PI * b.r * b.r * b.dens / 1000; b.I = b.m * b.r * b.r / 2; }
+  b.im = 1 / b.m; b.iI = 1 / b.I;
+}
+function removeBody(b) { const i = BODIES.indexOf(b); if (i >= 0) BODIES.splice(i, 1); for (const k of [...ARB.keys()]) { const a = ARB.get(k); if (a.b1 === b || a.b2 === b) ARB.delete(k); } }
+function wake(b) { if (b.stat) return; b.asleep = false; b.sleep = 0; }
+function aabb(b) {
+  if (b.shape === 'circle') return [b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r];
+  const c = Math.abs(Math.cos(b.a)), s = Math.abs(Math.sin(b.a)), ex = b.hw * c + b.hh * s, ey = b.hw * s + b.hh * c;
+  return [b.x - ex, b.y - ey, b.x + ex, b.y + ey];
+}
+// --- contact generation: each returns contacts {x, y, nx, ny, sep} with the normal pointing from A to B
+function collide(A, B) {
+  if (A.shape === 'box' && B.shape === 'box') return boxBox(A, B);
+  if (A.shape === 'circle' && B.shape === 'circle') {
+    const dx = B.x - A.x, dy = B.y - A.y, d = hyp(dx, dy), s = d - A.r - B.r; if (s > 0) return null;
+    const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : 1;
+    return [{ x: A.x + nx * A.r, y: A.y + ny * A.r, nx, ny, sep: s }];
+  }
+  const flip = A.shape === 'circle', box = flip ? B : A, cir = flip ? A : B;
+  const c = Math.cos(box.a), s = Math.sin(box.a), dx = cir.x - box.x, dy = cir.y - box.y;
+  const lx = c * dx + s * dy, ly = -s * dx + c * dy;
+  let px = clamp(lx, -box.hw, box.hw), py = clamp(ly, -box.hh, box.hh), inside = false, nlx, nly, sep;
+  if (px === lx && py === ly) { // centre inside the box: push out along the nearest face
+    inside = true; const ox = box.hw - Math.abs(lx), oy = box.hh - Math.abs(ly);
+    if (ox < oy) { px = Math.sign(lx || 1) * box.hw; nlx = Math.sign(lx || 1); nly = 0; sep = -ox - cir.r; }
+    else { py = Math.sign(ly || 1) * box.hh; nlx = 0; nly = Math.sign(ly || 1); sep = -oy - cir.r; }
+  } else { const ex = lx - px, ey = ly - py, d = hyp(ex, ey); sep = d - cir.r; if (sep > 0) return null; nlx = ex / d; nly = ey / d; }
+  let nx = c * nlx - s * nly, ny = s * nlx + c * nly; const wx = box.x + c * px - s * py, wy = box.y + s * px + c * py;
+  if (flip) { nx = -nx; ny = -ny; }
+  return [{ x: wx, y: wy, nx, ny, sep }];
+}
+function boxBox(A, B) {
+  const hA = [A.hw, A.hh], hB = [B.hw, B.hh];
+  const cA = Math.cos(A.a), sA = Math.sin(A.a), cB = Math.cos(B.a), sB = Math.sin(B.a);
+  const RA = [cA, sA, -sA, cA], RB = [cB, sB, -sB, cB];   // columns: [col1x, col1y, col2x, col2y]
+  const dpx = B.x - A.x, dpy = B.y - A.y;
+  const dA = [RA[0] * dpx + RA[1] * dpy, RA[2] * dpx + RA[3] * dpy], dB = [RB[0] * dpx + RB[1] * dpy, RB[2] * dpx + RB[3] * dpy];
+  // C = RA^T RB
+  const C = [RA[0] * RB[0] + RA[1] * RB[1], RA[2] * RB[0] + RA[3] * RB[1], RA[0] * RB[2] + RA[1] * RB[3], RA[2] * RB[2] + RA[3] * RB[3]];
+  const aC = C.map(Math.abs);  // [c11, c21, c12, c22]
+  const faceA = [Math.abs(dA[0]) - hA[0] - (aC[0] * hB[0] + aC[2] * hB[1]), Math.abs(dA[1]) - hA[1] - (aC[1] * hB[0] + aC[3] * hB[1])];
+  if (faceA[0] > 0 || faceA[1] > 0) return null;
+  const faceB = [Math.abs(dB[0]) - (aC[0] * hA[0] + aC[1] * hA[1]) - hB[0], Math.abs(dB[1]) - (aC[2] * hA[0] + aC[3] * hA[1]) - hB[1]];
+  if (faceB[0] > 0 || faceB[1] > 0) return null;
+  let axis = 0, sep = faceA[0], n = dA[0] > 0 ? [RA[0], RA[1]] : [-RA[0], -RA[1]];
+  const rel = 0.95, abs = 0.01;
+  if (faceA[1] > rel * sep + abs * hA[1]) { axis = 1; sep = faceA[1]; n = dA[1] > 0 ? [RA[2], RA[3]] : [-RA[2], -RA[3]]; }
+  if (faceB[0] > rel * sep + abs * hB[0]) { axis = 2; sep = faceB[0]; n = dB[0] > 0 ? [RB[0], RB[1]] : [-RB[0], -RB[1]]; }
+  if (faceB[1] > rel * sep + abs * hB[1]) { axis = 3; sep = faceB[1]; n = dB[1] > 0 ? [RB[2], RB[3]] : [-RB[2], -RB[3]]; }
+  let fn, front, sn, side, negSide, posSide, inc;
+  const dot = (ax, ay, bx, by) => ax * bx + ay * by;
+  if (axis === 0) { fn = n; front = dot(A.x, A.y, fn[0], fn[1]) + hA[0]; sn = [RA[2], RA[3]]; side = dot(A.x, A.y, sn[0], sn[1]); negSide = -side + hA[1]; posSide = side + hA[1]; inc = incident(hB, B, RB, fn); }
+  else if (axis === 1) { fn = n; front = dot(A.x, A.y, fn[0], fn[1]) + hA[1]; sn = [RA[0], RA[1]]; side = dot(A.x, A.y, sn[0], sn[1]); negSide = -side + hA[0]; posSide = side + hA[0]; inc = incident(hB, B, RB, fn); }
+  else if (axis === 2) { fn = [-n[0], -n[1]]; front = dot(B.x, B.y, fn[0], fn[1]) + hB[0]; sn = [RB[2], RB[3]]; side = dot(B.x, B.y, sn[0], sn[1]); negSide = -side + hB[1]; posSide = side + hB[1]; inc = incident(hA, A, RA, fn); }
+  else { fn = [-n[0], -n[1]]; front = dot(B.x, B.y, fn[0], fn[1]) + hB[1]; sn = [RB[0], RB[1]]; side = dot(B.x, B.y, sn[0], sn[1]); negSide = -side + hB[0]; posSide = side + hB[0]; inc = incident(hA, A, RA, fn); }
+  let cp = clip(inc, -sn[0], -sn[1], negSide); if (cp.length < 2) return null;
+  cp = clip(cp, sn[0], sn[1], posSide); if (cp.length < 2) return null;
+  const out = [];
+  for (const v of cp) { const s = dot(fn[0], fn[1], v[0], v[1]) - front; if (s <= 0) out.push({ x: v[0] - s * fn[0], y: v[1] - s * fn[1], nx: n[0], ny: n[1], sep: s }); }
+  return out.length ? out : null;
+}
+function incident(h, b, R, fn) {
+  const nx = -(R[0] * fn[0] + R[1] * fn[1]), ny = -(R[2] * fn[0] + R[3] * fn[1]);
+  let v0, v1;
+  if (Math.abs(nx) > Math.abs(ny)) { if (nx > 0) { v0 = [h[0], -h[1]]; v1 = [h[0], h[1]]; } else { v0 = [-h[0], h[1]]; v1 = [-h[0], -h[1]]; } }
+  else { if (ny > 0) { v0 = [h[0], h[1]]; v1 = [-h[0], h[1]]; } else { v0 = [-h[0], -h[1]]; v1 = [h[0], -h[1]]; } }
+  const w = v => [b.x + R[0] * v[0] + R[2] * v[1], b.y + R[1] * v[0] + R[3] * v[1]];
+  return [w(v0), w(v1)];
+}
+function clip(vin, nx, ny, off) {
+  const out = [], d0 = nx * vin[0][0] + ny * vin[0][1] - off, d1 = nx * vin[1][0] + ny * vin[1][1] - off;
+  if (d0 <= 0) out.push(vin[0]); if (d1 <= 0) out.push(vin[1]);
+  if (d0 * d1 < 0) { const t = d0 / (d0 - d1); out.push([vin[0][0] + t * (vin[1][0] - vin[0][0]), vin[0][1] + t * (vin[1][1] - vin[0][1])]); }
+  return out;
+}
+// --- the step
+const HOOK = { contact: null, step: null };   // the game listens for hard impacts and per-step effects
+function physStep(dt) {
+  const n = BODIES.length;
+  // broadphase: sort by x
+  const boxes = BODIES.map(b => ({ b, bb: aabb(b) })).sort((p, q) => p.bb[0] - q.bb[0]);
+  const seen = new Set();
+  for (let i = 0; i < n; i++) {
+    const P = boxes[i];
+    for (let j = i + 1; j < n; j++) {
+      const Qb = boxes[j]; if (Qb.bb[0] > P.bb[2]) break;
+      if (Qb.bb[1] > P.bb[3] || Qb.bb[3] < P.bb[1]) continue;
+      const A0 = P.b, B0 = Qb.b;
+      if ((A0.stat || A0.asleep) && (B0.stat || B0.asleep)) { const k = A0.id < B0.id ? A0.id + ':' + B0.id : B0.id + ':' + A0.id; if (ARB.has(k)) seen.add(k); continue; }
+      if (A0.ghost || B0.ghost) continue;
+      const [A, B] = A0.id < B0.id ? [A0, B0] : [B0, A0], key = A.id + ':' + B.id;
+      const cs = collide(A, B);
+      if (!cs) { ARB.delete(key); continue; }
+      seen.add(key);
+      let arb = ARB.get(key);
+      if (!arb) { arb = { b1: A, b2: B, cs: [], fresh: true }; ARB.set(key, arb); }
+      // keep accumulated impulses for contacts that persist (matched by position)
+      for (const c of cs) { c.pn = 0; c.pt = 0; for (const o of arb.cs) if (hyp(o.x - c.x, o.y - c.y) < 3) { c.pn = o.pn; c.pt = o.pt; break; } }
+      arb.cs = cs;
+      if (A.asleep && !B.asleep && !B.stat && hyp(B.vx, B.vy) > 30) wake(A);
+      if (B.asleep && !A.asleep && !A.stat && hyp(A.vx, A.vy) > 30) wake(B);
+    }
+  }
+  for (const k of ARB.keys()) if (!seen.has(k)) ARB.delete(k);
+  // forces
+  for (const b of BODIES) { if (b.stat || b.asleep || b.pinned) continue; b.vy += PH.g * dt * (b.grav ?? 1); if (b.ax) b.vx += b.ax * dt; b.vx *= 1 - 0.02 * dt; b.vy *= 1 - 0.02 * dt; b.w *= 1 - 0.3 * dt; }
+  // pre-step: effective masses, bias, warm start, impact reports
+  const idt = 1 / dt;
+  for (const arb of ARB.values()) {
+    const A = arb.b1, B = arb.b2, fr = Math.sqrt(A.fric * B.fric), e = Math.max(A.rest, B.rest);
+    arb.fr = fr;
+    for (const c of arb.cs) {
+      const r1x = c.x - A.x, r1y = c.y - A.y, r2x = c.x - B.x, r2y = c.y - B.y;
+      c.r1x = r1x; c.r1y = r1y; c.r2x = r2x; c.r2y = r2y;
+      const rn1 = r1x * c.nx + r1y * c.ny, rn2 = r2x * c.nx + r2y * c.ny;
+      c.mn = 1 / (A.im + B.im + A.iI * (r1x * r1x + r1y * r1y - rn1 * rn1) + B.iI * (r2x * r2x + r2y * r2y - rn2 * rn2));
+      const tx = c.ny, ty = -c.nx, rt1 = r1x * tx + r1y * ty, rt2 = r2x * tx + r2y * ty;
+      c.mt = 1 / (A.im + B.im + A.iI * (r1x * r1x + r1y * r1y - rt1 * rt1) + B.iI * (r2x * r2x + r2y * r2y - rt2 * rt2));
+      const dvx = B.vx - B.w * r2y - A.vx + A.w * r1y, dvy = B.vy + B.w * r2x - A.vy - A.w * r1x, vn = dvx * c.nx + dvy * c.ny;
+      c.bias = -PH.bias * idt * Math.min(0, c.sep + PH.slop) + (vn < -120 ? -e * vn : 0);
+      if (arb.fresh && vn < -60 && HOOK.contact) HOOK.contact(A, B, -vn, c);
+      const px = c.pn * c.nx + c.pt * tx, py = c.pn * c.ny + c.pt * ty;
+      A.vx -= A.im * px; A.vy -= A.im * py; A.w -= A.iI * (r1x * py - r1y * px);
+      B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (r2x * py - r2y * px);
+    }
+    arb.fresh = false;
+  }
+  // iterate impulses
+  for (let it = 0; it < PH.iters; it++) for (const arb of ARB.values()) {
+    const A = arb.b1, B = arb.b2;
+    for (const c of arb.cs) {
+      let dvx = B.vx - B.w * c.r2y - A.vx + A.w * c.r1y, dvy = B.vy + B.w * c.r2x - A.vy - A.w * c.r1x;
+      const vn = dvx * c.nx + dvy * c.ny;
+      let dPn = c.mn * (-vn + c.bias); const p0 = c.pn; c.pn = Math.max(p0 + dPn, 0); dPn = c.pn - p0;
+      let px = dPn * c.nx, py = dPn * c.ny;
+      A.vx -= A.im * px; A.vy -= A.im * py; A.w -= A.iI * (c.r1x * py - c.r1y * px);
+      B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (c.r2x * py - c.r2y * px);
+      dvx = B.vx - B.w * c.r2y - A.vx + A.w * c.r1y; dvy = B.vy + B.w * c.r2x - A.vy - A.w * c.r1x;
+      const tx = c.ny, ty = -c.nx, vt = dvx * tx + dvy * ty;
+      let dPt = c.mt * -vt; const mx = arb.fr * c.pn, t0 = c.pt; c.pt = clamp(t0 + dPt, -mx, mx); dPt = c.pt - t0;
+      px = dPt * tx; py = dPt * ty;
+      A.vx -= A.im * px; A.vy -= A.im * py; A.w -= A.iI * (c.r1x * py - c.r1y * px);
+      B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (c.r2x * py - c.r2y * px);
+    }
+  }
+  // integrate and sleep
+  for (const b of BODIES) {
+    if (b.stat || b.asleep) continue;
+    if (b.pinned) { b.vx = b.vy = b.w = 0; continue; }
+    const sp = hyp(b.vx, b.vy); if (sp > 2400) { b.vx *= 2400 / sp; b.vy *= 2400 / sp; }
+    b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.w * dt;
+    if (b.kind === 'block' || b.kind === 'bell') {
+      if (sp < 7 && Math.abs(b.w) < 0.1) { b.sleep += dt; if (b.sleep > 0.5) { b.asleep = true; b.vx = b.vy = b.w = 0; } } else b.sleep = 0;
+    }
+  }
+  if (HOOK.step) HOOK.step(dt);
+}
+function physAdvance(dt) { const h = dt / PH.sub; for (let i = 0; i < PH.sub; i++) physStep(h); }
+function contactsOf(b) { const out = []; for (const a of ARB.values()) if (a.b1 === b) out.push(a.b2); else if (a.b2 === b) out.push(a.b1); return out; }
+
+// ===== 20-game.js =====
+// ================= the battlefield =================
+const WORLD = { W: 2600, H: 1000, ground: 780 };
+const ZONES = [{ x0: 150, x1: 810, cat: 930, dir: 1 }, { x0: 1790, x1: 2450, cat: 1670, dir: -1 }];
+const BELL_MIN = 40;          // the bell must start at least this far above the ground
+const BUDGET = 1600, BUILD_S = 120, VMAX = 1300;
+const PIECES = {
+  hay: { nm: 'Hay', hw: 22, hh: 22, dens: 0.35, hp: 45, cost: 15, fric: 0.9 },
+  crate: { nm: 'Crate', hw: 22, hh: 22, dens: 0.75, hp: 80, cost: 30, fric: 0.7 },
+  plank: { nm: 'Plank', hw: 70, hh: 7, dens: 0.7, hp: 60, cost: 35, fric: 0.7 },
+  stone: { nm: 'Stone', hw: 22, hh: 22, dens: 2.4, hp: 170, cost: 70, fric: 0.75 },
+  slab: { nm: 'Slab', hw: 55, hh: 11, dens: 2.4, hp: 190, cost: 100, fric: 0.75 },
+  bell: { nm: 'Bell', hw: 14, hh: 16, dens: 1.6, hp: 1e9, cost: 0, fric: 0.6 }
+};
+const PIECE_ORDER = ['bell', 'hay', 'crate', 'plank', 'stone', 'slab'];
+const SHEEP = {
+  sheep: { nm: 'Sheep', r: 17, dens: 1.3, blast: 78, fuse: 0.9, n: 8 },
+  trio: { nm: 'Lamb trio', r: 15, dens: 1.2, blast: 52, fuse: 0.6, n: 2 },
+  ram: { nm: 'Ram', r: 21, dens: 4.5, blast: 0, fuse: 0, n: 1 },
+  fluff: { nm: 'Fluffball', r: 15, dens: 1.0, blast: 60, fuse: 0, n: 2 },
+  black: { nm: 'Black sheep', r: 17, dens: 1.5, blast: 125, fuse: 3, n: 1 }
+};
+const SHEEP_ORDER = ['sheep', 'trio', 'ram', 'fluff', 'black'];
+const NAMES = { cpu: ['You', 'CPU'], local: ['Player 1', 'Player 2'], online: ['Blue', 'Orange'] };
+const SET = { diff: 1, sound: 1 };
+try { Object.assign(SET, JSON.parse(localStorage.getItem('flockfortress.set') || '{}')); } catch (e) { }
+const saveSet = () => { try { localStorage.setItem('flockfortress.set', JSON.stringify(SET)); } catch (e) { } };
+
+let G = null, GROUND = null;
+const FX = [];   // particles: { x, y, vx, vy, t, life, k, s, c }
+function resetWorld() {
+  BODIES = []; ARB = new Map(); NEXT_ID = 1;
+  GROUND = mkBody({ stat: true, x: WORLD.W / 2, y: WORLD.ground + 200, hw: WORLD.W, hh: 200, kind: 'ground', fric: 0.9 });
+  FX.length = 0;
+}
+function mySides() { return !G ? [] : G.mode === 'local' ? [0, 1] : [G.me]; }
+const isMine = side => mySides().includes(side);
+const sideName = s => G ? G.names[s] : '';
+
+// ---------- match flow
+function newMatch(o) {
+  G = { mode: o.mode, me: o.me || 0, names: NAMES[o.mode].slice(), seed: o.seed || (Math.random() * 1e9) | 0, round: 0, wins: [0, 0], phase: 'build', turn: 0, starter: 0,
+    forts: [null, null], ready: [false, false], lastFort: [null, null], dmg: [0, 0], ammo: null, wind: 0, shot: null, buildT: BUILD_S, builder: 0, sel: 'bell', rot: 0, msgT: 0, t: 0, stats: [{ shots: 0, best: 0 }, { shots: 0, best: 0 }] };
+  if (o.mode === 'online' && G.me === 1) G.names = ['Blue', 'Orange'];
+  try { const lf = JSON.parse(localStorage.getItem('flockfortress.lastfort') || 'null'); if (lf) G.lastFort = [lf, lf]; } catch (e) { }
+  for (const id of ['title', 'pause', 'card']) $(id).classList.add('hidden');
+  $('hud').classList.remove('hidden'); document.body.classList.add('playing');
+  newRound();
+}
+function newRound() {
+  G.round++; G.phase = 'build'; G.ready = [false, false]; G.forts = [null, null]; G.dmg = [0, 0]; G.shot = null; G.buildT = BUILD_S;
+  G.ammo = [0, 1].map(() => Object.fromEntries(SHEEP_ORDER.map(k => [k, SHEEP[k].n])));
+  G.starter = (G.round - 1) % 2; G.turn = G.starter; G.turnN = 0;
+  resetWorld();
+  G.builder = G.mode === 'local' ? 0 : G.me;
+  G.sel = 'bell'; G.rot = 0;
+  if (G.mode === 'cpu') { cpuBuild(1); }
+  if (G.mode === 'local') passScreen(0, `Round ${G.round} · ${G.names[0]} builds`, `${G.names[1]}, look away!`);
+  else say(`Round ${G.round} · build your fort`, 'Place your bell first, off the ground', 3.2);
+  camTo('build', G.builder, true);
+  renderBars();
+}
+// ---------- building
+function money(side) { return BUDGET - BODIES.filter(b => b.side === side && b.piece).reduce((s, b) => s + PIECES[b.piece].cost, 0); }
+function bellOf(side) { return BODIES.find(b => b.kind === 'bell' && b.side === side); }
+function placePiece(side, t, x, y, rot, quiet) {
+  const P = PIECES[t], z = ZONES[side];
+  if (!P) return null;
+  if (t === 'bell' && bellOf(side)) { if (!quiet) say('You already have a bell', '', 1.2); return null; }
+  if (P.cost > money(side)) { if (!quiet) { say('Not enough money', '', 1.2); AUD.click(); } return null; }
+  const hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
+  if (x - hw < z.x0 || x + hw > z.x1 || y + hh > WORLD.ground + 1 || y - hh < 120) { if (!quiet) AUD.click(); return null; }
+  const probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  for (const b of BODIES) if (b !== GROUND && b.side === side && collide(probe, b)) { if (!quiet) AUD.click(); return null; }
+  const b = mkBody({ x, y, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
+  if (!quiet) AUD.place(t);
+  return b;
+}
+function removePiece(b) { if (!b || !b.piece) return; removeBody(b); AUD.click(); for (const o of BODIES) wake(o); }
+function serializeFort(side) { return BODIES.filter(b => b.side === side && b.piece).map(b => [b.piece, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(4), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
+function buildFrom(side, list) {
+  for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
+  let k = 0;
+  for (const [t, x, y, a, rot] of list) {
+    const P = PIECES[t], hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
+    const b = mkBody({ x, y, a, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
+    b.id = 1000 * (side + 1) + (k++); b.asleep = true;
+  }
+}
+function bellOK(side) { const b = bellOf(side); if (!b) return 'Place your bell first'; const bottom = b.y + Math.max(b.hw, b.hh); return bottom > WORLD.ground - BELL_MIN ? 'Your bell must sit off the ground' : ''; }
+function readyUp(side) {
+  if (G.phase !== 'build' || G.ready[side]) return;
+  const bad = bellOK(side); if (bad) { say(bad, 'Put it on top of some blocks', 2); AUD.click(); return; }
+  G.ready[side] = true; G.forts[side] = serializeFort(side); G.lastFort[side] = normFort(side);
+  if (isMine(side)) try { localStorage.setItem('flockfortress.lastfort', JSON.stringify(G.lastFort[side])); } catch (e) { }
+  AUD.ready();
+  if (G.mode === 'online') { mpSend({ k: 'fort', round: G.round, side, list: G.forts[side] }); if (!G.forts[1 - side]) say('Ready!', 'Waiting for the other fort…', 60); }
+  if (G.mode === 'local' && side === 0) { for (const b of BODIES.filter(b => b.side === 0)) b.ghost = true; G.builder = 1; G.sel = 'bell'; passScreen(1, `${G.names[1]} builds`, `${G.names[0]}, look away!`); camTo('build', 1, true); renderBars(); return; }
+  if (G.forts[0] && G.forts[1]) startSiege();
+  renderBars();
+}
+function autoReady() { // build timer ran out: a bell on the ground gets lifted onto a crate
+  for (const side of mySides()) if (!G.ready[side] && (G.mode !== 'local' || side === G.builder)) {
+    if (!bellOf(side)) { const z = ZONES[side], x = (z.x0 + z.x1) / 2; placePiece(side, 'crate', x, WORLD.ground - 22, 0, true); placePiece(side, 'bell', x, WORLD.ground - 44 - 18, 0, true); }
+    else if (bellOK(side)) { const b = bellOf(side); removeBody(b); placePiece(side, 'crate', b.x, WORLD.ground - 22, 0, true); placePiece(side, 'bell', b.x, WORLD.ground - 44 - 18, 0, true); }
+    for (let i = 0; i < 60; i++) physAdvance(1 / 60);
+    G.ready[side] = false; readyUp(side);
+  }
+}
+function startSiege() {
+  // both forts are rebuilt from their saved lists, so every screen starts from exactly the same state
+  resetWorld(); buildFrom(0, G.forts[0]); buildFrom(1, G.forts[1]);
+  G.phase = 'siege'; G.turn = G.starter; G.turnN = 0; G.shot = null;
+  newWind();
+  say(`${G.names[G.turn]} ${G.names[G.turn] === 'You' ? 'go' : 'goes'} first`, 'Knock their bell to the ground', 2.6);
+  camTo('aim', G.turn, true);
+  renderBars(); AUD.bell(0.4);
+  if (G.mode === 'cpu' && G.turn === 1) cpuTurnSoon();
+}
+function newWind() { const r = rng(G.seed + G.round * 97 + G.turnN * 13); G.wind = Math.round((r() * 2 - 1) * 90 * (G.round > 1 ? 1.2 : 1)); }
+// ---------- shooting
+function canAim() { return G && G.phase === 'siege' && !G.shot && isMine(G.turn) && !(G.mode === 'cpu' && G.turn === 1); }
+function launchPoint(side) { return [ZONES[side].cat + ZONES[side].dir * 26, WORLD.ground - 92]; }
+function fire(side, type, vx, vy) {
+  if (G.phase !== 'siege' || G.shot || G.ammo[side][type] <= 0) return false;
+  G.ammo[side][type]--; G.stats[side].shots++;
+  const S = SHEEP[type], [x, y] = launchPoint(side);
+  const b = mkBody({ shape: 'circle', x, y, r: S.r, dens: S.dens, vx, vy, w: -side * 2 + 1, kind: 'sheep', st: type, side, fric: 0.8, rest: type === 'ram' ? 0.1 : 0.25, age: 0, ax: G.wind });
+  b.id = 50000 + G.turnN * 20;
+  G.shot = { side, t: 0, quiet: 0, boom: -9, bells: null }; G.authority = G.mode !== 'online' || isMine(side);
+  G.catT = 0.5; G.catSide = side;
+  AUD.launch(); AUD.baa(1 + Math.random() * 0.3);
+  if (G.mode === 'online' && isMine(side)) mpSend({ k: 'shot', side, type, vx: Math.round(vx), vy: Math.round(vy) });
+  renderBars(); camTo('follow', side);
+  return true;
+}
+function splitTrio(b) {
+  if (!b || b.st !== 'trio' || b.split || b.touched) return;
+  b.split = true; removeBody(b); AUD.baa(1.5);
+  for (let k = -1; k <= 1; k++) {
+    const l = mkBody({ shape: 'circle', x: b.x + k * 4, y: b.y + k * 6, r: 11, dens: 1.2, vx: b.vx + k * 90, vy: b.vy + k * 110 - 20, kind: 'sheep', st: 'lamb', side: b.side, fric: 0.8, rest: 0.25, age: 0, ax: G.wind });
+    l.id = b.id + 2 + k;
+  }
+  puff(b.x, b.y, 10, '#fff');
+}
+// physics hooks: first touches arm fuses, hard knocks damage blocks
+HOOK.contact = (A, B, speed) => {
+  if (!G || G.phase !== 'siege' || !G.shot) return;
+  for (const [s, o] of [[A, B], [B, A]]) {
+    if (s.kind === 'sheep' && !s.touched) {
+      s.touched = true; s.ax = 0; LASTHIT[s.side] = [s.x, s.y];
+      const S = SHEEP[s.st] || { fuse: 0.6 };
+      if (s.st === 'sheep' || s.st === 'trio') s.fuse = S.fuse;
+      else if (s.st === 'lamb') s.fuse = 0.6;
+      else if (s.st === 'black') { s.fuse = S.fuse; s.pinned = true; s.vx = s.vy = s.w = 0; s.stuckTo = o === GROUND ? null : o; if (s.stuckTo) { s.ox = s.x - o.x; s.oy = s.y - o.y; s.oa = o.a; } AUD.thud(0.6); }
+      if (speed > 200) AUD.baa(0.9 + Math.random() * 0.4);
+    }
+  }
+  // impact damage to blocks
+  if (speed > 150) for (const [b, o] of [[A, B], [B, A]]) {
+    if (b.kind !== 'block') continue;
+    const ram = o.kind === 'sheep' && o.st === 'ram', heavy = o.m && b.m ? o.m / (o.m + b.m) : 0.5;
+    const dmg = (speed - (ram ? 90 : 200)) * (ram ? 0.34 : 0.06) * (0.4 + heavy);
+    if (dmg > 0) hurt(b, dmg, o.kind === 'sheep' ? o.side : 1 - b.side);
+  }
+  if (speed > 260) AUD.thud(Math.min(1, speed / 900), (A.piece || B.piece));
+};
+HOOK.step = dt => {
+  if (!G || !G.shot) return;
+  for (const s of BODIES.slice()) {
+    if (s.kind !== 'sheep') continue;
+    s.age += dt;
+    if (s.stuckTo) { const o = s.stuckTo; if (BODIES.includes(o)) { const c = Math.cos(o.a - s.oa), sn = Math.sin(o.a - s.oa); s.x = o.x + c * s.ox - sn * s.oy; s.y = o.y + sn * s.ox + c * s.oy; } else { s.stuckTo = null; s.pinned = false; } }
+    // fluffball: grows while it rolls along, bursts when it stops
+    if (s.st === 'fluff' && s.touched) {
+      const sp = hyp(s.vx, s.vy);
+      if (sp > 70 && s.r < 58) { s.r += dt * sp * 0.014; setMass(s); }
+      s.slow = sp < 40 ? (s.slow || 0) + dt : 0;
+      if (s.slow > 0.35 || s.age > 7) explode(s);
+    }
+    if (s.fuse !== undefined && s.fuse !== null) { s.fuse -= dt; if (s.fuse <= 0) explode(s); }
+    if (s.st === 'ram' && s.touched && hyp(s.vx, s.vy) < 15) { s.calm = (s.calm || 0) + dt; if (s.calm > 1.2) { puff(s.x, s.y, 6, '#ddd'); removeBody(s); } }
+    if (s.y > WORLD.ground + 300 || s.x < -300 || s.x > WORLD.W + 300 || s.age > 14) removeBody(s);
+  }
+};
+function hurt(b, dmg, bySide) {
+  if (!b.hp || b.kind !== 'block' || !BODIES.includes(b)) return;
+  b.hp -= dmg; b.hitT = 0.25;
+  if (b.hp <= 0) {
+    removeBody(b);
+    if (bySide !== b.side) G.dmg[bySide] += PIECES[b.piece].cost;
+    const col = { hay: '#e8c860', crate: '#9a6a3a', plank: '#a8763e', stone: '#8d8a82', slab: '#7f7c75' }[b.piece];
+    for (let i = 0; i < 14; i++) FX.push({ x: b.x + (Math.random() - 0.5) * b.hw * 2, y: b.y + (Math.random() - 0.5) * b.hh * 2, vx: (Math.random() - 0.5) * 300, vy: -Math.random() * 300, t: 0, life: 0.8 + Math.random() * 0.6, k: 'chip', s: 3 + Math.random() * 4, c: col, a: Math.random() * 6, w: (Math.random() - 0.5) * 12 });
+    AUD.crunch(b.piece);
+  }
+}
+// the explosion: shoves and damages everything nearby; any sheep in reach go off too, each bigger than the last
+function explode(s) {
+  if (s.dead) return; s.dead = true;
+  const S = SHEEP[s.st] || { blast: 52 }, chain = s.chain || 1;
+  let R = (s.st === 'fluff' ? 40 + s.r * 2.6 : s.st === 'lamb' ? 52 : S.blast) * chain;
+  if (!R) { removeBody(s); return; }
+  removeBody(s);
+  G.shot.boom = G.shot.t; G.stats[s.side].best = Math.max(G.stats[s.side].best, chain);
+  for (const b of BODIES.slice()) {
+    if (b === GROUND) continue;
+    const ext = b.shape === 'circle' ? b.r : Math.min(b.hw, b.hh), dx = b.x - s.x, dy = b.y - s.y, d = Math.max(1, hyp(dx, dy) - ext);
+    if (d > R) continue;
+    const k = 1 - d / R;
+    if (b.kind === 'sheep' && !b.dead) { if (b.st !== 'ram') { b.chain = Math.min(2.6, chain * 1.25); b.fuse = b.fuse == null ? 0.09 : Math.min(b.fuse, 0.09); } }
+    wake(b);
+    if (b.pinned && b.kind !== 'sheep') continue;
+    const J = R * 2.4 * k * (0.6 + 0.4 * chain), dl = hyp(dx, dy) || 1;
+    if (!b.stat) { b.vx += dx / dl * J * b.im * 0.06; b.vy += (dy / dl - 0.35) * J * b.im * 0.06; b.w += (Math.random() - 0.5) * k * 6; }
+    if (b.kind === 'block') hurt(b, 135 * k * (R / 78), s.side);
+  }
+  // wool everywhere
+  puff(s.x, s.y, Math.round(18 + R / 4), '#fff', R);
+  FX.push({ x: s.x, y: s.y, t: 0, life: 0.45, k: 'ring', s: R });
+  G.shake = Math.min(14, 3 + R / 12);
+  AUD.boom(R, chain);
+  if (G.mode === 'online' && G.authority) mpSend({ k: 'fx', x: Math.round(s.x), y: Math.round(s.y), R: Math.round(R), chain });
+}
+function puff(x, y, n, c, R = 40) {
+  for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = (0.3 + Math.random()) * R * 4; FX.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, t: 0, life: 0.7 + Math.random() * 0.8, k: 'wool', s: 5 + Math.random() * 9 + R / 20, c }); }
+}
+// ---------- the end of a shot
+function shotStep(dt) {
+  const sh = G.shot; sh.t += dt;
+  // a bell that touches the ground (or leaves the field) loses the round for its side
+  for (const side of [0, 1]) {
+    const b = bellOf(side); if (!b) continue;
+    const ext = Math.abs(Math.cos(b.a)) * b.hh + Math.abs(Math.sin(b.a)) * b.hw;
+    if (b.y + ext >= WORLD.ground - 3 || b.y > WORLD.ground + 50 || b.x < -50 || b.x > WORLD.W + 50) { if (G.authority !== false) bellDown(side); return; }
+  }
+  const sheepLeft = BODIES.some(b => b.kind === 'sheep');
+  const moving = BODIES.some(b => !b.stat && !b.asleep && (b.kind === 'block' || b.kind === 'bell') && hyp(b.vx, b.vy) > 12);
+  sh.quiet = !sheepLeft && !moving ? sh.quiet + dt : 0;
+  if ((sh.quiet > 0.7 && sh.t - sh.boom > 0.8) || sh.t > 13) endShot();
+}
+function endShot() {
+  for (const b of BODIES.filter(b => b.kind === 'sheep')) removeBody(b);
+  G.shot = null; G.turnN++; cpuLearn();
+  if (G.mode === 'online' && G.authority) { const st = snapState(true); mpSend({ k: 'end', state: st }); applyState(st, true); }   // both screens continue from the identical rounded state
+  nextTurn();
+}
+function nextTurn() {
+  const left = s => SHEEP_ORDER.reduce((a, k) => a + G.ammo[s][k], 0);
+  if (!left(0) && !left(1)) { roundOver(G.dmg[0] === G.dmg[1] ? -1 : G.dmg[0] > G.dmg[1] ? 0 : 1, 'damage'); return; }
+  G.turn = left(1 - G.turn) ? 1 - G.turn : G.turn;
+  newWind();
+  camTo('aim', G.turn);
+  say(G.mode === 'cpu' ? (G.turn === 0 ? 'Your shot' : 'CPU is aiming…') : G.mode === 'local' ? `${G.names[G.turn]}'s shot` : (G.turn === G.me ? 'Your shot' : `${G.names[G.turn]} is aiming…`), '', 1.4);
+  renderBars();
+  if (G.mode === 'cpu' && G.turn === 1) cpuTurnSoon();
+}
+function bellDown(side) {
+  if (G.phase !== 'siege') return;
+  AUD.bell(1); const b = bellOf(side); if (b) puff(b.x, b.y, 18, '#ffd76a', 50);
+  roundOver(1 - side, 'bell');
+}
+function roundOver(winner, why) {
+  if (G.phase !== 'siege') return;
+  G.phase = 'roundEnd'; G.shot = null;
+  for (const b of BODIES.filter(b => b.kind === 'sheep')) removeBody(b);
+  if (winner >= 0) G.wins[winner]++;
+  if (G.mode === 'online' && G.authority) mpSend({ k: 'round', winner, why, state: snapState(true) });
+  G.authority = false;
+  const done = G.wins[0] >= 2 || G.wins[1] >= 2;
+  setTimeout(() => showRoundCard(winner, why, done), 1300);
+  renderBars();
+}
+function showRoundCard(winner, why, done) {
+  if (!G) return;
+  const you = winner >= 0 && isMine(winner) && G.mode !== 'local';
+  const head = winner < 0 ? 'Draw' : G.mode === 'local' ? `${G.names[winner]} wins${done ? ' the match' : ''}!` : you ? (done ? 'Victory!' : 'Round won!') : (done ? 'Defeated' : 'Round lost');
+  const sub = why === 'bell' ? (winner >= 0 ? `${G.names[1 - winner]}'s bell hit the ground.` : '') : why === 'left' ? 'The other player left.' : winner < 0 ? 'Same damage on both sides. Replay the round.' : `Out of sheep · more damage wins.`;
+  if (done) G.phase = 'over';
+  showCard(head, sub, `<span>${G.names[0]} ${G.wins[0]}</span><span>${G.names[1]} ${G.wins[1]}</span><span>💥 $${G.dmg[0]} · $${G.dmg[1]}</span>`,
+    done ? (G.mode === 'online' && !isHost() ? 'Waiting for host…' : '▶ Rematch') : (G.mode === 'online' && !isHost() ? 'Waiting for host…' : '▶ Next round'),
+    () => { if (G.mode === 'online') { if (!isHost()) return; if (done) hostStart(); else { mpSend({ k: 'next' }); hideCard(); newRound(); } } else if (done) newMatch({ mode: G.mode }); else { hideCard(); newRound(); } });
+  AUD[you || (G.mode === 'local' && winner >= 0) ? 'win' : 'lose']();
+}
+// ---------- snapshots (online)
+function snapState(full) {
+  return { round: G.round, phase: G.phase, wins: G.wins, dmg: G.dmg, ammo: G.ammo, turn: G.turn, turnN: G.turnN, starter: G.starter,
+    bodies: BODIES.filter(b => b !== GROUND && (full || !b.asleep)).map(b => [b.id, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(3), b.kind, b.piece || b.st || '', b.side ?? -1, Math.round(b.hp || 0), +(b.r || 0).toFixed(1), b.hw, b.hh]),
+    live: full ? null : BODIES.filter(b => b !== GROUND).map(b => b.id) };
+}
+function applyState(st, full) {
+  if (full) { G.round = st.round; G.wins = st.wins; G.dmg = st.dmg; G.ammo = st.ammo; G.turn = st.turn; G.turnN = st.turnN; G.starter = st.starter; }
+  const byId = new Map(BODIES.map(b => [b.id, b]));
+  const seen = new Set();
+  for (const [id, x, y, a, kind, sub, side, hp, r, hw, hh] of st.bodies) {
+    let b = byId.get(id); seen.add(id);
+    if (!b) {
+      if (kind === 'sheep') b = mkBody({ shape: 'circle', x, y, r, kind, st: sub, side, dens: 1 });
+      else { const P = PIECES[sub]; if (!P) continue; b = mkBody({ x, y, a, hw, hh, dens: P.dens, fric: P.fric, kind, piece: sub, side, hp, maxhp: P.hp }); }
+      b.id = id;
+    }
+    b.px = b.x; b.py = b.y; b.pa = b.a; b.tx = x; b.ty = y; b.ta = a; if (full) { b.x = x; b.y = y; b.a = a; }
+    if (kind === 'sheep' && r) b.r = r;
+    if (hp && b.maxhp) b.hp = hp;
+    b.vx = b.vy = b.w = 0; b.asleep = true;
+  }
+  const live = st.live ? new Set(st.live) : seen;
+  for (const b of BODIES.slice()) if (b !== GROUND && !live.has(b.id)) { if (b.kind === 'block') hurt(b, 1e9, 1 - b.side); else removeBody(b); }
+}
+
+// ===== 30-draw.js =====
+// ================= drawing =================
+const cv = $('c'); let ctx = cv.getContext('2d');
+function ctxSwap(g) { ctx = g; }   // lets the piece and sheep painters draw HUD icons too
+const V = { w: 0, h: 0, dpr: 1 };
+const CAM = { x: WORLD.W / 2, y: 560, z: 0.5, tx: WORLD.W / 2, ty: 560, tz: 0.5, mode: 'fit', zoomOut: false };
+function layout() { V.dpr = Math.min(2, devicePixelRatio || 1); V.w = innerWidth; V.h = innerHeight; cv.width = V.w * V.dpr; cv.height = V.h * V.dpr; if (G) camTo(CAM.mode, CAM.side, true); }
+addEventListener('resize', layout);
+// frame a world rectangle on screen (leaving room for the HUD)
+function frame(x0, y0, x1, y1) { const short = V.h < 520, top = short ? 54 : 64, bot = short ? 78 : 96, z = Math.min(V.w / (x1 - x0), (V.h - top - bot) / (y1 - y0)); return { x: (x0 + x1) / 2, y: (y0 + y1) / 2 - (bot - top) / 2 / z * 0, z, top, bot }; }
+function camTo(mode, side, snap) {
+  CAM.mode = mode; CAM.side = side;
+  let f;
+  if (CAM.zoomOut || mode === 'fit') f = frame(-40, 120, WORLD.W + 40, WORLD.ground + 70);
+  else if (mode === 'build') { const z = ZONES[side]; f = frame(z.x0 - 40, WORLD.ground - (V.h < 520 ? 440 : 600), z.x1 + 40, WORLD.ground + 50); }
+  else { // aim and follow: from your catapult to the far side of the enemy fort
+    const z = ZONES[side], e = ZONES[1 - side], a = Math.min(z.cat - 160 * z.dir, e.x0, e.x1, z.cat + 160 * z.dir), b = Math.max(z.cat - 160 * z.dir, e.x0, e.x1, z.cat + 160 * z.dir);
+    f = frame(a - 40, WORLD.ground - (V.h < 520 ? 480 : 620), b + 40, WORLD.ground + 60);
+  }
+  CAM.tx = f.x; CAM.ty = f.y + (f.bot - f.top) / 2 / f.z; CAM.tz = f.z;
+  if (snap) { CAM.x = CAM.tx; CAM.y = CAM.ty; CAM.z = CAM.tz; }
+}
+function camStep(dt) {
+  if (G && G.shot && CAM.mode === 'follow' && !CAM.zoomOut) {
+    // keep the flying sheep in view
+    const s = BODIES.find(b => b.kind === 'sheep');
+    if (s) { const half = V.w / 2 / CAM.z * 0.7; if (s.x > CAM.tx + half * 0.6) CAM.tx = s.x - half * 0.6; if (s.x < CAM.tx - half * 0.6) CAM.tx = s.x + half * 0.6; CAM.tx = clamp(CAM.tx, V.w / 2 / CAM.z - 40, WORLD.W + 40 - V.w / 2 / CAM.z); }
+  }
+  const k = 1 - Math.exp(-dt * 4);
+  CAM.x = lerp(CAM.x, CAM.tx, k); CAM.y = lerp(CAM.y, CAM.ty, k); CAM.z = lerp(CAM.z, CAM.tz, k);
+}
+const w2s = (x, y) => [(x - CAM.x) * CAM.z + V.w / 2, (y - CAM.y) * CAM.z + V.h / 2];
+const s2w = (X, Y) => [CAM.x + (X - V.w / 2) / CAM.z, CAM.y + (Y - V.h / 2) / CAM.z];
+// ---------- scenery
+const CLOUDS = Array.from({ length: 9 }, (_, i) => ({ x: hash(i, 1, 3) * 3200 - 300, y: 80 + hash(i, 2, 3) * 300, s: 0.6 + hash(i, 3, 3) * 0.9, v: 6 + hash(i, 4, 3) * 10 }));
+function drawSky(t) {
+  const g = ctx.createLinearGradient(0, 0, 0, V.h); g.addColorStop(0, '#6fb2e6'); g.addColorStop(0.6, '#a9d6f2'); g.addColorStop(1, '#e8f1de');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, V.w, V.h);
+  // sun
+  ctx.fillStyle = 'rgba(255,245,200,.9)'; ctx.beginPath(); ctx.arc(V.w * 0.82, V.h * 0.16, 34, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,245,200,.25)'; ctx.beginPath(); ctx.arc(V.w * 0.82, V.h * 0.16, 60, 0, TAU); ctx.fill();
+}
+function hillLayer(par, base, amp, col, seed) {
+  ctx.fillStyle = col; ctx.beginPath();
+  const x0 = (CAM.x * (1 - par)) , step = 40;
+  ctx.moveTo(-10, V.h);
+  for (let sx = -10; sx <= V.w + step; sx += step) {
+    const wx = (sx - V.w / 2) / (CAM.z * (0.5 + par * 0.5)) + CAM.x * par;
+    const h = Math.sin(wx * 0.004 + seed) * amp + Math.sin(wx * 0.011 + seed * 2) * amp * 0.4;
+    const [, gy] = w2s(0, WORLD.ground - base - h);
+    ctx.lineTo(sx, gy + (CAM.y - 560) * CAM.z * (1 - par) * 0.4);
+  }
+  ctx.lineTo(V.w + 10, V.h); ctx.closePath(); ctx.fill();
+}
+function drawClouds(t) {
+  for (const c of CLOUDS) {
+    const wx = ((c.x + t * c.v) % 3400) - 300, sx = (wx - CAM.x * 0.3) * CAM.z * 0.7 + V.w / 2, sy = c.y * CAM.z * 0.7 + 20;
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for (const [dx, dy, r] of [[0, 0, 34], [30, 8, 26], [-30, 8, 24], [12, -14, 26]]) { ctx.beginPath(); ctx.arc(sx + dx * c.s * CAM.z * 1.4, sy + dy * c.s * CAM.z * 1.4, r * c.s * CAM.z * 1.4, 0, TAU); ctx.fill(); }
+  }
+}
+function drawGround() {
+  const [, gy] = w2s(0, WORLD.ground), [lx] = w2s(0, 0), [rx] = w2s(WORLD.W, 0);
+  ctx.fillStyle = '#7a5a3a'; ctx.fillRect(0, gy, V.w, V.h - gy);
+  ctx.fillStyle = '#5f9a3e'; ctx.fillRect(0, gy, V.w, 16 * CAM.z + 4);
+  ctx.fillStyle = '#76b24c'; ctx.fillRect(0, gy, V.w, 6 * CAM.z + 2);
+  // tufts
+  ctx.strokeStyle = '#4f8a32'; ctx.lineWidth = Math.max(1, 2 * CAM.z);
+  for (let x = Math.floor((CAM.x - V.w / 2 / CAM.z) / 30) * 30; x < CAM.x + V.w / 2 / CAM.z; x += 30) { const [sx] = w2s(x + hash(x, 0, 1) * 20, 0); const h = (4 + hash(x, 1, 1) * 6) * CAM.z; ctx.beginPath(); ctx.moveTo(sx, gy + 1); ctx.lineTo(sx - h * 0.4, gy - h); ctx.moveTo(sx + 3 * CAM.z, gy + 1); ctx.lineTo(sx + 3 * CAM.z, gy - h * 1.2); ctx.stroke(); }
+  // field edges
+  ctx.fillStyle = 'rgba(0,0,0,.12)'; if (lx > 0) ctx.fillRect(0, 0, lx, V.h); if (rx < V.w) ctx.fillRect(rx, 0, V.w - rx, V.h);
+}
+// ---------- pieces
+const WOOD = '#a8763e', WOOD_D = '#7d5328', STONE = '#9a968c', STONE_D = '#6f6b63', HAY = '#e6c35c', HAY_D = '#b8902e';
+function drawPiece(b, alpha = 1) {
+  ctx.save(); const [sx, sy] = w2s(b.x, b.y); ctx.translate(sx, sy); ctx.rotate(b.a); ctx.scale(CAM.z, CAM.z); ctx.globalAlpha *= alpha;
+  const w = b.hw, h = b.hh, t = b.piece;
+  if (b.hitT > 0) ctx.translate((Math.random() - 0.5) * 2, 0);
+  if (t === 'hay') {
+    ctx.fillStyle = HAY; ctx.fillRect(-w, -h, w * 2, h * 2);
+    ctx.strokeStyle = HAY_D; ctx.lineWidth = 1.4;
+    for (let k = -h + 5; k < h; k += 6) { ctx.beginPath(); ctx.moveTo(-w + 2, k); ctx.lineTo(w - 2, k + (k % 12 ? 2 : -2)); ctx.stroke(); }
+    ctx.strokeStyle = '#8a5a26'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-w * 0.35, -h); ctx.lineTo(-w * 0.35, h); ctx.moveTo(w * 0.35, -h); ctx.lineTo(w * 0.35, h); ctx.stroke();
+  } else if (t === 'crate') {
+    ctx.fillStyle = WOOD; ctx.fillRect(-w, -h, w * 2, h * 2);
+    ctx.strokeStyle = WOOD_D; ctx.lineWidth = 4; ctx.strokeRect(-w + 2, -h + 2, w * 2 - 4, h * 2 - 4);
+    ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(-w + 3, -h + 3); ctx.lineTo(w - 3, h - 3); ctx.stroke();
+  } else if (t === 'plank') {
+    ctx.fillStyle = WOOD; ctx.fillRect(-w, -h, w * 2, h * 2);
+    ctx.strokeStyle = WOOD_D; ctx.lineWidth = 1;
+    const L = Math.max(w, h), horiz = w > h;
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); if (horiz) { ctx.moveTo(-w + 4, -h + 3 + k * 4); ctx.lineTo(w - 4, -h + 4 + k * 4); } else { ctx.moveTo(-w + 3 + k * 4, -h + 4); ctx.lineTo(-w + 4 + k * 4, h - 4); } ctx.stroke(); }
+    ctx.fillStyle = '#4a3218'; for (const s of [-1, 1]) { ctx.beginPath(); horiz ? ctx.arc(s * (L - 6), 0, 1.6, 0, TAU) : ctx.arc(0, s * (L - 6), 1.6, 0, TAU); ctx.fill(); }
+  } else if (t === 'stone' || t === 'slab') {
+    ctx.fillStyle = STONE; ctx.fillRect(-w, -h, w * 2, h * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(-w, -h, w * 2, 3); ctx.fillRect(-w, -h, 3, h * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.2)'; ctx.fillRect(-w, h - 3, w * 2, 3); ctx.fillRect(w - 3, -h, 3, h * 2);
+    ctx.fillStyle = STONE_D; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(-w + 6 + hash(b.id, k, 1) * (w * 2 - 12), -h + 5 + hash(b.id, k, 2) * (h * 2 - 10), 1.5, 0, TAU); ctx.fill(); }
+  } else if (t === 'bell') {
+    // a golden bell sitting on a little wooden yoke
+    ctx.fillStyle = '#6b4a24'; ctx.fillRect(-w, h - 5, w * 2, 5);
+    const g = ctx.createLinearGradient(-w, 0, w, 0); g.addColorStop(0, '#c78b14'); g.addColorStop(0.45, '#ffe17a'); g.addColorStop(1, '#b5780e');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-w + 1, h - 6); ctx.quadraticCurveTo(-w + 3, -h * 0.2, -w * 0.45, -h + 3); ctx.quadraticCurveTo(0, -h - 3, w * 0.45, -h + 3); ctx.quadraticCurveTo(w - 3, -h * 0.2, w - 1, h - 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#8a5a0c'; ctx.beginPath(); ctx.arc(0, h - 4, 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fillRect(-w * 0.35, -h * 0.5, 2.5, h * 0.9);
+  }
+  // cracks as a piece wears down
+  if (b.maxhp && b.hp < b.maxhp * 0.7 && t !== 'bell') {
+    ctx.strokeStyle = 'rgba(30,20,10,.65)'; ctx.lineWidth = 1.4; const n = b.hp < b.maxhp * 0.35 ? 3 : 1;
+    for (let k = 0; k < n; k++) { const sx0 = (hash(b.id, k, 7) - 0.5) * w * 1.6, sy0 = (hash(b.id, k, 8) - 0.5) * h * 1.6; ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(sx0 + 6, sy0 + 5); ctx.lineTo(sx0 + 3, sy0 + 11); ctx.moveTo(sx0 + 6, sy0 + 5); ctx.lineTo(sx0 + 12, sy0 + 3); ctx.stroke(); }
+  }
+  ctx.restore();
+}
+// ---------- sheep
+function drawSheep(b) {
+  ctx.save(); const [sx, sy] = w2s(b.x, b.y); ctx.translate(sx, sy); ctx.scale(CAM.z, CAM.z);
+  const r = b.r, type = b.st, dark = type === 'black';
+  const face = b.vx < -20 ? -1 : b.vx > 20 ? 1 : (b.side === 1 ? -1 : 1);
+  ctx.rotate(b.a * 0.4);
+  // legs
+  ctx.strokeStyle = '#2a2420'; ctx.lineWidth = r * 0.16; ctx.lineCap = 'round';
+  for (const lx of [-0.45, -0.15, 0.2, 0.48]) { ctx.beginPath(); ctx.moveTo(lx * r, r * 0.5); ctx.lineTo(lx * r + Math.sin(b.age * 18 + lx * 5) * r * 0.12, r * 1.05); ctx.stroke(); }
+  // wool: a ring of puffs
+  const n = type === 'fluff' ? 11 : 8, wool = dark ? '#2b2724' : type === 'fluff' ? '#fffdf7' : '#f7f3ea';
+  ctx.fillStyle = dark ? '#1b1816' : '#d9d2c2'; ctx.beginPath(); ctx.arc(0, r * 0.08, r, 0, TAU); ctx.fill();
+  ctx.fillStyle = wool;
+  for (let k = 0; k < n; k++) { const a = k / n * TAU, rr = r * (type === 'fluff' ? 0.42 : 0.38); ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.66, Math.sin(a) * r * 0.6, rr, 0, TAU); ctx.fill(); }
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, TAU); ctx.fill();
+  // head
+  ctx.fillStyle = dark ? '#3d3632' : '#2b2420'; ctx.beginPath(); ctx.ellipse(face * r * 0.86, -r * 0.1, r * 0.36, r * 0.3, face * 0.3, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(face * r * 0.96, -r * 0.2, r * 0.09, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(face * r * 0.99, -r * 0.2, r * 0.045, 0, TAU); ctx.fill();
+  ctx.fillStyle = dark ? '#3d3632' : '#2b2420'; ctx.beginPath(); ctx.ellipse(face * r * 0.62, -r * 0.38, r * 0.16, r * 0.08, -face * 0.6, 0, TAU); ctx.fill();
+  if (type === 'ram') { ctx.strokeStyle = '#c9a46a'; ctx.lineWidth = r * 0.18; ctx.beginPath(); ctx.arc(face * r * 0.66, -r * 0.18, r * 0.26, -Math.PI * 0.9, Math.PI * 0.6); ctx.stroke(); }
+  if (type === 'trio') { ctx.fillStyle = '#2b2420'; for (const k of [-1, 1]) { ctx.beginPath(); ctx.arc(face * r * 0.5, k * r * 0.5, r * 0.18, 0, TAU); ctx.fill(); } }
+  // lit fuse glow
+  if (b.fuse != null && b.fuse > 0 && !b.dead) { const k = 0.5 + 0.5 * Math.sin(b.age * (b.fuse < 0.4 ? 40 : 16)); ctx.fillStyle = `rgba(255,${120 + 80 * k},40,${0.35 + 0.4 * k})`; ctx.beginPath(); ctx.arc(0, 0, r * 1.15, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+// ---------- catapults
+function drawCatapult(side, t) {
+  const z = ZONES[side], d = z.dir, [sx, sy] = w2s(z.cat, WORLD.ground);
+  ctx.save(); ctx.translate(sx, sy); ctx.scale(CAM.z * d, CAM.z);
+  ctx.fillStyle = '#5a3c20'; ctx.fillRect(-40, -18, 80, 10);
+  ctx.fillStyle = '#2b2018'; for (const x of [-28, 28]) { ctx.beginPath(); ctx.arc(x, -6, 9, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = '#7d5328'; ctx.beginPath(); ctx.moveTo(-14, -18); ctx.lineTo(-4, -62); ctx.lineTo(6, -62); ctx.lineTo(16, -18); ctx.closePath(); ctx.fill();
+  // the arm swings up when it fires
+  const k = G && G.catSide === side && G.catT > 0 ? Math.sin((1 - G.catT / 0.5) * Math.PI * 0.5) : 0;
+  const ang = -0.35 - k * 1.5 + (canAim() && G.turn === side && AIM.on ? -AIM.pow * 0.4 : 0);
+  ctx.save(); ctx.translate(1, -58); ctx.rotate(ang);
+  ctx.fillStyle = '#a8763e'; ctx.fillRect(-46, -4, 74, 8);
+  ctx.fillStyle = '#6b4a24'; ctx.beginPath(); ctx.arc(28, -6, 11, 0, Math.PI); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = side === 0 ? '#4fb3ff' : '#ff7b54'; ctx.fillRect(-6, -76, 3, 18); ctx.beginPath(); ctx.moveTo(-3, -76); ctx.lineTo(13, -71); ctx.lineTo(-3, -66); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// ---------- the whole frame
+function draw(t) {
+  const sh = G && G.shake > 0 ? G.shake : 0, ox = (Math.random() - 0.5) * sh, oy = (Math.random() - 0.5) * sh;
+  ctx.setTransform(V.dpr, 0, 0, V.dpr, 0, 0);
+  drawSky(t); drawClouds(t);
+  ctx.setTransform(V.dpr, 0, 0, V.dpr, ox * V.dpr, oy * V.dpr);
+  hillLayer(0.25, 160, 60, '#9cc79a', 1); hillLayer(0.5, 70, 40, '#7fb37a', 4);
+  drawGround();
+  if (!G) return;
+  // build zones and the bell height line
+  if (G.phase === 'build') for (const side of [0, 1]) {
+    const z = ZONES[side], [x0, y0] = w2s(z.x0, 120), [x1, y1] = w2s(z.x1, WORLD.ground);
+    if (G.mode !== 'cpu' && !isBuilderView(side)) { ctx.fillStyle = 'rgba(70,50,30,.55)'; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.fillStyle = '#fff'; ctx.font = `800 ${Math.max(12, 22 * CAM.z)}px ui-rounded, system-ui`; ctx.textAlign = 'center'; ctx.fillText(G.ready[side] ? 'Ready ✓' : 'Building…', (x0 + x1) / 2, (y0 + y1) / 2); continue; }
+    if (side !== G.builder) continue;
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.setLineDash([]);
+    const [, by] = w2s(0, WORLD.ground - BELL_MIN); ctx.strokeStyle = 'rgba(242,193,74,.75)'; ctx.setLineDash([4, 6]); ctx.beginPath(); ctx.moveTo(x0, by); ctx.lineTo(x1, by); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(242,193,74,.9)'; ctx.font = `700 ${Math.max(10, 13 * CAM.z)}px ui-rounded, system-ui`; ctx.textAlign = 'left'; ctx.fillText('bell must sit above this line', x0 + 6, by - 5);
+  }
+  drawCatapult(0, t); drawCatapult(1, t);
+  for (const b of BODIES) if (b.piece && (G.phase !== 'build' || G.mode === 'cpu' || isBuilderView(b.side))) drawPiece(b, b.ghost ? 0 : 1);
+  for (const b of BODIES) if (b.kind === 'sheep') drawSheep(b);
+  // build ghost
+  if (G.phase === 'build' && BUILD.ghost && G.sel !== 'remove') { const g = BUILD.ghost; drawPiece(Object.assign({ id: 0, a: 0 }, g), g.ok ? 0.55 : 0.25); if (!g.ok) { const [gx, gy] = w2s(g.x, g.y); ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 2; ctx.strokeRect(gx - g.hw * CAM.z, gy - g.hh * CAM.z, g.hw * 2 * CAM.z, g.hh * 2 * CAM.z); } }
+  // particles
+  for (const p of FX) {
+    const a = clamp(1 - p.t / p.life, 0, 1), [px, py] = w2s(p.x, p.y);
+    if (p.k === 'wool') { ctx.globalAlpha = a; ctx.fillStyle = p.c; ctx.beginPath(); ctx.arc(px, py, p.s * CAM.z * (1 + p.t), 0, TAU); ctx.fill(); }
+    else if (p.k === 'chip') { ctx.globalAlpha = a; ctx.fillStyle = p.c; ctx.save(); ctx.translate(px, py); ctx.rotate(p.a); ctx.fillRect(-p.s * CAM.z / 2, -p.s * CAM.z / 2, p.s * CAM.z, p.s * CAM.z * 0.6); ctx.restore(); }
+    else if (p.k === 'ring') { ctx.globalAlpha = a * 0.8; ctx.strokeStyle = '#fff6d8'; ctx.lineWidth = 6 * CAM.z * a + 1; ctx.beginPath(); ctx.arc(px, py, p.s * CAM.z * (0.4 + p.t / p.life * 0.9), 0, TAU); ctx.stroke(); ctx.globalAlpha = a * 0.35; ctx.fillStyle = '#fff2c0'; ctx.beginPath(); ctx.arc(px, py, p.s * CAM.z * 0.6 * (1 - p.t / p.life), 0, TAU); ctx.fill(); }
+  }
+  ctx.globalAlpha = 1;
+  // aiming: dotted path and power
+  if (canAim() && AIM.on && AIM.pow > 0.05) {
+    const [lx, ly] = launchPoint(G.turn), [vx, vy] = aimVel();
+    let x = lx, y = ly, ux = vx, uy = vy;
+    ctx.fillStyle = 'rgba(255,255,255,.95)';
+    for (let i = 0; i < 26; i++) { const dt = 0.045; ux += G.wind * dt * 0.0; uy += PH.g * dt; x += ux * dt; y += uy * dt; if (i % 2) continue; const [sx, sy] = w2s(x, y); ctx.globalAlpha = 1 - i / 28; ctx.beginPath(); ctx.arc(sx, sy, Math.max(2, 4.5 * CAM.z), 0, TAU); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    const [cx, cy] = w2s(lx, ly); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 26, -Math.PI / 2, -Math.PI / 2 + TAU * AIM.pow); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = '800 13px ui-rounded, system-ui'; ctx.textAlign = 'center'; ctx.fillText(Math.round(AIM.pow * 100) + '%', cx, cy - 34);
+  }
+}
+const isBuilderView = side => G.phase !== 'build' || (G.mode === 'local' ? side === G.builder : isMine(side)) || G.ready[side] && G.forts[0] && G.forts[1];
+
+// ===== 40-ui.js =====
+// ================= input =================
+const AIM = { on: false, sx: 0, sy: 0, x: 0, y: 0, pow: 0, type: 'sheep', id: null };
+const BUILD = { ghost: null, down: false };
+function aimVel() {
+  // pull back like a slingshot: the launch goes the opposite way to the drag
+  const side = G.turn, d = ZONES[side].dir;
+  let dx = AIM.sx - AIM.x, dy = AIM.sy - AIM.y;
+  const L = hyp(dx, dy); AIM.pow = clamp(L / Math.min(260, V.h * 0.42), 0, 1);
+  if (L < 4) { dx = d; dy = -1; }
+  let ang = Math.atan2(-dy, dx * d);        // 0 = straight at the enemy, up is positive
+  ang = clamp(ang, -0.15, 1.45);
+  const v = AIM.pow * VMAX;
+  return [Math.cos(ang) * v * d, -Math.sin(ang) * v];
+}
+function ghostAt(X, Y) {
+  const side = G.builder, [wx, wy] = s2w(X, Y), t = G.sel;
+  if (t === 'remove' || !PIECES[t]) { BUILD.ghost = null; return; }
+  const P = PIECES[t], rot = t === 'plank' || t === 'slab' ? G.rot : 0, hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
+  const x = Math.round(wx / 4) * 4, y = Math.min(Math.round(wy / 4) * 4, WORLD.ground - hh);
+  const z = ZONES[side], probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  const hits = () => BODIES.some(b => b !== GROUND && b.side === side && collide(probe, b));
+  // pointing at a stack lifts the piece up onto it
+  for (let k = 0; k < 60 && hits(); k++) probe.y -= 2;
+  let ok = x - hw >= z.x0 && x + hw <= z.x1 && probe.y - hh >= 120 && P.cost <= money(side) && !(t === 'bell' && bellOf(side)) && !hits();
+  BUILD.ghost = { x, y: probe.y, hw, hh, piece: t, ok, rot, side };
+}
+function pieceAt(X, Y, side) { const [wx, wy] = s2w(X, Y), p = { shape: 'circle', x: wx, y: wy, r: 3 }; return BODIES.find(b => b.piece && b.side === side && collide(p, b)); }
+function pDown(e) {
+  if (!G || G.paused || $('card').offsetParent || !$('title').classList.contains('hidden')) return;
+  AUD.init();
+  if (G.phase === 'build' && !G.ready[G.builder] && isMine(G.builder)) {
+    if (e.button === 2 || G.sel === 'remove') { removePiece(pieceAt(e.clientX, e.clientY, G.builder)); ghostAt(e.clientX, e.clientY); return; }
+    ghostAt(e.clientX, e.clientY); const g = BUILD.ghost;
+    if (g && g.ok) { placePiece(G.builder, g.piece, g.x, g.y, g.rot); if (g.piece === 'bell') { G.sel = 'hay'; renderBars(); } }
+    else if (g) AUD.click();
+    ghostAt(e.clientX, e.clientY); renderBars();
+    return;
+  }
+  if (G.shot && e.button === 0) { const t = BODIES.find(b => b.kind === 'sheep' && b.st === 'trio' && !b.split && !b.touched); if (t && isMine(t.side)) splitTrio(t); return; }
+  if (canAim() && e.button === 0) { AIM.on = true; AIM.id = e.pointerId; AIM.sx = AIM.x = e.clientX; AIM.sy = AIM.y = e.clientY; AIM.pow = 0; cv.setPointerCapture?.(e.pointerId); }
+}
+function pMove(e) {
+  if (!G) return;
+  if (G.phase === 'build') { ghostAt(e.clientX, e.clientY); return; }
+  if (AIM.on && e.pointerId === AIM.id) { AIM.x = e.clientX; AIM.y = e.clientY; aimVel(); }
+}
+function pUp(e) {
+  if (!AIM.on || e.pointerId !== AIM.id) return;
+  AIM.on = false;
+  if (!canAim()) return;
+  const [vx, vy] = aimVel();
+  if (AIM.pow < 0.12) { say('Pull back further', 'Drag away from the target, then let go', 1.4); return; }
+  if (G.ammo[G.turn][AIM.type] <= 0) { AIM.type = SHEEP_ORDER.find(k => G.ammo[G.turn][k] > 0) || 'sheep'; }
+  fire(G.turn, AIM.type, vx, vy);
+}
+cv.addEventListener('pointerdown', pDown); addEventListener('pointermove', pMove); addEventListener('pointerup', pUp); addEventListener('pointercancel', () => { AIM.on = false; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerleave', () => { BUILD.ghost = null; });
+addEventListener('keydown', e => {
+  if (!G || !$('title').classList.contains('hidden')) return;
+  if (e.code === 'Escape') { pauseMenu($('pause').classList.contains('hidden')); return; }
+  if (e.code === 'KeyN') setSound(SET.sound ? 0 : 1);
+  if (e.code === 'KeyV') toggleView();
+  if (G.phase === 'build') {
+    if (e.code === 'KeyR') { G.rot = G.rot ? 0 : 1; renderBars(); if (MOUSE.x) ghostAt(MOUSE.x, MOUSE.y); }
+    const k = /^Digit([1-7])$/.exec(e.code); if (k) { const opts = [...PIECE_ORDER, 'remove']; G.sel = opts[+k[1] - 1] || G.sel; renderBars(); }
+    if (e.code === 'Enter') readyUp(G.builder);
+  } else if (G.phase === 'siege') {
+    const k = /^Digit([1-5])$/.exec(e.code); if (k && canAim()) { const t = SHEEP_ORDER[+k[1] - 1]; if (G.ammo[G.turn][t] > 0) { AIM.type = t; renderBars(); } }
+    if (e.code === 'Space') { e.preventDefault(); const t = BODIES.find(b => b.kind === 'sheep' && b.st === 'trio' && !b.split && !b.touched); if (t && isMine(t.side)) splitTrio(t); }
+  }
+});
+const MOUSE = { x: 0, y: 0 }; addEventListener('pointermove', e => { MOUSE.x = e.clientX; MOUSE.y = e.clientY; });
+function toggleView() { CAM.zoomOut = !CAM.zoomOut; camTo(CAM.mode, CAM.side); }
+if ('ontouchstart' in window || (navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches)) document.body.classList.add('touch');
+
+// ================= HUD =================
+function say(a, b = '', s = 2.2) { const m = $('msg'); m.innerHTML = ''; m.append(a); if (b) { const sm = document.createElement('small'); sm.textContent = b; m.append(sm); } m.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(() => m.classList.remove('on'), s * 1000); }
+const icoCache = {};
+function pieceIcon(t) {
+  if (icoCache[t]) return icoCache[t];
+  const c = document.createElement('canvas'); c.width = 80; c.height = 60; const g = c.getContext('2d');
+  const save = [null, CAM.x, CAM.y, CAM.z, V.w, V.h]; // draw with the real piece renderer into the icon
+  const P = PIECES[t]; if (!P) return c;
+  const s = Math.min(70 / (P.hw * 2), 50 / (P.hh * 2), 1.4);
+  const real = ctx; ctxSwap(g); CAM.x = 0; CAM.y = 0; CAM.z = s; V.w = 80; V.h = 60;
+  drawPiece({ id: 3, x: 0, y: 0, a: 0, hw: P.hw, hh: P.hh, piece: t, hp: 1, maxhp: 1 });
+  ctxSwap(real); [, CAM.x, CAM.y, CAM.z, V.w, V.h] = save;
+  return (icoCache[t] = c);
+}
+function sheepIcon(t) {
+  const key = 's' + t; if (icoCache[key]) return icoCache[key];
+  const c = document.createElement('canvas'); c.width = 80; c.height = 60; const g = c.getContext('2d');
+  const real = ctx, save = [CAM.x, CAM.y, CAM.z, V.w, V.h]; ctxSwap(g); CAM.x = 0; CAM.y = 0; CAM.z = 1.75; V.w = 80; V.h = 60;
+  drawSheep({ x: 0, y: -3, r: 13, st: t, a: 0, age: 0, vx: 1, side: 0 });
+  ctxSwap(real); [CAM.x, CAM.y, CAM.z, V.w, V.h] = save;
+  return (icoCache[key] = c);
+}
+function renderBars() {
+  if (!G) return;
+  const bb = $('buildBar'), ab = $('ammoBar');
+  const building = G.phase === 'build' && isMine(G.builder) && !G.ready[G.builder];
+  bb.classList.toggle('hidden', !building); $('money').classList.toggle('hidden', !building); $('timer').classList.toggle('hidden', G.phase !== 'build' || G.mode === 'local');
+  ab.classList.toggle('hidden', G.phase !== 'siege' || !isMine(G.turn) || (G.mode === 'cpu' && G.turn === 1));
+  $('wind').classList.toggle('hidden', G.phase !== 'siege');
+  if (building) {
+    const side = G.builder, m = money(side), hasBell = !!bellOf(side);
+    bb.innerHTML = '';
+    for (const t of [...PIECE_ORDER, 'remove']) {
+      if (t === 'bell' && hasBell) continue;
+      const P = PIECES[t], btn = document.createElement('button'); btn.className = 'slot' + (G.sel === t ? ' on' : '');
+      if (t === 'remove') btn.innerHTML = '<span style="font-size:22px">✋</span>Remove';
+      else { btn.append(pieceIcon(t)); btn.append(P.nm); if (P.cost) { const b = document.createElement('b'); b.textContent = '$' + P.cost; btn.append(b); } btn.disabled = P.cost > m; }
+      btn.onclick = () => { G.sel = t; renderBars(); };
+      bb.append(btn);
+    }
+    const rot = document.createElement('button'); rot.className = 'slot act'; rot.innerHTML = '<span style="font-size:20px">⟳</span>Rotate'; rot.onclick = () => { G.rot = G.rot ? 0 : 1; renderBars(); }; bb.append(rot);
+    if (G.lastFort[side]) { const lf = document.createElement('button'); lf.className = 'slot act'; lf.innerHTML = '<span style="font-size:20px">↺</span>Last fort'; lf.onclick = () => rebuildLast(side); bb.append(lf); }
+    const clr = document.createElement('button'); clr.className = 'slot act'; clr.innerHTML = '<span style="font-size:20px">🧹</span>Clear'; clr.onclick = () => { for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b); G.sel = 'bell'; renderBars(); }; bb.append(clr);
+    const go = document.createElement('button'); go.className = 'slot go'; go.textContent = 'Ready ✓'; go.disabled = !hasBell; go.onclick = () => readyUp(side); bb.append(go);
+    $('money').textContent = '$' + m.toLocaleString();
+  }
+  if (G.phase === 'siege' && isMine(G.turn)) {
+    ab.innerHTML = '';
+    const am = G.ammo[G.turn];
+    if (am[AIM.type] <= 0) AIM.type = SHEEP_ORDER.find(k => am[k] > 0) || 'sheep';
+    SHEEP_ORDER.forEach((t, i) => {
+      const btn = document.createElement('button'); btn.className = 'slot' + (AIM.type === t ? ' on' : ''); btn.disabled = am[t] <= 0;
+      btn.append(sheepIcon(t)); btn.append(SHEEP[t].nm.split(' ')[0]); const b = document.createElement('b'); b.textContent = '×' + am[t]; btn.append(b);
+      btn.title = SHEEP[t].nm + (i < 5 ? ' (' + (i + 1) + ')' : '');
+      btn.onclick = () => { if (am[t] > 0) { AIM.type = t; renderBars(); } };
+      ab.append(btn);
+    });
+  }
+  hudTick();
+}
+// forts are remembered relative to the front edge of the zone, so a fort built on one side rebuilds mirrored on the other
+function normFort(side) { const z = ZONES[side]; return BODIES.filter(b => b.side === side && b.piece).sort((p, q) => q.y - p.y).map(b => [b.piece, Math.round(side === 0 ? z.x1 - b.x : b.x - z.x0), Math.round(b.y), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
+function rebuildLast(side) {
+  for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b);
+  const z = ZONES[side];
+  for (const [t, dx, y, rot] of G.lastFort[side] || []) placePiece(side, t, side === 0 ? z.x1 - dx : z.x0 + dx, y, rot, true);
+  G.sel = bellOf(side) ? 'hay' : 'bell'; renderBars(); AUD.place('crate');
+}
+function hudTick() {
+  if (!G) return;
+  const pip = s => `<span class="side" style="color:${s ? 'var(--p1)' : 'var(--p0)'}">${G.names[s]} <span class="pips">${[0, 1].map(i => `<i class="${G.wins[s] > i ? 'on' : ''}"></i>`).join('')}</span></span>`;
+  const sc = pip(0) + pip(1); if ($('score').innerHTML !== sc) $('score').innerHTML = sc;
+  let ph = '';
+  if (G.phase === 'build') ph = G.mode === 'local' ? `Round ${G.round} · ${G.names[G.builder]} builds` : G.ready[G.me] ? 'Waiting for the other fort…' : `Round ${G.round} · build your fort`;
+  else if (G.phase === 'siege') ph = G.shot ? '💥' : (isMine(G.turn) && G.mode !== 'local' ? 'Your shot · drag back to aim' : G.mode === 'local' ? `${G.names[G.turn]} · drag back to aim` : `${G.names[G.turn]} is aiming…`);
+  else ph = `Round ${G.round}`;
+  if ($('phase').textContent !== ph) $('phase').textContent = ph;
+  const w = G.wind, wt = w === 0 ? 'Wind · calm' : `Wind ${w > 0 ? '→' : '←'} ${Math.abs(w) > 60 ? 'strong' : Math.abs(w) > 25 ? 'breezy' : 'light'}`;
+  if ($('wind').textContent !== wt) $('wind').textContent = wt;
+  if (G.phase === 'build') { const s = Math.max(0, Math.ceil(G.buildT)); $('timer').textContent = `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; if (!$('money').classList.contains('hidden')) $('money').textContent = '$' + money(G.builder).toLocaleString(); }
+}
+// ---------- cards: pass the device, round results
+function showCard(t, s, stats, btn, fn, sub = true) { $('cardT').textContent = t; $('cardS').textContent = s; $('cardStats').innerHTML = stats || ''; $('bCard').textContent = btn; $('bCard').onclick = fn; $('bCard').disabled = btn.startsWith('Waiting'); $('cardSub').classList.toggle('hidden', !sub); $('card').classList.remove('hidden'); G.paused = true; }
+function hideCard() { $('card').classList.add('hidden'); if (G) G.paused = false; }
+function passScreen(side, t, s) { showCard(t, s, '', `▶ I'm ${G.names[side]}`, () => { hideCard(); camTo('build', side, true); say(`${G.names[side]}: build your fort`, 'Place your bell first, off the ground', 2.6); }, false); }
+// ---------- menus
+function drawer(id) { for (const [d, b] of [['friend', 'bFriend'], ['how', 'bHow'], ['settings', 'bSet']]) { const show = d === id && $(d).classList.contains('hidden'); $(d).classList.toggle('hidden', !show); $(b).classList.toggle('on', show); } }
+$('bFriend').onclick = () => drawer('friend'); $('bHow').onclick = () => drawer('how'); $('bSet').onclick = () => drawer('settings');
+$('bCpu').onclick = () => { mpLeave(); AUD.init(); newMatch({ mode: 'cpu' }); };
+$('bLocal').onclick = () => { mpLeave(); AUD.init(); newMatch({ mode: 'local' }); };
+$('bPause').onclick = () => pauseMenu(true); $('bResume').onclick = () => pauseMenu(false);
+$('bView').onclick = toggleView;
+$('bQuit').onclick = () => { if (G && G.mode === 'online') { mpSend({ k: 'quit' }); mpLeave(); clearRec(); } toMenu(); };
+$('bMenu').onclick = () => { if (G && G.mode === 'online') { mpLeave(); clearRec(); } toMenu(); };
+$('bSound').onclick = () => setSound(SET.sound ? 0 : 1);
+function pauseMenu(on) { if (!G) return; $('pause').classList.toggle('hidden', !on); if (G.mode !== 'online') G.paused = on; }
+function toMenu() { G = null; resetWorld(); for (const id of ['pause', 'card', 'hud']) $(id).classList.add('hidden'); $('title').classList.remove('hidden'); document.body.classList.remove('playing'); CAM.zoomOut = false; showRejoin(); }
+function setSound(v) { SET.sound = v; saveSet(); AUD.apply(); $('bSound').textContent = v ? '🔊' : '🔇'; document.querySelectorAll('#segS button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
+function setDiff(v) { SET.diff = v; saveSet(); document.querySelectorAll('#segD button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
+document.querySelectorAll('#segS button').forEach(b => b.onclick = () => { AUD.init(); setSound(+b.dataset.v); });
+document.querySelectorAll('#segD button').forEach(b => b.onclick = () => setDiff(+b.dataset.v));
+
+// ================= main loop =================
+let last = 0, snapT = 0;
+function tick(dt) {
+  if (!G) return;
+  G.t += dt; G.shake = Math.max(0, (G.shake || 0) - dt * 30); G.catT = Math.max(0, (G.catT || 0) - dt);
+  for (const b of BODIES) if (b.hitT > 0) b.hitT -= dt;
+  for (let i = FX.length - 1; i >= 0; i--) { const p = FX[i]; p.t += dt; if (p.t > p.life) { FX.splice(i, 1); continue; } if (p.k !== 'ring') { p.vy += (p.k === 'chip' ? 900 : 120) * dt; p.vx *= 1 - dt * (p.k === 'wool' ? 2.5 : 0.5); p.x += p.vx * dt; p.y += p.vy * dt; if (p.a !== undefined) p.a += p.w * dt; if (p.k === 'chip' && p.y > WORLD.ground) { p.y = WORLD.ground; p.vy *= -0.3; p.vx *= 0.6; } } }
+  if (G.paused || (G.mode === 'online' && holdTick(dt))) return;
+  if (G.phase === 'build') {
+    if (G.mode !== 'local') { G.buildT -= dt; if (G.buildT <= 0 && !G.ready[G.me]) autoReady(); }
+    physAdvance(dt);
+  } else if (G.phase === 'siege' && G.shot) {
+    if (G.mode !== 'online' || G.authority) {
+      physAdvance(dt); if (G.shot) shotStep(dt);
+      if (G.mode === 'online' && G.shot) { snapT -= dt; if (snapT <= 0) { snapT = 0.07; mpSend({ k: 'snap', st: snapState(false) }); } }
+    } else {
+      // watching someone else's shot: glide between the positions they send
+      G.shot.t += dt;
+      for (const b of BODIES) if (b.tx !== undefined) { const k = 1 - Math.exp(-dt * 18); b.x = lerp(b.x, b.tx, k); b.y = lerp(b.y, b.ty, k); b.a = lerp(b.a, b.ta, k); }
+    }
+  }
+}
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.033, (ts - (last || ts)) / 1000); last = ts;
+  if (!TEST || Q.has('run')) tick(dt);
+  camStep(dt); draw(ts / 1000);
+  if (G) hudTick();
+}
+
+// ===== 50-ai.js =====
+// ================= CPU =================
+const LASTHIT = [null, null];
+// a fort from a randomised plan: front walls, a roofed hut with the bell on a pedestal, a back wall, hay padding
+function cpuBuild(side) {
+  const r = rng((G.seed ^ (G.round * 7919)) >>> 0), z = ZONES[side];
+  const X = fx => side === 0 ? z.x1 - fx : z.x0 + fx;   // fx is the distance back from the front edge
+  const GY = WORLD.ground, put = (t, fx, y, rot = 0) => placePiece(side, t, X(fx), y, rot, true);
+  const col = (t, fx, n) => { for (let k = 0; k < n; k++) put(t, fx, GY - 22 - k * 44); };
+  const mats = ['stone', 'stone', 'crate', 'hay'];
+  // front walls
+  const walls = 2 + Math.floor(r() * 2);
+  for (let w = 0; w < walls; w++) col(w === 0 ? 'stone' : mats[Math.floor(r() * mats.length)], 30 + w * 48, 2 + Math.floor(r() * 3));
+  // the bell hut
+  const hut = 250 + r() * 170, ped = 1 + Math.floor(r() * 2), pedMat = r() < 0.5 ? 'crate' : 'stone';
+  col(pedMat, hut, ped);
+  put('bell', hut, GY - ped * 44 - 18);
+  put('plank', hut - 42, GY - 70, 1); put('plank', hut + 42, GY - 70, 1);
+  put('slab', hut, GY - 140 - 11);
+  if (r() < 0.7) { put('hay', hut - 30, GY - 151 - 11 - 22); put('hay', hut + 16, GY - 151 - 11 - 22); }
+  // back wall and leftovers
+  col(r() < 0.5 ? 'stone' : 'crate', hut + 110, 2 + Math.floor(r() * 2));
+  // spend the rest on more walls, heaviest first while the money lasts
+  for (let k = 0; k < 40 && money(side) >= 30; k++) {
+    const m = money(side), fx = 20 + r() * 600, t = m > 420 && r() < 0.55 ? 'stone' : m > 150 && r() < 0.5 ? 'crate' : 'hay';
+    col(t, fx, 1 + Math.floor(r() * 3));
+  }
+  for (let k = 0; k < 12 && money(side) >= 15; k++) put('hay', 20 + r() * 600, GY - 22 - Math.floor(r() * 3) * 44);
+  for (let i = 0; i < 180; i++) physAdvance(1 / 60);
+  if (bellOK(side)) { // fallback: a plain pillar
+    for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
+    col('stone', 60, 3); col('crate', 300, 2); put('bell', 300, GY - 88 - 18);
+    for (let i = 0; i < 120; i++) physAdvance(1 / 60);
+  }
+  G.ready[side] = true; G.forts[side] = serializeFort(side);
+}
+// trajectory with wind: where is the sheep when it reaches the target's x?
+function flightY(lx, ly, vx, vy, tx, wind) {
+  let x = lx, y = ly, t = 0; const dt = 1 / 120;
+  while (t < 6) { vx += wind * dt; vy += PH.g * dt; x += vx * dt; y += vy * dt; t += dt; if ((vx > 0 && x >= tx) || (vx < 0 && x <= tx)) return y; if (y > WORLD.ground) return WORLD.ground + 200; }
+  return WORLD.ground + 200;
+}
+function cpuTurnSoon() { clearTimeout(cpuTurnSoon.t); cpuTurnSoon.t = setTimeout(cpuShoot, TEST ? 0 : 900 + Math.random() * 600); }
+function cpuShoot() {
+  if (!G || G.mode !== 'cpu' || G.phase !== 'siege' || G.shot || G.turn !== 1) return;
+  const side = 1, am = G.ammo[side], bell = bellOf(0); if (!bell) return;
+  const [lx, ly] = launchPoint(side), mem = G.cpuMem || (G.cpuMem = { dx: 0, n: 0 });
+  // pick a sheep: black sheep and rams for walled bells, the trio for exposed ones, plain sheep otherwise
+  const near = BODIES.filter(b => b.side === 0 && b.piece && Math.abs(b.x - bell.x) < 120 && b.y < bell.y + 30);
+  const stone = near.filter(b => b.piece === 'stone' || b.piece === 'slab').length;
+  let type = 'sheep';
+  if (am.black && stone >= 2 && Math.random() < 0.6) type = 'black';
+  else if (am.ram && stone >= 1 && Math.random() < 0.4) type = 'ram';
+  else if (am.trio && near.length < 4 && Math.random() < 0.5) type = 'trio';
+  else if (am.fluff && Math.random() < 0.2) type = 'fluff';
+  if (!am[type]) type = SHEEP_ORDER.find(k => am[k] > 0);
+  if (!type) return;
+  // aim at the bell (roofed bells get a high lob), corrected by where the last shot landed
+  const roofed = near.some(b => b.y < bell.y - 20);
+  const tx = bell.x - mem.dx * [0.3, 0.6, 0.85][SET.diff], ty = bell.y - (roofed ? 30 : 4);
+  const angles = (roofed || type === 'black' ? [1.15, 1.0, 0.85] : type === 'fluff' ? [0.35, 0.5] : [0.55, 0.75, 0.95, 1.1]);
+  let best = null;
+  for (const ang of angles) {
+    let lo = 150, hi = VMAX * 1.15;
+    for (let i = 0; i < 26; i++) { const v = (lo + hi) / 2, y = flightY(lx, ly, -Math.cos(ang) * v, -Math.sin(ang) * v, tx, G.wind); if (y > ty) lo = v; else hi = v; }
+    const v = (lo + hi) / 2; if (v <= VMAX && (!best || Math.random() < 0.4)) best = { ang, v };
+  }
+  if (!best) best = { ang: 0.8, v: VMAX };
+  const noise = [0.06, 0.025, 0.008][SET.diff], v = best.v * (1 + (Math.random() * 2 - 1) * noise), ang = best.ang + (Math.random() * 2 - 1) * noise * 0.6;
+  G.cpuAim = tx; LASTHIT[side] = null;
+  fire(side, type, -Math.cos(ang) * v, -Math.sin(ang) * v);
+  if (type === 'trio') setTimeout(() => { const t = BODIES.find(b => b.st === 'trio' && b.side === side); if (t) splitTrio(t); }, 450);
+}
+// learn from the miss once the shot is over
+function cpuLearn() { if (!G || G.mode !== 'cpu' || !LASTHIT[1] || G.cpuAim == null) return; const m = G.cpuMem || (G.cpuMem = { dx: 0, n: 0 }); m.dx = m.dx * 0.4 + (LASTHIT[1][0] - G.cpuAim) * 0.6; m.n++; G.cpuAim = null; }
+
+// ===== 60-net.js =====
+// ================= online (Arcade Shelf relay) =================
+// Two players. The player whose turn it is runs the physics and streams positions to the other; builds are
+// swapped once both are ready, so both screens start every siege from exactly the same fort lists.
+const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://relay.thearcadeshelf.com');
+const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', HOLD_S = 90;
+const MP = { ws: null, seat: -1, code: '', present: new Set(), pidOf: new Map(), pid: '', want: false };
+try { MP.pid = localStorage.getItem('flockfortress.pid') || ''; } catch (e) { }
+if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('flockfortress.pid', MP.pid); } catch (e) { } }
+const mpStatus = h => { $('mpStatus').innerHTML = h; };
+function mpSend(o) { if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
+function mpLeave() { MP.want = false; clearTimeout(MP.retryT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (e) { } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); renderLobby(); }
+const isHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+const seatPid = s => s === MP.seat ? MP.pid : (MP.pidOf.get(s) || 's' + s);
+function mpConnect(code) {
+  mpLeave(); MP.code = code; MP.want = true;
+  let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=flockfortress&room=' + code); } catch (e) { mpStatus('Could not reach the game server.'); return; }
+  MP.ws = ws; if (!(G && G.mode === 'online')) mpStatus(`Connecting to <b>${code}</b>…`);
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } mpMsg(m); };
+  ws.onerror = () => { if (!(G && G.mode === 'online')) mpStatus('Could not reach the game server. Try again in a moment.'); };
+  ws.onclose = () => {
+    MP.ws = null; MP.seat = -1; MP.present.clear(); renderLobby();
+    if (G && G.mode === 'online' && G.phase !== 'over' && MP.want) { G.lost = G.lost || { t: HOLD_S }; renderHold(); MP.retryT = setTimeout(() => { if (G && G.lost) mpConnect(MP.code); }, 2500); }
+    else mpStatus('Disconnected from the room.');
+  };
+}
+// ---------- coming back after dropping out
+const REC_KEY = 'flockfortress.rejoin';
+function saveRec() { if (!G || G.mode !== 'online' || G.phase === 'over' || !MP.code) return; try { localStorage.setItem(REC_KEY, JSON.stringify({ room: MP.code, seed: G.seed, ts: Date.now(), build: G.phase === 'build' && !G.ready[G.me] ? serializeFort(G.me) : null })); } catch (e) { } }
+function loadRec() { try { const r = JSON.parse(localStorage.getItem(REC_KEY) || 'null'); return r && Date.now() - r.ts < 15 * 60e3 ? r : null; } catch (e) { return null; } }
+function clearRec() { try { localStorage.removeItem(REC_KEY); } catch (e) { } showRejoin(); }
+function showRejoin() { const r = loadRec(); $('rejoinRow').classList.toggle('hidden', !r || !!G); if (r) $('bRejoin').textContent = `↩ Rejoin match · ${r.room}`; }
+addEventListener('pagehide', saveRec); addEventListener('beforeunload', saveRec);
+setInterval(saveRec, 2000);
+function startHold() { if (!G || G.phase === 'over') return; G.hold = G.hold || HOLD_S; renderHold(); AUD.click(); }
+function endHold(drop) {
+  if (!G || !G.hold) return; G.hold = null; renderHold();
+  if (drop) { G.phase = 'siege'; roundOverForfeit(); }
+  else say('They\'re back!', '', 1.6);
+}
+function roundOverForfeit() { G.wins[G.me] = 2; G.phase = 'over'; showCard('Victory!', 'The other player left the match.', '', 'Menu', () => { mpLeave(); clearRec(); toMenu(); }); }
+function holdTick(dt) {
+  if (G.lost) { G.lost.t -= dt; if (G.lost.t <= 0) { G.lost = null; MP.want = false; renderHold(); showCard('Disconnected', 'Could not get back into the room.', '', 'Menu', () => { mpLeave(); clearRec(); toMenu(); }); } else renderHold(); return true; }
+  if (!G.hold) return false;
+  G.hold -= dt; if (G.hold <= 0) endHold(true); else renderHold();
+  return !!G.hold;
+}
+function renderHold() {
+  const box = $('hold');
+  if (!G || (!G.hold && !G.lost) || G.phase === 'over') { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  if (G.lost) { $('holdT').textContent = `Connection lost · reconnecting… ${Math.ceil(G.lost.t)} s`; $('bHoldGo').classList.add('hidden'); return; }
+  $('holdT').textContent = `${G.names[1 - G.me]} lost connection · waiting ${Math.ceil(G.hold)} s for them to come back`;
+  $('bHoldGo').classList.remove('hidden'); $('bHoldGo').textContent = 'Take the win';
+}
+$('bHoldGo').onclick = () => { mpSend({ k: 'quit' }); endHold(true); };
+function fullState() { return { seed: G.seed, pids: G.pids, phase: G.phase === 'roundEnd' ? 'siege' : G.phase, buildT: G.buildT, ready: G.ready, forts: G.forts, st: snapState(true) }; }
+function applySync(m) {
+  const me = m.pids.indexOf(MP.pid); if (me < 0) return;
+  hideCard(); newMatch({ mode: 'online', me, seed: m.seed }); G.pids = m.pids;
+  const st = m.st; G.round = st.round; G.wins = st.wins; G.dmg = st.dmg; G.ammo = st.ammo; G.turn = st.turn; G.turnN = st.turnN; G.starter = st.starter;
+  G.forts = m.forts; G.ready = m.ready; G.buildT = m.buildT;
+  if (m.phase === 'build') {
+    resetWorld();
+    for (const s of [0, 1]) if (G.forts[s]) buildFrom(s, G.forts[s]);
+    const rec = loadRec(); if (!G.ready[me] && rec && rec.build) for (const [t, x, y, a, rot] of rec.build) placePiece(me, t, x, y, rot, true);
+    G.phase = 'build'; G.builder = me; camTo('build', me, true);
+  } else {
+    resetWorld(); applyState(st, true); G.phase = 'siege'; G.shot = null; newWind(); camTo('aim', G.turn, true);
+  }
+  renderBars(); say('Back in the match!', '', 2.4);
+}
+// ---------- lobby
+function renderLobby() {
+  const on = MP.seat >= 0;
+  $('lobby').classList.toggle('hidden', !on); $('joinRows').classList.toggle('hidden', on);
+  if (!on) return;
+  const seats = [...MP.present].sort((a, b) => a - b);
+  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${k ? 'var(--p1)' : 'var(--p0)'}">${s === MP.seat ? 'You' : 'Friend'}${k === 0 ? ' · host' : ''}</span>`).join('');
+  const host = isHost();
+  $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
+  $('bStart').textContent = seats.length < 2 ? 'Waiting for a friend…' : '▶ Start';
+  $('roomCode').textContent = MP.code; $('bShare').classList.toggle('hidden', !navigator.share);
+  mpStatus(host ? 'Send a friend the link or code, then start.' : 'Waiting for the host to start…');
+}
+function hostStart() {
+  if (!isHost()) return;
+  const seats = [...MP.present].sort((a, b) => a - b).slice(0, 2); if (seats.length < 2) return;
+  const pids = seats.map(seatPid), seed = (Math.random() * 1e9) | 0;
+  mpSend({ k: 'start', seed, pids }); beginOnline(seed, pids);
+}
+function beginOnline(seed, pids) {
+  const me = pids.indexOf(MP.pid);
+  if (me < 0) { mpStatus('A match is under way in this room.'); return; }
+  clearRec(); hideCard(); newMatch({ mode: 'online', me, seed }); G.pids = pids;
+}
+function mpMsg(m) {
+  if (m.k === 'full') { mpStatus('That room already has two players.'); return; }
+  if (m.k === 'hello') {
+    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid }); renderLobby();
+    if (loadRec() && loadRec().room === MP.code) { clearTimeout(MP.syncT); MP.syncT = setTimeout(() => { if (!(G && G.mode === 'online' && !G.lost)) { clearRec(); mpStatus('That match has ended.'); } else if (G && G.lost) { G.lost = null; renderHold(); } }, 8000); }
+    return;
+  }
+  if (m.k === 'here') {
+    const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
+    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1 });
+    renderLobby();
+    if (m.pid && !m.re && G && G.mode === 'online' && G.phase !== 'over' && G.pids && G.pids.includes(m.pid) && m.pid !== MP.pid) { mpSend({ k: 'sync', to: m.pid, s: fullState() }); endHold(false); }
+    return;
+  }
+  if (m.k === 'peer') {
+    if (m.on) MP.present.add(m.seat); else { MP.present.delete(m.seat); const pid = MP.pidOf.get(m.seat); MP.pidOf.delete(m.seat); if (pid && G && G.mode === 'online' && G.pids && G.pids.includes(pid) && G.phase !== 'over') startHold(); }
+    renderLobby(); return;
+  }
+  if (m.k === 'sync') { if (m.to === MP.pid) { clearTimeout(MP.syncT); G = null; applySync(m.s); } return; }
+  if (m.k === 'start') { if (G && G.mode === 'online' && G.phase !== 'over' && G.pids && G.pids.includes(MP.pid) && G.round > 0 && G.phase !== 'roundEnd') return; beginOnline(m.seed, m.pids); return; }
+  if (!G || G.mode !== 'online') return;
+  if (G.hold) endHold(false);
+  if (m.k === 'fort') { if (m.round !== G.round) return; G.forts[m.side] = m.list; G.ready[m.side] = true; if (G.forts[0] && G.forts[1] && G.phase === 'build') startSiege(); renderBars(); }
+  else if (m.k === 'shot') { if (G.phase !== 'siege') return; G.ammo[m.side][m.type]--; G.stats[m.side].shots++; G.shot = { side: m.side, t: 0, quiet: 0, boom: -9 }; G.authority = false; G.catT = 0.5; G.catSide = m.side; AUD.launch(); AUD.baa(1.1); camTo('follow', m.side); renderBars(); }
+  else if (m.k === 'snap') { if (G.shot && !G.authority) applyState(m.st, false); }
+  else if (m.k === 'fx') { puff(m.x, m.y, Math.round(18 + m.R / 4), '#fff', m.R); FX.push({ x: m.x, y: m.y, t: 0, life: 0.45, k: 'ring', s: m.R }); G.shake = Math.min(14, 3 + m.R / 12); AUD.boom(m.R, m.chain); }
+  else if (m.k === 'end') { applyState(m.state, true); for (const b of BODIES.filter(b => b.kind === 'sheep')) removeBody(b); G.shot = null; nextTurn(); }
+  else if (m.k === 'round') { applyState(m.state, true); G.phase = 'siege'; G.shot = null; G.wins = m.state.wins.slice(); if (m.winner >= 0) G.wins[m.winner]--; roundOver(m.winner, m.why); }
+  else if (m.k === 'next') { hideCard(); newRound(); }
+  else if (m.k === 'quit') { roundOverForfeit(); }
+}
+$('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); };
+$('bJoin').onclick = () => { AUD.init(); const c = $('roomIn').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes are 5 letters.'); return; } mpConnect(c); };
+$('bStart').onclick = () => { AUD.init(); hostStart(); };
+$('bRejoin').onclick = () => { const r = loadRec(); if (!r) { showRejoin(); return; } AUD.init(); if ($('friend').classList.contains('hidden')) drawer('friend'); mpConnect(r.room); mpStatus(`Rejoining <b>${r.room}</b>…`); };
+$('bLeaveRoom').onclick = () => { mpLeave(); mpStatus(''); };
+$('roomIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('bJoin').click(); e.stopPropagation(); });
+const roomLink = () => `${location.origin}${location.pathname}?room=${MP.code}`;
+async function copyText(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { ok = document.execCommand('copy'); } catch (e2) { } ta.remove(); }
+  const was = btn.dataset.label || (btn.dataset.label = btn.textContent);
+  btn.textContent = ok ? 'Copied ✓' : 'Press Ctrl+C'; btn.classList.toggle('done', ok);
+  clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = was; btn.classList.remove('done'); }, 1600);
+}
+$('bCopyLink').onclick = () => copyText(roomLink(), $('bCopyLink'));
+$('bCopyCode').onclick = () => copyText(MP.code, $('bCopyCode'));
+$('bShare').onclick = () => { navigator.share({ title: 'Flock & Fortress', text: 'Join my Flock & Fortress room: ' + MP.code, url: roomLink() }).catch(() => { }); };
+
+// ===== 70-audio.js =====
+// ================= sound: baas, blasts, timber and stone, the bell =================
+const AUD = {
+  ctx: null,
+  init() { if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; } const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; try { this.ctx = new AC(); } catch (e) { return; } this.m = this.ctx.createGain(); const c = this.ctx.createDynamicsCompressor(); this.m.connect(c); c.connect(this.ctx.destination); const n = this.ctx.sampleRate * 2; this.nb = this.ctx.createBuffer(1, n, this.ctx.sampleRate); const d = this.nb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; this.apply(); },
+  apply() { if (this.ctx) this.m.gain.setTargetAtTime(SET.sound ? 0.8 : 0, this.ctx.currentTime, 0.05); },
+  tone(f0, f1, dur, type, vol, delay = 0, a = 0.01) { if (!this.ctx) return; const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + a); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); o.connect(g); g.connect(this.m); o.start(t); o.stop(t + dur + 0.05); },
+  noise(dur, type, f0, f1, vol, delay = 0, q = 1) { if (!this.ctx) return; const t = this.ctx.currentTime + delay, s = this.ctx.createBufferSource(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain(); s.buffer = this.nb; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); s.connect(f); f.connect(g); g.connect(this.m); s.start(t, Math.random()); s.stop(t + dur + 0.05); },
+  // a "baa": buzzy voice through two formants with a wobble, sliding down
+  baa(p = 1) {
+    if (!this.ctx) return; const t = this.ctx.currentTime, dur = 0.55, o = this.ctx.createOscillator(), lfo = this.ctx.createOscillator(), lg = this.ctx.createGain(), g = this.ctx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(320 * p, t); o.frequency.linearRampToValueAtTime(280 * p, t + dur);
+    lfo.frequency.value = 22; lg.gain.value = 18 * p; lfo.connect(lg); lg.connect(o.frequency);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.05); g.gain.setValueAtTime(0.22, t + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    for (const [f, q] of [[750, 6], [1250, 8]]) { const b = this.ctx.createBiquadFilter(); b.type = 'bandpass'; b.frequency.value = f * Math.sqrt(p); b.Q.value = q; o.connect(b); b.connect(g); }
+    g.connect(this.m); o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
+  },
+  boom(R, chain = 1) { const k = clamp(R / 90, 0.5, 2.2); this.noise(0.5 + k * 0.5, 'lowpass', 1400, 60, 0.5 + 0.2 * k); this.tone(90 / Math.sqrt(chain), 32, 0.5 + k * 0.3, 'sine', 0.5); this.noise(0.25, 'bandpass', 3000, 900, 0.12 * k, 0.02, 1.5); },
+  thud(v, piece) { const stone = piece === 'stone' || piece === 'slab'; this.tone(stone ? 140 : 110, 60, 0.18, stone ? 'square' : 'sine', 0.12 * v); this.noise(0.12, 'lowpass', stone ? 1800 : 700, 200, 0.18 * v); },
+  crunch(piece) { const f = { hay: 2600, crate: 900, plank: 1100, stone: 1600, slab: 1500 }[piece] || 1200; this.noise(0.35, 'bandpass', f, f * 0.4, 0.3, 0, 1.2); if (piece === 'stone' || piece === 'slab') this.noise(0.2, 'highpass', 3000, 2000, 0.12, 0.05); },
+  place(t) { const f = t === 'stone' || t === 'slab' ? 180 : t === 'hay' ? 420 : 260; this.tone(f, f * 0.7, 0.1, 'triangle', 0.15); this.noise(0.06, 'lowpass', 800, 300, 0.12); },
+  launch() { this.noise(0.4, 'bandpass', 500, 1800, 0.3, 0, 1.2); this.tone(90, 50, 0.25, 'sawtooth', 0.12); },
+  bell(v = 1) { for (const [f, d, a] of [[880, 2.6, 0.2], [880 * 2.76, 1.6, 0.08], [880 * 5.4, 0.9, 0.04], [440, 3, 0.1]]) this.tone(f, f * 0.995, d, 'sine', a * v, 0, 0.004); },
+  click() { this.tone(300, 260, 0.05, 'square', 0.05); },
+  ready() { this.tone(523, 523, 0.18, 'triangle', 0.14); this.tone(784, 784, 0.25, 'triangle', 0.14, 0.12); },
+  win() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.4, 'triangle', 0.15, i * 0.12)); this.bell(0.6); },
+  lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.98, 0.45, 'triangle', 0.14, i * 0.15)); }
+};
+
+// ===== 90-boot.js =====
+// ================= boot + test hooks =================
+layout(); resetWorld(); setSound(SET.sound); setDiff(SET.diff); showRejoin();
+if (Q.get('room')) { drawer('friend'); $('roomIn').value = Q.get('room').toUpperCase(); mpConnect(Q.get('room').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 5)); }
+requestAnimationFrame(loop);
+window.FF = {
+  start(o = {}) { newMatch(Object.assign({ mode: 'cpu', seed: 1234 }, o)); },
+  state() { return G && { phase: G.phase, round: G.round, wins: G.wins.slice(), turn: G.turn, dmg: G.dmg.slice(), ammo: JSON.parse(JSON.stringify(G.ammo)), shot: !!G.shot, wind: G.wind, bodies: BODIES.length, pieces: [0, 1].map(s => BODIES.filter(b => b.side === s && b.piece).length), bells: [0, 1].map(s => { const b = bellOf(s); return b ? [Math.round(b.x), Math.round(b.y)] : null; }), money: [money(0), money(1)] }; },
+  advance(sec, dt = 1 / 60) { for (let s = 0; s < sec; s += dt) tick(dt); camStep(1); draw(0); return FF.state(); },
+  place(side, t, x, y, rot = 0) { return !!placePiece(side, t, x, y, rot, true); },
+  ready(side) { readyUp(side); },
+  cpuBuild(side) { cpuBuild(side); },
+  fire(side, type, vx, vy) { return fire(side, type, vx, vy); },
+  cpuShoot() { cpuShoot(); },
+  hideCard() { hideCard(); }
+};
+
+</script>
+</body>
+</html>
