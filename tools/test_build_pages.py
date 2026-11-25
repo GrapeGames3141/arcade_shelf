@@ -43,6 +43,23 @@ class PagesTests(unittest.TestCase):
         pages += [out / 'splat/index.html']
         for page in pages:
             self.assertNotIn('arcade-quick-hide-injected', page.read_text(encoding='utf-8'))
+    def test_every_game_page_gets_one_home_tab(self):
+        game = self.root / 'littles'
+        game.mkdir()
+        (game / 'littles.html').write_text('<!doctype html><html><head><title>Littles</title></head><body><p>x</p></body></html>', encoding='utf-8')
+        (game / 'game.json').write_text(json.dumps({'category': 'Kids'}), encoding='utf-8')
+        out = builder.build(self.root)
+        kid = (out / 'littles/littles.html').read_text(encoding='utf-8')
+        self.assertEqual(kid.count('id="arcade-home"'), 1)
+        self.assertIn('href="../index.html" data-kids="1"', kid)
+        self.assertLess(kid.index('id="arcade-home"'), kid.index('</body>'))
+        for name in builder.CURATED:
+            self.assertEqual((out / name / (name + '.html')).read_text(encoding='utf-8').count('id="arcade-home"'), 1)
+        for destination in builder.PROMOTED_EXPERIMENTS:
+            self.assertIn('href="../../index.html"', (out / destination).read_text(encoding='utf-8'))
+        self.assertNotIn('arcade-home', (out / 'index.html').read_text(encoding='utf-8'))
+        builder.build(self.root)
+        self.assertEqual((out / 'littles/littles.html').read_text(encoding='utf-8').count('id="arcade-home"'), 1)
     def test_discovery_metadata_assets_and_rebuild(self):
         game = self.root / 'future fields'
         (game / 'nested').mkdir(parents=True)

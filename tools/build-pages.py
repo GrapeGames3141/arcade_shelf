@@ -106,6 +106,44 @@ def runtime_files(folder):
         if path.is_symlink() or not path.is_file(): continue
         if path.suffix.lower() in EXTENSIONS and path.name.lower() != "game.json": yield path
 
+# A small "back to The Arcade Shelf" tab added to every packaged game page. It sits faded on the left edge,
+# opens on hover or a first tap and only leaves on a click or a second tap; kids games need a press and hold.
+# It hides in full screen, so game kid locks keep working.
+HOME_TAB = """<style id="arcade-home-style">
+#arcade-home{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:2147483000;display:flex;align-items:center;gap:7px;height:42px;max-width:28px;padding:0 12px 0 7px;box-sizing:border-box;border-radius:0 21px 21px 0;background:rgba(16,16,28,.5);color:#fff;font:600 13px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-decoration:none;white-space:nowrap;overflow:hidden;opacity:.4;box-shadow:0 2px 10px rgba(0,0,0,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:max-width .22s,opacity .22s,background .22s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#arcade-home b{flex:none;font-size:16px;line-height:1}
+#arcade-home.open,#arcade-home:focus-visible{max-width:230px;opacity:1;background:rgba(16,16,28,.9)}
+@media (hover:hover) and (pointer:fine){#arcade-home:hover{max-width:230px;opacity:1;background:rgba(16,16,28,.9)}}
+#arcade-home.hold{background:linear-gradient(90deg,rgba(233,196,106,.85) var(--p,0%),rgba(16,16,28,.9) var(--p,0%))}
+#arcade-home.gone{display:none}
+@media print{#arcade-home{display:none}}
+</style>
+<a id="arcade-home" href="{href}" data-kids="{kids}" aria-label="Back to The Arcade Shelf" title="Back to The Arcade Shelf"><b aria-hidden="true">⌂</b><span>{label}</span></a>
+<script id="arcade-home-script">(function(){var a=document.getElementById('arcade-home');if(!a)return;
+var kids=a.getAttribute('data-kids')==='1',fine=window.matchMedia&&matchMedia('(hover:hover) and (pointer:fine)').matches,open=false,t=0,raf=0,t0=0;
+function stop(e){e.stopPropagation();}
+['pointerdown','pointerup','pointermove','mousedown','mouseup','touchstart','touchend','contextmenu','wheel'].forEach(function(n){a.addEventListener(n,stop,{passive:n!=='contextmenu'});});
+function close(){open=false;a.classList.remove('open');}
+function show(){open=true;a.classList.add('open');clearTimeout(t);t=setTimeout(close,3500);}
+if(kids){
+  var go=function(){location.href=a.href;},end=function(){cancelAnimationFrame(raf);a.classList.remove('hold');a.style.removeProperty('--p');};
+  a.addEventListener('pointerdown',function(e){e.preventDefault();show();a.classList.add('hold');t0=performance.now();var f=function(now){var k=Math.min(1,(now-t0)/1200);a.style.setProperty('--p',(k*100)+'%');if(k>=1){end();go();}else raf=requestAnimationFrame(f);};raf=requestAnimationFrame(f);});
+  ['pointerup','pointercancel','pointerleave'].forEach(function(n){a.addEventListener(n,end);});
+  a.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();});
+}else a.addEventListener('click',function(e){e.stopPropagation();if(!fine&&!open){e.preventDefault();show();}});
+function fs(){a.classList.toggle('gone',!!(document.fullscreenElement||document.webkitFullscreenElement));}
+document.addEventListener('fullscreenchange',fs);document.addEventListener('webkitfullscreenchange',fs);
+})();</script>
+"""
+
+def add_home_tab(page, depth, kids):
+    text = page.read_text(encoding="utf-8-sig")
+    if 'id="arcade-home"' in text: return
+    tab = (HOME_TAB.replace("{href}", "../" * depth + "index.html").replace("{kids}", "1" if kids else "0")
+           .replace("{label}", "Hold for Arcade Shelf" if kids else "Arcade Shelf"))
+    i = text.lower().rfind("</body>")
+    page.write_text(text[:i] + tab + text[i:] if i >= 0 else text + tab, encoding="utf-8")
+
 def build(root=ROOT):
     root = Path(root).resolve()
     out = root / "work" / "pages"
@@ -203,6 +241,12 @@ def build(root=ROOT):
         if game.name in ("prism-swarm", "appalachian-eagle", "splat", "ashgrove", "castle-defense"):
             target = quote(entry_name(game), safe="")
             (out / game.name / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url={target}"><title>Moved</title><p>This game moved to <a href="{target}">{escape(entry_name(game))}</a>.</p>', encoding="utf-8")
+    # every game page gets the quiet way home; kids games (from the lobby card or game.json) need a press and hold
+    kid_paths = set(re.findall(r'data-category="kids"[^>]*>\s*<a[^>]*href="([^"]+)"', (out / "index.html").read_text(encoding="utf-8")))
+    for rel in [Path(game.name) / entry_name(game) for game in games] + list(PROMOTED_EXPERIMENTS):
+        game_dir = (root / rel).parent
+        kids = rel.as_posix() in kid_paths or (game_dir / "game.json").is_file() and metadata(game_dir)["category"].lower() == "kids"
+        add_home_tab(out / rel, len(rel.parts) - 1, kids)
     pages = [Path("index.html"), Path("privacy.html")] + [Path(game.name) / entry_name(game) for game in games] + list(PROMOTED_EXPERIMENTS)
     for rel in pages:
         page = out / rel
