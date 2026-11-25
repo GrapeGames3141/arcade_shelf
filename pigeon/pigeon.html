@@ -393,13 +393,12 @@ const TG = {
   taxi: { spr: 'taxi', h: .82, pts: 150, move: 0, spd: 0, tag: 'TAXI', lines: ['Hey! I’m DRIVIN’ here!', 'That’s comin’ outta your tip!', 'One star, bird. ONE STAR.', 'Meter’s running, pal.'] },
   van: { spr: 'van', h: .95, pts: 150, move: 0, spd: 0, tag: 'WHITE VAN', lines: ['The one clean spot!', 'Now it says WASH ME twice.', 'It matches the paint, at least.'] },
   laundry: { spr: 'laundry', h: 1.0, pts: 150, move: 0, spd: 0, tag: 'CLEAN LAUNDRY', lines: ['(the sheets were white. Were.)', '(spin cycle: wasted)', '(somewhere, a mother senses it)'] },
-  flag: { spr: 'flag', h: 1.25, pts: 100, move: 0, spd: 0, tag: 'CITY FLAG', lines: ['(technically a federal offence)', '(the city salutes anyway)', '(long may it drip)'] },
   flock: { spr: 'flock', h: .9, pts: 0, move: 12, spd: 1.1, lift: 42, friend: 1, tag: 'THE GUYS', lines: ['KEVIN! We’re on the SAME TEAM!', 'Friendly fire! FRIENDLY FIRE!', 'Dude. Not cool.', 'We TALKED about this, Kevin.', 'Coo. (that means “lawsuit”)'] },
   rowboat: { spr: 'couple', h: .86, sink: .26, boat: [1.7, .26, [.36, .24, .16]], pts: 250, move: 14, spd: .3, tag: 'ROMANTIC ROWBOAT', lines: ['Row faster, Harold!', 'It’s in the picnic basket!', 'You said the lake was ROMANTIC.', 'Abandon ship. Abandon date.'] },
   tug: { spr: 'worker', h: .9, sink: .2, boat: [2.1, .4, [.5, .16, .12]], pts: 150, move: 10, spd: .25, tag: 'TUGBOAT', lines: ['Bird overboard! No— worse!', 'Swab the deck. AGAIN.', 'Thirty years at sea. Never like this.'] },
   yacht: { spr: 'cat', h: .6, sink: .08, boat: [2.4, .36, [.92, .92, .9]], pts: 250, move: 8, spd: .2, tag: 'A CAT ON A YACHT', lines: ['Mrow. (my lawyers will call.)', 'Do you know who I AM?', 'Summon the deck staff.'] },
 };
-const POOLS = { street: ['couple', 'car', 'jogger', 'taxi', 'dogwalker', 'van', 'worker'], park: ['jogger', 'dogwalker', 'couple', 'cat', 'flag'], rooftops: ['laundry', 'cat', 'worker', 'flag'], rail: ['worker', 'couple', 'van', 'jogger'], river: ['rowboat', 'tug', 'yacht'] };
+const POOLS = { street: ['couple', 'car', 'jogger', 'taxi', 'dogwalker', 'van', 'worker'], park: ['jogger', 'dogwalker', 'couple', 'cat'], rooftops: ['laundry', 'cat', 'worker'], rail: ['worker', 'couple', 'van', 'jogger'], river: ['rowboat', 'tug', 'yacht'] };
 
 const S = { state: 'menu', level: 1, t: 0, px: 300, py: 300, vy: 0, boost: 0, district: 'rooftops', camX: 0, goalChunk: 1e9, pose: { th: .2, sw: .2, ph: 0, pitch: 0, phi: 0 }, pop: [], bub: [], decals: [], poo: [], hits: new Map(), items: [], shake: 0, lock: 0, menuSel: 1 };
 let GT = 0; /* wall-clock animation time */
@@ -835,7 +834,7 @@ function drawScene() {
   if (PIGEON && S.goalChunk < 1e8) { /* the home roost */
     const x = (S.goalChunk - 1) * 3.6 + .6, G = H(chunk(S.goalChunk - 1).roof);
     m.box(x - .5, G, -.5, x + .5, G + .8, .5, [.55, .53, .5]); m.box(x - .62, G + .8, -.62, x + .62, G + .92, .62, [.62, .6, .56]);
-    m.card(x, G + .92, 1.5, 1.5 / LC.flock[4], 0, LC.flock, 2, true); m.card(x + 1.9, G, 1.3, 1.3 / LC.flag[4], -.2, LC.flag, 2);
+    m.card(x, G + .92, 1.5, 1.5 / LC.flock[4], 0, LC.flock, 2, true);
   }
   const shadow = (xp, yp) => { const g = H(roofAt(xp)), k = clamp(1 - ((720 - yp) / 100 - g) / 6, .25, 1); s.add(xp / 100, g + .015, 0, .34 * k, 0, 0, 0, 0, .2 * k, .04, .04, .07, 1); };
   const po = S.pose, me = PIGEON ? BIRDS.pigeon : BIRDS.falcon;
