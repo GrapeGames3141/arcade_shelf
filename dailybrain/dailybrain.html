@@ -94,15 +94,24 @@ canvas.vis { display: block; width: 100%; max-width: 420px; aspect-ratio: 1 / .7
 .ng .cl { display: flex; align-items: flex-end; justify-content: center; font: 700 12px/1.15 system-ui; color: var(--soft); padding: 2px 0; }
 .ng .cl.col { flex-direction: column; }
 .ng .cl.row { justify-content: flex-end; gap: 5px; padding: 0 6px; align-items: center; }
-.ng .cl.done { color: var(--faint); opacity: .55; }
+.ng .cl.done { color: var(--good); }
+.ng .cl.row.done::after { content: "✓"; font-size: 11px; margin-left: 2px; }
+.ng .c.bad { box-shadow: inset 0 0 0 2px var(--bad); }
+.pichelp { display: grid; gap: 12px; text-align: left; font-size: 15px; }
+.pichelp .ex { display: flex; align-items: center; gap: 10px; }
+.pichelp .ex b { min-width: 44px; text-align: right; font: 700 15px ui-monospace, monospace; color: var(--soft); }
+.pichelp .ex i { width: 22px; height: 22px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); display: inline-block; }
+.pichelp .ex i.f { background: linear-gradient(145deg, #7ce3bf, #3bb88b); }
+.pichelp .ex i.x { position: relative; } .pichelp .ex i.x::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; color: var(--faint); font-style: normal; }
+.pichelp p { margin: 0; color: var(--soft); } .pichelp strong { color: var(--ink); }
 .ng .c { border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .03); position: relative; }
 .ng .c.f { background: linear-gradient(145deg, #7ce3bf, #3bb88b); border-color: rgba(0, 0, 0, .2); }
 .ng .c.x::after { content: "✕"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 13px; }
 .ng .c.r5 { border-right-color: rgba(255, 255, 255, .32); } .ng .c.b5 { border-bottom-color: rgba(255, 255, 255, .32); }
 .ng.won .c.f { background: linear-gradient(145deg, var(--gold2), var(--gold)); }
 .ng.won .c.x::after { content: ""; }
-.mode { display: flex; gap: 8px; justify-content: center; margin: 12px 0 4px; }
-.mode button { border: 1px solid var(--edge); background: var(--card); border-radius: 999px; padding: 9px 16px; font-weight: 650; }
+.mode { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 4px; }
+.mode button { border: 1px solid var(--edge); background: var(--card); border-radius: 999px; padding: 9px 14px; font-weight: 650; }
 .mode button.on { border-color: var(--pic); background: rgba(79, 209, 161, .16); color: #c9f5e4; }
 /* patterns */
 .seq { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 10px 0 6px; }
@@ -126,10 +135,27 @@ canvas.vis { display: block; width: 100%; max-width: 420px; aspect-ratio: 1 / .7
 .lb li:nth-child(1) .rk { color: var(--gold); } .lb li:nth-child(2) .rk { color: #d7dbe6; } .lb li:nth-child(3) .rk { color: #d79a62; }
 .lb .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .lb .sc { font-weight: 700; } .lb .tm { color: var(--faint); font-size: 13px; min-width: 52px; text-align: right; }
+/* race */
+.raceb { display: none; gap: 8px; margin: 0 0 10px; }
+.raceb.on { display: grid; }
+.rb { display: grid; grid-template-columns: 74px 1fr 48px; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; }
+.rb .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb .tr { height: 8px; border-radius: 8px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.rb .tr i { display: block; height: 100%; width: 0; border-radius: 8px; transition: width .4s; }
+.rb.me .tr i { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.rb.them .tr i { background: linear-gradient(90deg, #e9a14f, #e9c46a); }
+.rb .sc { text-align: right; font-variant-numeric: tabular-nums; }
+#raceCode { width: 100px; text-align: center; text-transform: uppercase; font: 700 16px/1 ui-monospace, monospace; letter-spacing: .18em; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--edge2); background: rgba(0, 0, 0, .3); }
+#racePick { display: none; gap: 8px; margin-top: 10px; } #racePick.on { display: grid; grid-template-columns: repeat(3, 1fr); }
+.count { font: 600 120px/1 var(--serif); text-align: center; margin: 18vh 0 0; background: linear-gradient(180deg, #fff, var(--gold2)); -webkit-background-clip: text; background-clip: text; color: transparent; animation: pop .9s ease-out infinite; }
+@keyframes pop { from { transform: scale(1.25); opacity: .4; } 30% { transform: scale(1); opacity: 1; } }
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; text-align: center; }
+.vs .who { font-weight: 700; } .vs .pts { font: 600 40px/1 var(--serif); } .vs .tm { color: var(--soft); font-size: 13px; }
+.vs .win .pts { color: var(--gold2); }
 /* name sheet */
 .sheet { position: fixed; inset: 0; z-index: 20; display: none; place-items: center; padding: 16px; background: rgba(4, 5, 12, .66); backdrop-filter: blur(3px); }
 .sheet.on { display: grid; }
-.sheet .card { width: min(420px, 100%); background: linear-gradient(180deg, #1a1d33, #12142a); border-color: var(--edge2); }
+.sheet .card { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow: auto; width: min(420px, 100%); background: linear-gradient(180deg, #1a1d33, #12142a); border-color: var(--edge2); }
 .sheet input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--edge2); background: rgba(0, 0, 0, .3); font-size: 18px; font-weight: 600; }
 .spark { position: fixed; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; z-index: 9; animation: spark .9s ease-out forwards; }
 @keyframes spark { to { transform: translate(var(--dx), var(--dy)) rotate(260deg); opacity: 0; } }
@@ -148,11 +174,19 @@ canvas.vis { display: block; width: 100%; max-width: 420px; aspect-ratio: 1 / .7
   <div class="row"><button class="btn main wide" id="bBoard">🏆 Leaderboard</button><button class="btn wide" id="bShare" disabled>Share my day</button></div>
   <div class="sect"><h2>Practice</h2><span>Endless, not ranked</span></div>
   <div class="row"><button class="btn wide" data-prac="estimate">🎯 Estimate</button><button class="btn wide" data-prac="picture">🧩 Picture</button><button class="btn wide" data-prac="patterns">🔢 Patterns</button></div>
+  <div class="row" style="margin-top:-4px"><button class="btn wide" id="bEasyPic">🧩 Learn Picture Logic on an easy 5 × 5</button></div>
+  <div class="sect"><h2>Race a friend</h2><span>Same puzzle, live</span></div>
+  <div class="card" id="raceCard">
+    <div class="row" style="margin:0;align-items:center"><button class="btn" id="bRaceNew">Create a room</button><input id="raceCode" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code"><button class="btn" id="bRaceJoin">Join</button></div>
+    <div class="small muted" id="raceStatus" style="margin-top:8px">One of you creates a room and sends the code. You both get the same new puzzle and see each other's progress live.</div>
+    <div id="racePick"><button class="btn" data-race="estimate">🎯 Estimate</button><button class="btn" data-race="picture">🧩 Picture</button><button class="btn" data-race="patterns">🔢 Patterns</button></div>
+  </div>
   <p class="foot"><a href="../index.html">← The Arcade Shelf</a></p>
 </section>
 
 <section class="screen" id="play">
   <div class="ptop"><button class="back" id="bQuit" aria-label="Stop">✕</button><div class="prog"><i id="pBar"></i></div><span class="timer" id="pTime">0:00</span></div>
+  <div class="raceb" id="raceBar"><div class="rb me"><span class="nm">You</span><span class="tr"><i id="rbMe"></i></span><span class="sc" id="rbMeS">0</span></div><div class="rb them"><span class="nm" id="rbThemN">Friend</span><span class="tr"><i id="rbThem"></i></span><span class="sc" id="rbThemS">0</span></div></div>
   <div id="stage"></div>
 </section>
 
@@ -160,6 +194,12 @@ canvas.vis { display: block; width: 100%; max-width: 420px; aspect-ratio: 1 / .7
   <header class="bar"><button class="back" data-home aria-label="Back">←</button><h1 id="dTitle"></h1></header>
   <div class="card" style="text-align:center"><div class="tag" id="dTag"></div><div class="total" style="justify-content:center;margin:0"><span class="big" id="dScore"></span><span class="muted">/ 1000</span></div><p class="muted" id="dText"></p><div id="dRank" class="small muted"></div></div>
   <div class="row"><button class="btn main wide" id="bDoneHome">Back to today</button><button class="btn wide" id="bDoneBoard">🏆 Leaderboard</button></div>
+</section>
+
+<section class="screen" id="raceDone">
+  <header class="bar"><button class="back" id="bRaceBack" aria-label="Back">←</button><h1 id="rdTitle">Race</h1></header>
+  <div class="card"><div class="tag" id="rdTag"></div><div class="vs" id="rdVs"></div><p class="muted small" id="rdText" style="text-align:center;margin:12px 0 0"></p></div>
+  <div class="row"><button class="btn main wide" id="bRaceAgain">Race again</button><button class="btn wide" id="bRaceLeave">Leave the room</button></div>
 </section>
 
 <section class="screen" id="board">
@@ -171,6 +211,10 @@ canvas.vis { display: block; width: 100%; max-width: 420px; aspect-ratio: 1 / .7
 </section>
 
 </div>
+<div class="sheet" id="helpSheet"><div class="card">
+  <h2 id="helpTitle" style="margin:0 0 10px"></h2><div id="helpBody"></div>
+  <div class="row"><button class="btn main wide" id="bHelpOk">Got it</button><button class="btn" id="bHelpEasy" hidden>Try an easy 5×5 first</button></div>
+</div></div>
 <div class="sheet" id="nameSheet"><div class="card">
   <h2 style="margin:0 0 6px">Your leaderboard name</h2>
   <p class="muted small" style="margin:0 0 12px">2 to 16 letters, numbers or spaces. Everyone can see it.</p>
@@ -212,7 +256,7 @@ function streak() { let n = 0; for (let o = 0; ; o--) { const d = utcDay(o); if 
 // ---------- screens ----------
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); window.scrollTo(0, 0); }
 document.querySelectorAll('[data-home]').forEach(b => b.onclick = goHome);
-function goHome() { stopRun(); renderHome(); show('home'); }
+function goHome() { stopRun(); RACE.kind = null; $('#raceBar').classList.remove('on'); renderHome(); show('home'); }
 
 function renderHome() {
   if (utcDay() !== TODAY && !Q.get('day')) TODAY = utcDay();
@@ -234,19 +278,20 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 // ---------- a run (one puzzle) ----------
 let RUN = null, tickT = 0;
 function stopRun() { if (RUN && RUN.cleanup) RUN.cleanup(); RUN = null; clearInterval(tickT); }
-function start(kind, practice) {
+function start(kind, practice, seed, race, opts) {
   stopRun();
-  const seed = practice ? (Math.random() * 1e9) | 0 : hashStr(TODAY + ':' + kind);
-  RUN = { kind, practice, rng: mulberry32(seed), t0: performance.now(), score: 0, penalty: 0 };
-  show('play'); $('#pBar').style.width = '0%';
+  if (seed === undefined) seed = practice ? (Math.random() * 1e9) | 0 : hashStr(TODAY + ':' + kind);
+  RUN = { kind, practice, race: !!race, rng: mulberry32(seed), t0: performance.now(), score: 0, penalty: 0, size: opts && opts.size };
+  show('play'); $('#pBar').style.width = '0%'; $('#raceBar').classList.toggle('on', !!race); if (race) raceDraw();
   tickT = setInterval(() => { if (RUN) $('#pTime').textContent = fmtT(performance.now() - RUN.t0 + RUN.penalty * 1000); }, 250);
   ({ estimate: estStart, picture: picStart, patterns: patStart })[kind]();
 }
-$('#bQuit').onclick = () => { if (RUN && !RUN.practice && !confirm('Leave this daily puzzle? Your first try is the one that counts, so leaving gives you 0.')) return; if (RUN && !RUN.practice) finishRun(0, true); else goHome(); };
+$('#bQuit').onclick = () => { if (RUN && RUN.race) { if (confirm('Leave the race? You will finish with 0.')) finishRun(0, true); return; } if (RUN && !RUN.practice && !confirm('Leave this daily puzzle? Your first try is the one that counts, so leaving gives you 0.')) return; if (RUN && !RUN.practice) finishRun(0, true); else goHome(); };
 function finishRun(score, quit) {
   const r = RUN; if (!r) return; clearInterval(tickT);
   const ms = Math.max(1000, Math.round(performance.now() - r.t0 + r.penalty * 1000)); score = clamp(Math.round(score), 0, 1000);
   if (r.cleanup) r.cleanup(); RUN = null;
+  if (r.race) { raceFinish(score, ms, quit); return; }
   const p = PUZ[r.kind];
   $('#dTitle').textContent = p.name; $('#dTag').textContent = r.practice ? 'Practice' : `Daily · ${TODAY}`;
   $('#dScore').textContent = score; $('#dText').textContent = quit ? 'Left early.' : `Time ${fmtT(ms)}. ` + (score >= 900 ? 'Brilliant!' : score >= 700 ? 'Great work.' : score >= 400 ? 'Nice. Try a practice round to sharpen up.' : 'Tough one. Practice makes it click.');
@@ -330,7 +375,7 @@ function estTime(r) {
   RUN.keys = e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!$('#bT').disabled) $('#bT').click(); } };
 }
 function estReveal(r, v, show) {
-  show(); const pts = estScore(r, v); RUN.total += pts;
+  show(); const pts = estScore(r, v); RUN.total += pts; raceProg((RUN.i + 1) / 5, RUN.total);
   $('#msg').className = 'msg ' + (pts >= 120 ? 'good' : 'bad');
   $('#msg').textContent = `${pts >= 180 ? 'Spot on!' : pts >= 120 ? 'Close!' : pts > 0 ? 'Not bad.' : 'Way off.'} It was ${r.label(r.ans)}. You said ${r.label(v)}. +${pts}`;
   $('#tip').innerHTML = '💡 ' + r.tip; $('#tip').classList.add('on');
@@ -368,7 +413,7 @@ function drawEst(cv, r, visible) {
 // ============================================================================
 // PICTURE LOGIC: a 10×10 nonogram from the day's seed, checked to have one answer solvable line by line.
 // ============================================================================
-const NG = 10;
+let NG = 10;   // grid size: 10 for the daily, 5 for the beginner practice
 function lineOptions(clue, n) {
   const out = [], blocks = clue[0] === 0 ? [] : clue;
   const rec = (i, pos, cur) => {
@@ -397,20 +442,21 @@ function makePicture(R) {
   for (let tries = 0; tries < 400; tries++) {
     let g = Array.from({ length: NG }, () => Array.from({ length: NG }, () => R() < .56 ? 1 : 0));
     for (let s = 0; s < 2; s++) g = g.map((row, y) => row.map((v, x) => { let n = 0, c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = y + dy, xx = x + dx; if (yy < 0 || xx < 0 || yy >= NG || xx >= NG) continue; n++; c += g[yy][xx]; } return c * 2 > n ? 1 : c * 2 === n ? v : 0; }));
-    const filled = g.flat().reduce((a, b) => a + b, 0); if (filled < 35 || filled > 70) continue;
+    const filled = g.flat().reduce((a, b) => a + b, 0); if (filled < NG * NG * .35 || filled > NG * NG * .7) continue;
     const rows = g.map(clueOf), cols = g[0].map((_, x) => clueOf(g.map(r => r[x])));
     if (lineSolvable(rows, cols)) return { sol: g, rows, cols };
   }
   const g = Array.from({ length: NG }, (_, y) => Array.from({ length: NG }, (_, x) => (x + y) % 3 ? 1 : 0)); return { sol: g, rows: g.map(clueOf), cols: g[0].map((_, x) => clueOf(g.map(r => r[x]))) };
 }
 function picStart() {
+  NG = RUN.size || 10;
   const P = makePicture(RUN.rng), st = Array.from({ length: NG }, () => new Array(NG).fill(0)); // 0 empty, 1 filled, 2 crossed
   RUN.pic = { ...P, st, mode: 1, hints: 0 };
   const maxR = Math.max(...P.rows.map(c => c.length)), maxC = Math.max(...P.cols.map(c => c.length));
-  const avail = Math.min(document.querySelector('.wrap').clientWidth - 8, 560), cell = Math.floor(clamp((avail - maxR * 16 - 16) / NG, 22, 40));
-  $('#stage').innerHTML = `<div class="card" style="padding:12px"><div class="tag">Picture Logic · 10 × 10</div><div class="small muted" style="margin-bottom:8px">Each number is a run of filled squares in that row or column, in order, with gaps between runs. Fill the squares to reveal the picture. A hint fills a row but adds 30 seconds.</div>
+  const avail = Math.min(document.querySelector('.wrap').clientWidth - 8, 560), cell = Math.floor(clamp((avail - maxR * 16 - 16) / NG, 22, NG <= 5 ? 56 : 40));
+  $('#stage').innerHTML = `<div class="card" style="padding:12px"><div style="display:flex;align-items:center;gap:8px"><div class="tag" style="flex:1;margin:0">Picture Logic · ${NG} × ${NG}</div><button class="chip" id="bPicHelp">? How to play</button></div><div class="small muted" style="margin:6px 0 8px">Tap squares to fill them so every row and column matches its numbers. It finishes by itself when it's right. No submit needed.</div>
     <div class="ng" id="ng" style="grid-template-columns:auto repeat(${NG}, ${cell}px);grid-template-rows:auto repeat(${NG}, ${cell}px)"></div>
-    <div class="mode"><button data-m="1" class="on">■ Fill</button><button data-m="2" title="Mark a square you know is empty">✕ Mark</button><button id="bHint" title="Fills one row for you; adds 30 seconds">💡 Hint</button></div><div class="msg" id="msg"></div></div>`;
+    <div class="mode"><button data-m="1" class="on">■ Fill</button><button data-m="2" title="Mark a square you know is empty">✕ Mark</button><button id="bHint" title="Fills one row for you; adds 30 seconds">💡 Hint</button><button id="bPicCheck" title="Shows how many squares are wrong; adds 15 seconds">✓ Check</button></div><div class="msg" id="msg"></div></div>`;
   const ng = $('#ng'); let html = '<div></div>';
   for (let x = 0; x < NG; x++) html += `<div class="cl col" data-cc="${x}">${P.cols[x].map(n => `<span>${n}</span>`).join('')}</div>`;
   for (let y = 0; y < NG; y++) { html += `<div class="cl row" data-rc="${y}">${P.rows[y].map(n => `<span>${n}</span>`).join('')}</div>`; for (let x = 0; x < NG; x++) html += `<div class="c${x === 4 ? ' r5' : ''}${y === 4 ? ' b5' : ''}" data-x="${x}" data-y="${y}"></div>`; }
@@ -420,7 +466,8 @@ function picStart() {
   let c2 = cell; fit(c2); const cs = getComputedStyle(ng.parentElement), room = ng.parentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
   while (ng.scrollWidth > room && c2 > 16) fit(--c2);
   document.querySelectorAll('.mode [data-m]').forEach(b => b.onclick = () => { RUN.pic.mode = +b.dataset.m; document.querySelectorAll('.mode [data-m]').forEach(o => o.classList.toggle('on', o === b)); });
-  $('#bHint').onclick = picHint;
+  $('#bHint').onclick = picHint; $('#bPicCheck').onclick = picVerify; $('#bPicHelp').onclick = () => picHelp(false);
+  if (!S.seenPicHelp) setTimeout(() => picHelp(true), 250);
   let paint = null;
   const cellAt = e => { const el = document.elementFromPoint(e.clientX, e.clientY); return el && el.classList.contains('c') ? el : null; };
   const apply = el => { if (!el || !RUN || !RUN.pic) return; const x = +el.dataset.x, y = +el.dataset.y; if (RUN.pic.st[y][x] === paint.to || (paint.to !== 0 && RUN.pic.st[y][x] !== 0 && RUN.pic.st[y][x] !== paint.from)) return; RUN.pic.st[y][x] = paint.to; drawCell(x, y); picCheck(); };
@@ -436,12 +483,35 @@ function picCheck() {
   const P = RUN.pic, filled = P.st.map(r => r.map(v => v === 1 ? 1 : 0));
   for (let y = 0; y < NG; y++) document.querySelector(`[data-rc="${y}"]`).classList.toggle('done', clueOf(filled[y]).join() === P.rows[y].join());
   for (let x = 0; x < NG; x++) document.querySelector(`[data-cc="${x}"]`).classList.toggle('done', clueOf(filled.map(r => r[x])).join() === P.cols[x].join());
-  $('#pBar').style.width = (filled.flat().filter((v, i) => v && P.sol[Math.floor(i / NG)][i % NG]).length / P.sol.flat().filter(Boolean).length * 100) + '%';
+  const frac = filled.flat().filter((v, i) => v && P.sol[Math.floor(i / NG)][i % NG]).length / P.sol.flat().filter(Boolean).length;
+  $('#pBar').style.width = (frac * 100) + '%'; raceProg(frac * .99, null);
   if (P.sol.every((r, y) => r.every((v, x) => v === filled[y][x]))) {
     P.won = true; $('#ng').classList.add('won'); const secs = (performance.now() - RUN.t0) / 1000 + RUN.penalty;
     $('#msg').className = 'msg good'; $('#msg').textContent = `Solved in ${fmtT(secs * 1000)}!`; celebrate($('#ng'));
     setTimeout(() => finishRun(Math.max(100, 1000 - secs)), 1400);
   }
+}
+// "Am I right so far?": marks wrongly filled squares for a moment and says how many are left to find
+function picVerify() {
+  const P = RUN.pic; if (P.won) return;
+  let wrong = 0, missing = 0;
+  for (let y = 0; y < NG; y++) for (let x = 0; x < NG; x++) { const f = P.st[y][x] === 1, want = P.sol[y][x] === 1; if (f && !want) { wrong++; const el = document.querySelector(`.ng .c[data-x="${x}"][data-y="${y}"]`); el.classList.add('bad'); setTimeout(() => el.classList.remove('bad'), 2000); } else if (!f && want) missing++; }
+  RUN.penalty += 15;
+  $('#msg').className = 'msg ' + (wrong ? 'bad' : 'good');
+  $('#msg').textContent = wrong ? `${wrong} square${wrong > 1 ? 's are' : ' is'} filled by mistake (outlined red). +15 seconds.` : `No mistakes so far! ${missing} more square${missing === 1 ? '' : 's'} to fill. +15 seconds.`;
+}
+function picHelp(first) {
+  S.seenPicHelp = true; save();
+  const row = (clue, cells) => `<div class="ex"><b>${clue}</b>${cells.split('').map(c => `<i class="${c === '#' ? 'f' : c === 'x' ? 'x' : ''}"></i>`).join('')}</div>`;
+  $('#helpBody').innerHTML = `<div class="pichelp">
+    <p>The numbers beside each row (and above each column) say <strong>how many squares in a row are filled</strong>, in order.</p>
+    ${row('3', '###xx')}${row('1 2', '#x##x')}${row('5', '#####')}
+    <p><strong>1 2</strong> means one filled square, at least one gap, then two filled squares.</p>
+    <p><strong>Start with the big numbers.</strong> A ${NG} in a ${NG}-wide row fills the whole row. Then use <strong>✕ Mark</strong> on squares that must be empty, so you can see what's left.</p>
+    <p>A clue turns <span style="color:var(--good)">green ✓</span> when its line matches. <strong>There's no submit:</strong> the puzzle finishes by itself the moment every line is right. <strong>✓ Check</strong> shows mistakes (+15s) and <strong>💡 Hint</strong> fills a row (+30s).</p>
+  </div>`;
+  $('#helpTitle').textContent = 'How Picture Logic works'; if (RUN) RUN.helpAt = performance.now();   // reading the help doesn't use up time
+  $('#bHelpEasy').hidden = !(first && !RUN.practice) ; $('#helpSheet').classList.add('on');
 }
 function picHint() {
   const P = RUN.pic; if (P.won) return;
@@ -504,12 +574,105 @@ function patCheck(v) {
     patDraw('good'); $('#msg').className = 'msg good'; $('#msg').textContent = `Yes! +${pts}`; if (!RUN.tries) celebrate($('#ent'));
   } else if (!RUN.tries) { RUN.tries++; patDraw('bad'); RUN.entry = ''; setTimeout(() => RUN && patDraw(), 300); $('#msg').className = 'msg bad'; $('#msg').textContent = 'Not quite. One more try.'; return; }
   else { $('#msg').className = 'msg bad'; $('#msg').textContent = `It was ${s.ans}.`; }
-  RUN.locked = true; $('#tip').innerHTML = '💡 ' + s.why; $('#tip').classList.add('on');
+  RUN.locked = true; raceProg((RUN.i + 1) / 5, RUN.total); $('#tip').innerHTML = '💡 ' + s.why; $('#tip').classList.add('on');
   $('#pad').outerHTML = `<button class="checkb" id="bNext" style="margin-top:10px">${RUN.i === 4 ? 'See my score' : 'Next'}</button>`;
   $('#bNext').onclick = () => { RUN.locked = false; RUN.i++; if (RUN.i >= 5) finishRun(RUN.total); else patRound(); };
 }
 
-document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (RUN && RUN.keys) RUN.keys(e); else if (e.key === 'Escape' && !$('#home').classList.contains('on')) goHome(); });
+document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if ($('#helpSheet').classList.contains('on')) { if (e.key === 'Escape' || e.key === 'Enter') $('#bHelpOk').click(); return; } if (RUN && RUN.keys) RUN.keys(e); else if (e.key === 'Escape' && !$('#home').classList.contains('on')) goHome(); });
+
+// ============================================================================
+// Race a friend: both players get the same new puzzle (a shared seed) and see each other's progress live.
+// Messages go through the Arcade Shelf relay (services/arcade-relay); the room creator picks the puzzle.
+// ============================================================================
+const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const RACE = { ws: null, seat: -1, code: '', them: 'Friend', paired: false, kind: null, me: null, op: null, sentAt: 0 };
+const raceStatus = h => { $('#raceStatus').innerHTML = h; };
+const myName = () => S.name || 'You';
+function raceSend(o) { if (RACE.ws && RACE.ws.readyState === 1) RACE.ws.send(JSON.stringify(o)); }
+function raceLeave() { if (RACE.ws) { RACE.ws.onclose = null; try { RACE.ws.close(); } catch (e) { } } RACE.ws = null; RACE.paired = false; RACE.seat = -1; $('#racePick').classList.remove('on'); raceStatus('Left the room. Create a new one or join with a code.'); }
+function raceConnect(code) {
+  raceLeave(); RACE.code = code;
+  let ws; try { ws = new WebSocket(SERVER.replace(/^http/, 'ws') + '/ws?game=dailybrain&room=' + code); } catch (e) { raceStatus('Could not reach the game server.'); return; }
+  RACE.ws = ws; raceStatus(`Connecting to room <b>${code}</b>…`);
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } raceMsg(m); };
+  ws.onerror = () => raceStatus('Could not reach the game server. Try again in a moment.');
+  ws.onclose = () => { RACE.ws = null; if (RACE.paired) { RACE.paired = false; raceGone(); } };
+}
+function raceMsg(m) {
+  if (m.k === 'full') { raceStatus('That room already has two players.'); return; }
+  if (m.k === 'hello') {
+    RACE.seat = m.seat;
+    if (m.peers) raceSend({ k: 'hi', name: myName() });
+    raceStatus(m.seat === 0 ? `Room <b>${RACE.code}</b> is open. Send your friend the code or this link:<br><span style="user-select:all">${location.origin}${location.pathname}?race=${RACE.code}</span><br>Waiting for them to join…` : `Joined room <b>${RACE.code}</b>…`);
+    return;
+  }
+  if (m.k === 'peer') { if (m.on) raceSend({ k: 'hi', name: myName() }); else { RACE.paired = false; raceGone(); } return; }
+  if (m.k === 'hi') { const fresh = !RACE.paired; RACE.them = String(m.name || 'Friend').slice(0, 16); RACE.paired = true; if (fresh && m.reply !== 1) raceSend({ k: 'hi', name: myName(), reply: 1 }); raceLobby(); return; }
+  if (m.k === 'go') { raceBegin(m.kind, m.seed); return; }
+  if (m.k === 'prog') { if (RACE.op) { RACE.op.p = m.p; if (m.score != null) RACE.op.score = m.score; raceDraw(); } return; }
+  if (m.k === 'done') { if (RACE.op) { RACE.op.done = { score: m.score, ms: m.ms, quit: !!m.quit }; RACE.op.p = 1; RACE.op.score = m.score; raceDraw(); raceResult(); } return; }
+  if (m.k === 'again') { goHome(); raceLobby(); }
+}
+function raceLobby() {
+  if (!RACE.paired) return;
+  const host = RACE.seat === 0;
+  raceStatus(host ? `You're racing <b>${esc(RACE.them)}</b>. Pick a puzzle to start:` : `You're racing <b>${esc(RACE.them)}</b>. Waiting for them to pick a puzzle…`);
+  $('#racePick').classList.toggle('on', host);
+}
+function raceGone() {
+  $('#racePick').classList.remove('on');
+  raceStatus(`${esc(RACE.them)} left the room.`);
+  if (RACE.op && !RACE.op.done) { RACE.op.done = { score: 0, ms: 0, quit: true, left: true }; raceResult(); }
+}
+document.querySelectorAll('[data-race]').forEach(b => b.onclick = () => { if (!RACE.paired) return; const seed = (Math.random() * 1e9) | 0, kind = b.dataset.race; raceSend({ k: 'go', kind, seed }); raceBegin(kind, seed); });
+function raceBegin(kind, seed) {
+  stopRun(); RACE.kind = kind; RACE.me = { p: 0, score: 0, done: null }; RACE.op = { p: 0, score: 0, done: null };
+  show('play'); $('#raceBar').classList.add('on'); raceDraw(); $('#pBar').style.width = '0%'; $('#pTime').textContent = '';
+  let n = 3; $('#stage').innerHTML = `<div class="tag" style="text-align:center;margin-top:6vh">${PUZ[kind].ico} ${PUZ[kind].name} · vs ${esc(RACE.them)}</div><div class="count" id="cnt">3</div>`;
+  const step = () => { if (RACE.kind !== kind || $('#cnt') === null) return; n--; if (n > 0) { $('#cnt').textContent = n; setTimeout(step, 800); } else start(kind, true, seed, true); };
+  setTimeout(step, 800);
+}
+function raceProg(p, score) {
+  if (!RUN || !RUN.race || !RACE.me) return;
+  RACE.me.p = p; if (score != null) RACE.me.score = score; raceDraw();
+  const now = performance.now(); if (now - RACE.sentAt > 250 || p >= .99) { RACE.sentAt = now; raceSend({ k: 'prog', p, score }); }
+}
+function raceDraw() {
+  if (!RACE.me) return;
+  $('#rbThemN').textContent = RACE.them;
+  $('#rbMe').style.width = (RACE.me.p * 100) + '%'; $('#rbThem').style.width = (RACE.op.p * 100) + '%';
+  $('#rbMeS').textContent = RACE.kind === 'picture' ? Math.round(RACE.me.p * 100) + '%' : RACE.me.score;
+  $('#rbThemS').textContent = RACE.op.done ? (RACE.op.done.quit ? 'left' : RACE.op.done.score) : RACE.kind === 'picture' ? Math.round(RACE.op.p * 100) + '%' : RACE.op.score;
+}
+function raceFinish(score, ms, quit) {
+  RACE.me.done = { score, ms, quit }; RACE.me.p = 1; RACE.me.score = score;
+  raceSend({ k: 'done', score, ms, quit: quit ? 1 : 0 });
+  raceResult();
+}
+function raceResult() {
+  const me = RACE.me, op = RACE.op; if (!me || !me.done) return;
+  show('raceDone'); const P = PUZ[RACE.kind];
+  $('#rdTag').textContent = `${P.ico} ${P.name} race`;
+  const card = (who, d, win) => `<div class="${win ? 'win' : ''}"><div class="who">${esc(who)}${win ? ' 👑' : ''}</div><div class="pts">${d ? (d.quit && !d.score ? '—' : d.score) : '…'}</div><div class="tm">${d ? (d.left ? 'left the room' : d.quit ? 'gave up' : fmtT(d.ms)) : 'still playing'}</div></div>`;
+  if (!op.done) {
+    $('#rdTitle').textContent = 'Finished!'; $('#rdVs').innerHTML = card('You', me.done, false) + '<div class="muted">vs</div>' + card(RACE.them, null, false);
+    $('#rdText').textContent = `Waiting for ${RACE.them} to finish…`; $('#bRaceAgain').hidden = true; return;
+  }
+  const meWin = me.done.score > op.done.score || (me.done.score === op.done.score && me.done.ms < op.done.ms && !op.done.quit), tie = me.done.score === op.done.score && me.done.ms === op.done.ms;
+  $('#rdTitle').textContent = tie ? "It's a tie!" : meWin ? 'You win! 🎉' : `${RACE.them} wins`;
+  $('#rdVs').innerHTML = card('You', me.done, meWin && !tie) + '<div class="muted">vs</div>' + card(RACE.them, op.done, !meWin && !tie);
+  $('#rdText').textContent = 'Higher score wins; a tie goes to the faster time.';
+  $('#bRaceAgain').hidden = !(RACE.seat === 0 && RACE.paired);
+  if (meWin && !tie) celebrate($('#rdVs'));
+}
+$('#bRaceAgain').onclick = () => { raceSend({ k: 'again' }); goHome(); raceLobby(); document.getElementById('raceCard').scrollIntoView({ block: 'center' }); };
+$('#bRaceLeave').onclick = () => { raceLeave(); goHome(); };
+$('#bRaceBack').onclick = () => { goHome(); raceLobby(); };
+$('#bRaceNew').onclick = () => { let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('#raceCode').value = c; raceConnect(c); };
+$('#bRaceJoin').onclick = () => { const c = $('#raceCode').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { raceStatus('Room codes have 5 letters and numbers.'); return; } raceConnect(c); };
+$('#raceCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('#bRaceJoin').click(); });
+{ const rc = (Q.get('race') || '').toUpperCase(); if (/^[A-Z2-9]{5}$/.test(rc)) { $('#raceCode').value = rc; raceStatus(`Tap <b>Join</b> to race in room <b>${rc}</b>.`); setTimeout(() => document.getElementById('raceCard').scrollIntoView({ block: 'center' }), 300); } }
 
 // ============================================================================
 // Leaderboard
@@ -549,6 +712,9 @@ async function renderBoard() {
 let nameThen = null;
 function askName(then) { nameThen = then; $('#nameIn').value = S.name || ''; $('#nameErr').textContent = ''; $('#nameSheet').classList.add('on'); setTimeout(() => $('#nameIn').focus(), 50); }
 $('#bName').onclick = () => askName(null);
+$('#bHelpOk').onclick = () => { $('#helpSheet').classList.remove('on'); if (RUN && RUN.helpAt) { RUN.t0 += performance.now() - RUN.helpAt; RUN.helpAt = 0; } };
+$('#bHelpEasy').onclick = () => { $('#helpSheet').classList.remove('on'); startEasy(); };
+function startEasy() { start('picture', true, undefined, false, { size: 5 }); }
 $('#nameOk').onclick = () => { const v = $('#nameIn').value.trim().replace(/\s+/g, ' '); if (!/^[A-Za-z0-9 _.'-]{2,16}$/.test(v)) { $('#nameErr').textContent = '2 to 16 letters, numbers or spaces, please.'; return; } S.name = v; save(); $('#nameSheet').classList.remove('on'); renderHome(); if (nameThen) { const f = nameThen; nameThen = null; f(); } };
 $('#nameSkip').onclick = () => { $('#nameSheet').classList.remove('on'); nameThen = null; };
 $('#nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('#nameOk').click(); });
@@ -559,9 +725,10 @@ $('#bShare').onclick = async () => {
   try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); $('#bShare').textContent = 'Copied!'; setTimeout(() => $('#bShare').textContent = 'Share my day', 1500); } } catch (e) { }
 };
 document.querySelectorAll('[data-prac]').forEach(b => b.onclick = () => start(b.dataset.prac, true));
+$('#bEasyPic').onclick = startEasy;
 setInterval(() => { if ($('#home').classList.contains('on')) renderHome(); }, 60000);
 renderHome();
-window.DB = { start, PUZ, get RUN() { return RUN; }, S, makePicture, lineSolvable, patMake, estMake, mulberry32, hashStr, finishRun, TODAY: () => TODAY };
+window.DB = { RACE, start, PUZ, get RUN() { return RUN; }, S, makePicture, lineSolvable, patMake, estMake, mulberry32, hashStr, finishRun, TODAY: () => TODAY };
 </script>
 </body>
 </html>
