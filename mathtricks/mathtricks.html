@@ -162,6 +162,35 @@ a:hover { color: var(--ink); }
 .checkb { width: 100%; border: 0; border-radius: 16px; height: 58px; background: linear-gradient(135deg, var(--accent), #6a5cf0); color: #fff; font-size: 18px; font-weight: 650; letter-spacing: .01em; box-shadow: 0 12px 26px -12px rgba(139, 123, 255, .9); }
 .checkb:disabled { opacity: .35; box-shadow: none; }
 
+/* problem tools, trick sheet, flagged list */
+.qhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.qhead .tag { flex: 1; margin: 0; }
+.tool { border: 1px solid var(--edge); background: var(--card); border-radius: 999px; height: 34px; padding: 0 12px; font-size: 13px; font-weight: 650; color: var(--soft); display: inline-flex; align-items: center; gap: 5px; }
+.tool.trickb { color: var(--gold2); border-color: rgba(233, 196, 106, .35); background: rgba(233, 196, 106, .08); }
+.tool.flag.on { color: #ffb3b3; border-color: rgba(255, 122, 122, .45); background: rgba(255, 122, 122, .12); }
+.sheet { position: fixed; inset: 0; z-index: 20; display: none; }
+.sheet.on { display: block; }
+.sheet .shade { position: absolute; inset: 0; background: rgba(4, 5, 12, .62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: fade .2s; }
+.sheet .body { position: absolute; left: 0; right: 0; bottom: 0; max-height: 86vh; max-height: 86dvh; overflow: auto; margin: 0 auto; max-width: 680px; padding: 10px 18px calc(22px + env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, #1a1d33, #12142a); border: 1px solid var(--edge2); border-bottom: 0; border-radius: 24px 24px 0 0; box-shadow: 0 -20px 60px rgba(0, 0, 0, .6); animation: up .28s cubic-bezier(.2, .8, .2, 1); }
+.sheet .grab { width: 44px; height: 5px; border-radius: 5px; background: rgba(255, 255, 255, .2); margin: 2px auto 12px; }
+.sheet h2 { margin: 0 0 8px; font-size: 26px; }
+.sheet .sub2 { font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--soft); margin: 16px 0 6px; }
+.sheet .qq { font-family: var(--serif); font-size: 24px; font-weight: 600; margin: 4px 0; }
+@keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fade { from { opacity: 0; } }
+.flist { display: grid; gap: 10px; }
+.fitem { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--edge); }
+.fitem .grow { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 0; }
+.fitem .grow b { display: block; font-family: var(--serif); font-size: 19px; font-weight: 600; }
+.fitem .grow span { color: var(--soft); font-size: 13px; }
+.fitem .x { border: 0; background: none; color: var(--faint); font-size: 18px; width: 36px; height: 36px; }
+.flagcard { text-align: left; width: 100%; margin-top: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-color: rgba(255, 122, 122, .3); }
+.flagcard b { font-family: var(--serif); font-size: 19px; font-weight: 600; display: block; }
+.flagcard small { color: var(--soft); }
+.flagcard .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: rgba(255, 122, 122, .14); color: #ffb3b3; font-size: 18px; flex: none; }
+.missed { text-align: left; margin-top: 4px; }
+
 /* celebration */
 .spark { position: fixed; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; z-index: 9; animation: spark .9s ease-out forwards; }
 @keyframes spark { to { transform: translate(var(--dx), var(--dy)) rotate(260deg); opacity: 0; } }
@@ -184,6 +213,7 @@ a:hover { color: var(--ink); }
     <button class="panel feature speed" id="bSpeed"><div><div class="tag" style="color:#d9d3ff">Speed round</div><b>60 seconds</b><small id="speedBest">How many can you get?</small></div><span class="go">▶ Play</span></button>
     <button class="panel feature cont" id="bCont"><div><div class="tag" style="color:var(--gold)">Up next</div><b id="contT"></b><small id="contS"></small></div><span class="go">Learn it →</span></button>
   </div>
+  <div id="flagSlot"></div>
   <div class="sect"><h2>Topics</h2><span id="topicCount"></span></div>
   <div class="topics" id="topics"></div>
   <p class="foot"><a href="../index.html">← The Arcade Shelf</a></p>
@@ -206,7 +236,7 @@ a:hover { color: var(--ink); }
 <section class="screen" id="play">
   <div class="top"><button class="back" id="bQuit" aria-label="Stop">✕</button><div class="prog"><i id="pBar"></i></div><span class="timer" id="pInfo"></span></div>
   <div class="card">
-    <div class="tag" id="pTag"></div>
+    <div class="qhead"><div class="tag" id="pTag"></div><button class="tool trickb" id="bTrick">💡 Trick</button><button class="tool flag" id="bFlag" aria-label="Flag this problem">⚑</button></div>
     <div class="q" id="pQ"></div>
     <div id="pEntryWrap"><div class="entry" id="pEntry"></div></div>
     <div class="msg" id="pMsg"></div>
@@ -219,7 +249,18 @@ a:hover { color: var(--ink); }
   <header class="bar"><button class="back" data-back aria-label="Back">←</button><h1 id="dTitle"></h1></header>
   <div class="card center"><div class="big" id="dBig"></div><div class="stars" id="dStars" style="font-size:30px"></div><p id="dText" class="muted"></p></div>
   <div class="row"><button class="btn main wide" id="bAgain">Go again</button><button class="btn wide" id="bHome">All topics</button></div>
+  <div class="missed" id="dMissed"></div>
 </section>
+
+<section class="screen" id="flags">
+  <header class="bar"><button class="back" data-back aria-label="Back">←</button><h1>Flagged</h1></header>
+  <p class="lead">Problems you saved. Tap one to see its trick, or practice them all.</p>
+  <div class="row"><button class="btn main wide" id="bFlagPlay">Practice these tricks</button></div>
+  <div class="flist" id="flist"></div>
+</section>
+
+<div class="sheet" id="sheet"><div class="shade" id="sheetShade"></div><div class="body" role="dialog" aria-modal="true" aria-label="Trick"><div class="grab"></div><div id="sheetBody"></div>
+  <div class="row"><button class="btn main wide" id="sheetClose">Got it</button></div></div></div>
 
 </div>
 <script>
@@ -657,7 +698,7 @@ for (const t of TRICKS) t.topicObj = TOPICS.find(x => x.id === t.topic);
 
 // ---------- state ----------
 const KEY = 'mathtricks-v1';
-let S = { stars: {}, best: 0, solved: 0 };
+let S = { stars: {}, best: 0, solved: 0, flags: [] };
 try { S = Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { } };
 const starHTML = (n, of = 3) => `<span class="stars">${'★'.repeat(n)}<span class="off">${'★'.repeat(of - n)}</span></span>`;
@@ -697,6 +738,9 @@ function renderHome() {
   $('#contT').textContent = nx.title; $('#contS').textContent = nx.topicObj.name;
   $('#bCont').onclick = () => { curTopic = nx.topic; renderTopic(nx.topic); show('topic'); openLesson(nx); };
   document.querySelectorAll('.topic').forEach(b => b.onclick = () => { curTopic = b.dataset.t; renderTopic(curTopic); show('topic'); });
+  const fl = S.flags || [];
+  $('#flagSlot').innerHTML = fl.length ? `<button class="panel flagcard" id="bFlags"><span class="ico">⚑</span><span style="flex:1"><b>Flagged</b><small>${fl.length} problem${fl.length > 1 ? 's' : ''} saved for review</small></span><span class="muted">→</span></button>` : '';
+  if (fl.length) $('#bFlags').onclick = () => { renderFlags(); show('flags'); };
 }
 let curTopic = 'frac';
 function renderTopic(id) {
@@ -731,6 +775,48 @@ $('#bStep').onclick = () => {
 // ---------- practice ----------
 let P = null, timer = null;
 function stopTimer() { if (timer) clearInterval(timer); timer = null; }
+// ---------- quick trick sheet and flags ----------
+const trickById = id => TRICKS.find(t => t.id === id);
+const stepList = st => `<ol class="steps">${st.map((x, i) => `<li${i === st.length - 1 ? ' class="ans"' : ''}>${x}</li>`).join('')}</ol>`;
+let sheetPause = 0;
+function openSheet(tr, q, answered, savedSteps) {
+  const ex = tr.gen(tr.ex);
+  let h = `<div class="tag" style="color:var(--gold)">${tr.topicObj.name} · quick trick</div><h2>${tr.title}</h2><div class="idea">${tr.idea}</div>
+    <div class="sub2">Example</div><div class="qq">${ex.q}</div>${stepList(ex.steps)}`;
+  if (q || savedSteps) {
+    h += `<div class="sub2">This problem</div><div class="qq">${q ? q.q : savedSteps.q}</div>`;
+    h += answered ? stepList(q ? q.steps : savedSteps.steps) : `<div id="walk"><button class="btn wide" id="bWalk" style="width:100%">Walk me through this one</button><p class="muted" style="font-size:13px;margin:6px 2px 0">Seeing the steps counts as a hint.</p></div>`;
+  }
+  $('#sheetBody').innerHTML = h; $('#sheet').classList.add('on');
+  if ($('#bWalk')) $('#bWalk').onclick = () => { $('#walk').innerHTML = stepList(q.steps); if (P && P.q === q && !P.locked) P.hintN = Math.max(P.hintN, q.steps.length); };
+  if (P && P.kind === 'speed' && timer) sheetPause = Date.now();
+}
+function closeSheet() {
+  $('#sheet').classList.remove('on');
+  if (sheetPause && P && P.kind === 'speed') P.end += Date.now() - sheetPause; sheetPause = 0;
+}
+$('#sheetClose').onclick = closeSheet; $('#sheetShade').onclick = closeSheet;
+const flagKey = (tr, q) => tr.id + '|' + strip(q.q);
+function isFlagged(tr, q) { return (S.flags || []).some(f => f.k === flagKey(tr, q)); }
+function toggleFlag(tr, q) {
+  S.flags = S.flags || []; const k = flagKey(tr, q), i = S.flags.findIndex(f => f.k === k);
+  if (i >= 0) S.flags.splice(i, 1);
+  else { S.flags.unshift({ k, id: tr.id, q: q.q, ask: q.ask || '', ans: answerText(q), steps: q.steps, t: Date.now() }); S.flags = S.flags.slice(0, 60); }
+  save(); return i < 0;
+}
+function drawFlagBtn() { const on = P && P.q && isFlagged(P.tr, P.q); $('#bFlag').classList.toggle('on', !!on); $('#bFlag').textContent = on ? '⚑ Saved' : '⚑'; }
+$('#bFlag').onclick = () => { if (!P || !P.q) return; toggleFlag(P.tr, P.q); drawFlagBtn(); };
+$('#bTrick').onclick = () => { if (P && P.q) openSheet(P.tr, P.q, P.locked); };
+function renderFlags() {
+  const fl = S.flags || [];
+  $('#flist').innerHTML = fl.length ? fl.map((f, i) => { const tr = trickById(f.id); return tr ? `<div class="fitem"><button class="grow" data-fi="${i}"><b>${f.q}</b><span>${tr.title} · answer ${f.ans}</span></button><button class="x" data-fx="${i}" aria-label="Remove">✕</button></div>` : ''; }).join('') : '<p class="muted">Nothing flagged yet. Tap ⚑ on any problem to save it here.</p>';
+  $('#bFlagPlay').disabled = !fl.length;
+  document.querySelectorAll('[data-fi]').forEach(b => b.onclick = () => { const f = fl[+b.dataset.fi]; openSheet(trickById(f.id), null, true, f); });
+  document.querySelectorAll('[data-fx]').forEach(b => b.onclick = () => { fl.splice(+b.dataset.fx, 1); save(); renderFlags(); });
+}
+$('#bFlagPlay').onclick = () => { const ids = [...new Set((S.flags || []).map(f => f.id))].map(trickById).filter(Boolean); if (ids.length) startPractice(ids, Math.max(6, Math.min(12, ids.length * 2)), 'review'); };
+function missed() { if (P && P.q && !(P.missed || []).includes(P.q)) { (P.missed = P.missed || []).push(P.q); P.q._tr = P.tr; } }
+
 function startPractice(pool, n, kind) {
   stopTimer();
   P = { pool, n, kind, i: 0, first: 0, hints: 0, results: [], q: null, entry: '', tries: 0, hintN: 0, t0: 0, locked: false, score: 0, time: 60 };
@@ -738,6 +824,7 @@ function startPractice(pool, n, kind) {
   if (kind === 'speed') { P.end = Date.now() + 60000; timer = setInterval(tick, 200); tick(); }
 }
 function tick() {
+  if (sheetPause) return;
   const left = Math.max(0, (P.end - Date.now()) / 1000);
   $('#pInfo').textContent = `${Math.ceil(left)}s · ${P.score}`; $('#pBar').style.width = (100 - left / 60 * 100) + '%';
   if (left <= 0) { stopTimer(); finish(); }
@@ -820,6 +907,7 @@ function answerBar() {
   const clean = P.hintN === 0;
   if (ok) { S.solved++; save(); if (P.kind === 'speed') P.score++; else { P.results.push(clean); if (clean) P.first++; } }
   else if (P.kind !== 'speed') P.results.push(false);
+  if (!ok) missed();
   const msg = $('#pMsg'), exact = sp.max === 100 && q.unit === '%' ? rep(q.a) + '%' : showV(q, q.a), mine = showV(q, P.val, dpOf(sp));
   msg.className = 'msg ' + (ok ? 'good' : 'bad');
   if (spot) celebrate($('#pInput .truth'));
@@ -838,7 +926,7 @@ function nextQ() {
   $('#pQ').innerHTML = q.q + (q.ask ? `<span class="sub">${q.ask}</span>` : '');
   $('#pMsg').textContent = ''; $('#pMsg').className = 'msg'; $('#pExplain').classList.remove('on'); $('#pSteps').innerHTML = '';
   if (P.kind !== 'speed') { $('#pInfo').textContent = `${P.i + 1}/${P.n}`; $('#pBar').style.width = (P.i / P.n * 100) + '%'; }
-  P.val = null; renderInput();
+  P.val = null; renderInput(); drawFlagBtn();
 }
 function drawEntry(cls = '') {
   const q = P.q, e = $('#pEntry');
@@ -875,14 +963,14 @@ function answer(v) {
     if (P.hintN > 0) { revealAll(); return; }
     setTimeout(() => { if (P && P.locked && !$('#pExplain').classList.contains('on')) nextQ(); }, 900);
   } else {
-    P.tries++;
+    P.tries++; missed();
     if (!q.choices) { drawEntry('bad'); P.entry = ''; setTimeout(() => P && !P.locked && drawEntry(), 350); }
     if (P.kind === 'speed') { P.locked = true; $('#pMsg').innerHTML = `Answer: ${answerText(q)}`; $('#pMsg').className = 'msg bad'; setTimeout(() => P && timer && nextQ(), 1300); return; }
     if (P.tries >= 2 || q.choices) { P.locked = true; P.results.push(false); P.i++; $('#pMsg').textContent = 'Here\'s the trick:'; $('#pMsg').className = 'msg bad'; revealAll(); }
     else { $('#pMsg').textContent = 'Not quite. Try again, or tap Hint.'; $('#pMsg').className = 'msg bad'; }
   }
 }
-const answerText = q => q.choices ? strip(q.choices[q.ans]) : `${q.pre || ''}${rep(q.a, 2)}${q.unit || ''}`;
+const answerText = q => q.choices ? strip(q.choices[q.ans]) : q.pre === '$' ? money(q.a) : `${q.pre || ''}${rep(q.a, 2)}${q.unit || ''}`;
 function revealAll() {
   const st = P.q.steps; $('#pSteps').innerHTML = st.map((s, i) => `<li${i === st.length - 1 ? ' class="ans"' : ''}>${s}</li>`).join('');
   $('#pExplain').classList.add('on'); $('#bNext').parentElement.style.display = ''; $('#bNext').focus({ preventScroll: true });
@@ -902,10 +990,14 @@ function finish() {
   } else {
     stars = pk.first === pk.n ? 3 : pk.first >= pk.n - 2 ? 2 : 1;
     if (pk.kind === 'trick') { const id = pk.pool[0].id; S.stars[id] = Math.max(S.stars[id] || 0, stars); save(); }
-    $('#dTitle').textContent = pk.kind === 'trick' ? pk.pool[0].title : TOPICS.find(t => t.id === pk.pool[0].topic).name;
+    $('#dTitle').textContent = pk.kind === 'trick' ? pk.pool[0].title : pk.kind === 'review' ? 'Flagged review' : TOPICS.find(t => t.id === pk.pool[0].topic).name;
     $('#dBig').textContent = `${pk.first}/${pk.n}`; $('#dStars').innerHTML = starHTML(stars);
     $('#dText').textContent = stars === 3 ? 'Perfect: right first time, no hints.' : 'Stars count answers right the first time without hints.';
   }
+  const ms = pk.missed || [];
+  $('#dMissed').innerHTML = ms.length ? `<div class="sect"><h2>To review</h2><span>${ms.length} missed</span></div><div class="flist">${ms.map((q, i) => `<div class="fitem"><button class="grow" data-mi="${i}"><b>${q.q}</b><span>${q._tr.title} · answer ${answerText(q)} · tap for the trick</span></button><button class="tool flag${isFlagged(q._tr, q) ? ' on' : ''}" data-mf="${i}">⚑</button></div>`).join('')}</div>` : '';
+  document.querySelectorAll('[data-mi]').forEach(b => b.onclick = () => { const q = ms[+b.dataset.mi]; openSheet(q._tr, q, true); });
+  document.querySelectorAll('[data-mf]').forEach(b => b.onclick = () => { const q = ms[+b.dataset.mf]; b.classList.toggle('on', toggleFlag(q._tr, q)); });
   $('#bAgain').onclick = () => startPractice(pk.pool, pk.n, pk.kind);
   stack = stack.filter(s => s !== 'play' && s !== 'done' && (pk.kind !== 'trick' || s !== 'lesson'));
   P = null; show('done');
@@ -918,6 +1010,8 @@ $('#bSpeed').onclick = () => {
 };
 
 document.addEventListener('keydown', e => {
+  if ($('#sheet').classList.contains('on')) { if (e.key === 'Escape' || e.key === 'Enter') { closeSheet(); e.preventDefault(); } return; }
+  if (P && !P.locked && e.key === 't') { $('#bTrick').click(); e.preventDefault(); return; }
   if (!P) { if (e.key === 'Enter' && $('#lesson').classList.contains('on')) $('#bStep').click(); return; }
   if (P.q && useBar(P.tr, P.q)) {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { if (!P.locked) { const sp = P.spec; setBar((P.val ?? (sp.min + sp.max) / 2) + (e.key === 'ArrowLeft' ? -1 : 1) * sp.snap * (e.shiftKey ? 10 : 1)); } }
