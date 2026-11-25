@@ -47,6 +47,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Sleigh Run | `sleighrun/sleighrun.html` | `http://127.0.0.1:8000/sleighrun/sleighrun.html` |
 | Peregrine | `peregrine/peregrine.html` | `http://127.0.0.1:8000/peregrine/peregrine.html` |
 | Pigeon | `pigeon/pigeon.html` | `http://127.0.0.1:8000/pigeon/pigeon.html` |
+| Fetch | `leaffetch/leaffetch.html` | `http://127.0.0.1:8000/leaffetch/leaffetch.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 
