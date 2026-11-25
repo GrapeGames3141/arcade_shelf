@@ -40,6 +40,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Alley Knights | `alleyknights/alleyknights.html` | `http://127.0.0.1:8000/alleyknights/alleyknights.html` |
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 | Math Tricks | `mathtricks/mathtricks.html` | `http://127.0.0.1:8000/mathtricks/mathtricks.html` |
+| Daily Brain | `dailybrain/dailybrain.html` | `http://127.0.0.1:8000/dailybrain/dailybrain.html` |
 | Turkey Escape | `turkey-escape/turkey-escape.html` | `http://127.0.0.1:8000/turkey-escape/turkey-escape.html` |
 | Doorbusters | `doorbusters/doorbusters.html` | `http://127.0.0.1:8000/doorbusters/doorbusters.html` |
 | Sleigh Run | `sleighrun/sleighrun.html` | `http://127.0.0.1:8000/sleighrun/sleighrun.html` |
@@ -64,7 +65,7 @@ The `Publish arcade to Cloudflare Pages` workflow (`.github/workflows/cloudflare
 
 Add a new top-level game folder containing `<folder>/<folder>.html` and push it to `main`: the next Cloudflare Pages build discovers it, adds a card, and publishes its runtime assets. The source lobby is a curated fallback; serve `work/pages/` to see every discovered game. The three explicitly curated nested experiment entrypoints are packaged as standalone HTML pages only; their evidence, plans, and sibling prototypes remain excluded. Optional `game.json` in a top-level game folder can set string fields `entry` (a different, meaningful HTML filename in that folder), `title`, `description`, `category`, `controls`, and `requirements`. Without metadata, the card uses the HTML title, an Arcade category, and generic details. Existing curated cards retain their designed descriptions and category. The build copies common web runtime files (HTML, JS, CSS, JSON, images, audio, video, fonts, WASM, and glTF/bin assets); hidden files, tools, snapshots, references, and other source-only directories are excluded. External assets remain the game's responsibility. Local HTML links must resolve within the packaged site and use relative paths. Add the game to the source tables in this README and CLAUDE.md as required by repository instructions.
 
-Empire Rush has an online **Play a friend** mode (beta). Its messages go through the Arcade Shelf relay in [`services/arcade-relay/`](services/arcade-relay/README.md), a Cloudflare Worker with one Durable Object per room, deployed by the manual **Deploy Arcade Relay** workflow.
+Empire Rush has an online **Play a friend** mode (beta). Its messages go through the Arcade Shelf relay in [`services/arcade-relay/`](services/arcade-relay/README.md), a Cloudflare Worker with one Durable Object per room, deployed by the manual **Deploy Arcade Relay** workflow. The same Worker keeps the Daily Brain leaderboards (`/scores`, one Durable Object per game per day).
 
 Every packaged game page also gets a quiet way home: the build adds a small faded ⌂ tab on the left edge that opens on hover or a first tap and returns to the lobby on a click or second tap. Kids games (lobby category Kids) need a press and hold instead, and the tab hides in full screen so kid locks keep working. Source game files are not changed.
 

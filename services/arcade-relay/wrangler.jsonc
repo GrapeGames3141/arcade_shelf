@@ -1,11 +1,12 @@
 // Arcade Shelf relay: a tiny message relay for two-player games. Each room is one SQLite-backed Durable Object
 // (the only Durable Object backend on Workers Free) that passes messages between the players in it.
+// It also keeps daily leaderboards: one SQLite-backed Durable Object per game per day.
 {
   "name": "arcade-relay",
   "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "Room" }, { "name": "BOARDS", "class_name": "Board" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }, { "tag": "v2", "new_sqlite_classes": ["Board"] }],
   "routes": [{ "pattern": "relay.thearcadeshelf.com", "custom_domain": true }],
   "observability": { "enabled": false },
   "workers_dev": false,
