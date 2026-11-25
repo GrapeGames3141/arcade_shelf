@@ -11,19 +11,19 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud.off{display:none}
 .tl{position:absolute;left:max(14px,env(safe-area-inset-left));top:12px}
 .tr{position:absolute;right:max(14px,env(safe-area-inset-right));top:12px;text-align:right}
-.bl{position:absolute;left:max(14px,env(safe-area-inset-left));bottom:14px;display:flex;gap:18px;align-items:flex-end}
+.bl{position:absolute;left:max(14px,env(safe-area-inset-left));right:14px;bottom:14px;display:flex;gap:min(18px,3vw);align-items:flex-end}
 #town{font-size:15px;letter-spacing:.06em;opacity:.85}
 #deliv{font-size:22px;font-weight:bold;margin-top:2px}
 #deliv small{font-size:14px;font-weight:normal;opacity:.8}
 #score{font-size:30px;font-weight:bold;color:#ffe9a8}
 #combo{font-size:17px;color:#ffc34d;height:22px;transition:transform .12s}
-.meter{width:150px}
+.meter{width:min(150px,30vw)}
 .meter label{display:flex;justify-content:space-between;font-size:13px;letter-spacing:.05em;margin-bottom:3px}
 .bar{height:10px;border-radius:6px;background:rgba(10,16,40,.65);border:1px solid rgba(255,255,255,.28);overflow:hidden}
 .bar i{display:block;height:100%;width:100%;border-radius:6px;background:linear-gradient(#ff8a70,#d6392c)}
 #stam i{background:linear-gradient(#ffd98a,#e09a2b)}
 #stam.tired i{background:linear-gradient(#9fb4d8,#6278a8)}
-#windbox{width:92px;text-align:center;font-size:13px;letter-spacing:.05em}
+#windbox{width:min(92px,22vw);text-align:center;font-size:13px;letter-spacing:.05em}
 #windarrow{height:18px;position:relative;margin-top:3px}
 #windarrow i{position:absolute;left:50%;top:7px;height:4px;width:0;background:#cfe6ff;border-radius:2px;transform-origin:0 50%}
 #windarrow i:after{content:'';position:absolute;right:-6px;top:-5px;border:7px solid transparent;border-left-color:#cfe6ff;border-right:0}
@@ -31,7 +31,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #banner small{display:block;font-size:17px;font-style:normal;margin-top:6px;opacity:.9}
 .pop{position:absolute;transform:translate(-50%,-50%);font-weight:bold;font-size:20px;color:#ffe9a8;white-space:nowrap;will-change:transform,opacity}
 .pop.bad{color:#ff9d8e;font-size:16px}.pop.star{color:#bfe3ff;font-size:15px}
-.btns{position:fixed;right:max(12px,env(safe-area-inset-right));top:64px;display:flex;gap:8px;z-index:5}
+.btns{position:fixed;right:max(12px,env(safe-area-inset-right));top:74px;display:flex;gap:8px;z-index:5}
 .btns button{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(10,16,40,.55);color:#f6f0e0;font-size:16px;cursor:pointer}
 .card{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(6,10,30,.35),rgba(4,6,20,.78));z-index:10;transition:opacity .35s}
 .card.off{opacity:0;pointer-events:none}
@@ -46,6 +46,8 @@ p{margin:8px 0;font-size:17px;line-height:1.45}
 .stats{display:grid;grid-template-columns:1fr auto;gap:4px 24px;text-align:left;margin:12px auto;width:max-content;font-size:17px}
 .stats b{text-align:right;color:#ffe9a8}
 #best{font-size:14px;opacity:.75}
+#rot{display:none;font-size:14px;opacity:.8}
+@media (orientation:portrait) and (max-width:600px){#rot{display:block}#banner{font-size:22px}#deliv{font-size:18px}#score{font-size:24px}}
 #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;font-size:18px;z-index:20;background:#070b1c}
 </style>
 </head>
@@ -68,6 +70,7 @@ p{margin:8px 0;font-size:17px;line-height:1.45}
   <p>Five towns before dawn. Fly the sleigh over the rooftops and lob a present down every chimney.</p>
   <p class="keys"><b>W</b>/<b>S</b> or <b>↑</b>/<b>↓</b> climb and dive · <b>Space</b> or click to drop<br>Phone: drag on the left to steer, tap the right to drop</p>
   <p class="keys">Drop when the gold spark sits on the chimney. Higher drops score more. Climbing tires the reindeer, and the sleigh gets twitchy as the sack empties.</p>
+  <p id="rot">Turn your phone sideways to see further ahead.</p>
   <button class="go" id="startBtn">Take off</button>
   <p id="best"></p>
 </div></div>
@@ -590,7 +593,7 @@ function step(dt){
   if(SL.y>CEIL)SL.vy-=(SL.y-CEIL)*14*dt;
   SL.y+=SL.vy*dt;SL.x+=T.speed*dt;
   SL.pitch+=(Math.atan2(SL.vy,T.speed)*.7-SL.pitch)*(1-Math.exp(-dt*8));
-  if(SL.ctl>0)SL.stam-=SL.ctl*(.085+.11*load)*dt;else SL.stam+=(.075+(SL.ctl<0?.03:0))*dt;
+  if(SL.ctl>0)SL.stam-=SL.ctl*(.07+.09*load)*dt;else SL.stam+=(.09+(SL.ctl<0?.03:0))*dt;
   SL.stam=clamp(SL.stam,0,1);if(SL.stam<=0)SL.tired=true;else if(SL.stam>.28)SL.tired=false;
   SL.inv=Math.max(0,SL.inv-dt);SL.cool=Math.max(0,SL.cool-dt);G.shake=Math.max(0,G.shake-dt);
   // collisions: runners, the pair, the lead deer
@@ -642,6 +645,7 @@ function endTown(why){
   rows.push(['Best streak',`×${G.bestStreak}`],['Total score',G.score]);if(!pass||last)rows.push(['Best ever',best]);
   $('sumStats').innerHTML=rows.map(r=>`<span>${r[0]}</span><b>${r[1]}</b>`).join('');
   $('sumBtn').textContent=pass?(last?'Fly again':'Next town'):'Try again';
+  clearTimeout(banner.t);$('banner').style.opacity=0;
   $('sum').classList.remove('off');sfx.fanfare(pass);hudForce();
 }
 function sumNext(){if(state==='summary')startTownNext();else if(state==='over'||state==='win')startGame(0)}
