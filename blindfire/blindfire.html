@@ -44,6 +44,9 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .room { display: flex; gap: 8px; }
 .room input { flex: 1; min-width: 0; font: 800 18px/1 ui-monospace, Menlo, monospace; letter-spacing: .25em; text-transform: uppercase; color: var(--ink); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 #mpStatus { color: var(--soft); font-size: 14px; min-height: 1.4em; overflow-wrap: anywhere; }
+#roomCode { font: 800 22px/1 ui-monospace, Menlo, monospace; letter-spacing: .22em; margin-right: 4px; user-select: all; -webkit-user-select: all; }
+.btn.sm { font-size: 13px; padding: 9px 12px; border-radius: 10px; }
+.btn.sm.done { background: var(--gold); color: #10170f; }
 #mpStatus b { color: var(--ink); letter-spacing: .12em; }
 .stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .stats span { background: rgba(255, 255, 255, .07); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -139,6 +142,7 @@ body:not(.driving) #miniw { display: none; }
         <div class="grp"><h5>JOIN A ROOM</h5><div class="room"><input id="roomIn" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn alt" id="bJoin">Join</button></div></div>
       </div>
       <div id="lobby" class="drawer hidden">
+        <div class="grp"><h5>INVITE</h5><div class="row"><b id="roomCode" class="code"></b><button class="btn alt sm" id="bCopyLink">🔗 Copy link</button><button class="btn alt sm" id="bCopyCode">Copy code</button><button class="btn alt sm hidden" id="bShare">Share…</button></div></div>
         <div class="grp"><h5>IN THE ROOM</h5><div class="stats" id="lobbyList" style="justify-content:flex-start"></div></div>
         <div class="row"><button class="btn" id="bStart">▶ Start</button><div class="sub"><button id="bLeaveRoom">Leave room</button></div></div>
       </div>
@@ -1175,7 +1179,8 @@ function renderLobby() {
   const host = isHost(), link = `${location.origin}${location.pathname}?room=${MP.code}`;
   $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
   $('bStart').textContent = seats.length < 2 ? 'Waiting for players…' : `▶ Start · ${seats.length} players`;
-  mpStatus(`Room <b>${MP.code}</b> · ${host ? 'share the code or link:' : 'waiting for the host to start'}${host ? `<br><span style="user-select:all">${link}</span>` : ''}`);
+  $('roomCode').textContent = MP.code; $('bShare').classList.toggle('hidden', !navigator.share);
+  mpStatus(host ? 'Send friends the link or code, then start when everyone is in.' : 'Waiting for the host to start…');
 }
 function hostStart() {
   if (!isHost()) return;
@@ -1218,6 +1223,22 @@ function mpMsg(m) {
 $('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); };
 $('bJoin').onclick = () => { AUD.init(); const c = $('roomIn').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes are 5 letters.'); return; } mpConnect(c); };
 $('bStart').onclick = () => { AUD.init(); hostStart(); };
+// copy the invite: Clipboard API, with a fallback for older or non-secure pages
+const roomLink = () => `${location.origin}${location.pathname}?room=${MP.code}`;
+async function copyText(text, btn) {
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+    const ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length); try { ok = document.execCommand('copy'); } catch (e2) { } ta.remove();
+  }
+  const was = btn.dataset.label || (btn.dataset.label = btn.textContent);
+  btn.textContent = ok ? 'Copied ✓' : 'Press Ctrl+C'; btn.classList.toggle('done', ok);
+  if (!ok) { const r = document.createRange(); r.selectNodeContents($('roomCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+  clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = was; btn.classList.remove('done'); }, 1600);
+}
+$('bCopyLink').onclick = () => copyText(roomLink(), $('bCopyLink'));
+$('bCopyCode').onclick = () => copyText(MP.code, $('bCopyCode'));
+$('bShare').onclick = () => { navigator.share({ title: 'Blindfire', text: 'Join my Blindfire room: ' + MP.code, url: roomLink() }).catch(() => { }); };
 $('bLeaveRoom').onclick = () => { mpLeave(); mpStatus(''); };
 $('roomIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('bJoin').click(); e.stopPropagation(); });
 
