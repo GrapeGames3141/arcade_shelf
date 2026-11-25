@@ -103,6 +103,7 @@ body.touch.playing #stick { display: block; }
 #bDrive { position: fixed; z-index: 12; right: calc(14px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); display: none; align-items: center; gap: 10px; }
 body.mapview #bDrive { display: inline-flex; }
 body.shopview #hud { visibility: hidden; }
+#hold { position: fixed; z-index: 25; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; gap: 12px; justify-items: center; text-align: center; font-weight: 800; font-size: 16px; max-width: min(520px, 92vw); }
 body.touch #bDrive kbd { display: none; }
 #bDrive kbd { color: #10170f; background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); margin: 0; }
 #bShopClose kbd { color: #10170f; background: rgba(0,0,0,.08); border-color: rgba(0,0,0,.2); margin: 0 0 0 4px; }
@@ -132,12 +133,14 @@ body:not(.driving) #miniw { display: none; }
   </div>
 </div>
 <div id="stick"><i></i></div>
+<div id="hold" class="panel hidden"><div id="holdT"></div><button class="btn alt sm" id="bHoldGo">Continue without them</button></div>
 <button class="btn" id="bDrive">▶ Drive <kbd>W</kbd></button>
 
 <div id="title" class="screen">
   <div class="col">
     <div class="logo">Blind<span>fire</span></div>
     <div class="tag">Fire blind. Get warmer. Don't hit yourself.</div>
+    <div id="rejoinRow" class="hidden"><button class="btn big" id="bRejoin">↩ Rejoin match</button></div>
     <div><button class="btn big" id="bCpu">▶ Play the CPU</button></div>
     <div class="sub"><button id="bFriend">Play online</button><button id="bHow">How to play</button><button id="bSet">Settings</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
     <div class="panel drawer hidden" id="friend">
@@ -368,7 +371,8 @@ function newMatch(opts) {
   const n = opts.n || 2;
   genMap(opts.seed, n);
   const players = []; for (let i = 0; i < n; i++) players.push(mkPlayer(i, ...spawnPt(i)));
-  G = { mode: opts.mode, me: opts.me || 0, n, roster: opts.roster || null, t: 0, over: false, players, missiles: [], fx: [], marks: [], flashes: [], floats: [], shake: 0, nextId: 1, msgT: 0, paused: false, sentT: 0, pend: {}, out: [], place: 0, ais: [], subs: [], spots: [] };
+  G = { mode: opts.mode, me: opts.me || 0, n, roster: opts.roster || null, t: 0, over: false, players, missiles: [], fx: [], marks: [], flashes: [], floats: [], shake: 0, nextId: 1, msgT: 0, paused: false, sentT: 0, pend: {}, out: [], place: 0, ais: [], subs: [], spots: [], log: [], hold: null, lost: null, recT: 0 };
+  $('rejoinRow').classList.add('hidden'); renderHold();
   if (G.mode === 'cpu') for (let i = 1; i < n; i++) G.ais.push(aiInit(i));
   for (const id of ['title', 'pause', 'end']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden'); document.body.classList.add('playing');
@@ -410,7 +414,7 @@ function spawnBomblets(m) {
 }
 function subImpact(b) {
   const shooter = G.players[b.o], me = ME(), dm = hyp(me.x - b.tx, me.y - b.ty);
-  G.fx.push({ k: 'boom', x: b.tx, y: b.ty, r: b.r, t: 0 }); burn(b.tx, b.ty, b.r); AUD.boom(b.r * 0.7, dm);
+  G.fx.push({ k: 'boom', x: b.tx, y: b.ty, r: b.r, t: 0 }); burn(b.tx, b.ty, b.r); G.log.push([Math.round(b.tx), Math.round(b.ty), Math.round(b.r)]); AUD.boom(b.r * 0.7, dm);
   G.shake = Math.max(G.shake, dm < b.r * 3 ? 1 : 0.2);
   if (G.over) return;
   const online = G.mode === 'online';
@@ -430,7 +434,7 @@ function impact(m) {
   spawnBomblets(m); spotAround(m);
   G.fx.push({ k: 'boom', x: m.tx, y: m.ty, r, t: 0 });
   for (let i = 0; i < Math.min(60, 12 + r / 4); i++) { const a = R() * TAU, s = R() * r * 0.9; G.fx.push({ k: 'smoke', x: m.tx + Math.cos(a) * s * 0.4, y: m.ty + Math.sin(a) * s * 0.4, vx: Math.cos(a) * s * 0.6, vy: Math.sin(a) * s * 0.6, s: 6 + R() * r * 0.15, t: 0, life: 1.2 + R() * 1.4 }); }
-  burn(m.tx, m.ty, r);
+  burn(m.tx, m.ty, r); G.log.push([Math.round(m.tx), Math.round(m.ty), Math.round(r)]);
   const me = ME(), dm = hyp(me.x - m.tx, me.y - m.ty);
   G.shake = Math.max(G.shake, clamp(r / 40, 0.3, 3) * (dm < r * 3 ? 1.6 : 0.5));
   AUD.boom(r, dm);
@@ -495,7 +499,7 @@ function eliminate(p, why, by) {
 }
 const ORD = n => n + (['th', 'st', 'nd', 'rd'][(n % 100 > 10 && n % 100 < 14) ? 0 : Math.min(n % 10, 4) % 4] || 'th');
 function endMatch(winner, why) {
-  if (G.over) return; G.over = true; G.endT = 1.6;
+  if (G.over) return; G.over = true; G.endT = 1.6; if (G.mode === 'online') clearRec(); G.hold = null; G.lost = null; renderHold();
   const youWin = winner === G.me, me = ME(), place = youWin ? 1 : (G.place || 2);
   G.endInfo = { youWin, why, winner, place };
   const mo = G.myOut, killer = mo && mo.by >= 0 && mo.by !== G.me ? G.players[mo.by] : null;
@@ -584,6 +588,8 @@ function moveP(p, dt) {
 }
 function step(dt) {
   if (!G || G.paused) return;
+  if (G.mode === 'online' && !G.over && holdTick(dt)) { hudTick(); return; }
+  if (G.mode === 'online' && !G.over) { G.recT -= dt; if (G.recT <= 0) { G.recT = 1; saveRec(); } }
   G.t += dt;
   const me = ME();
   if (G.over) { G.endT -= dt; if (G.endT <= 0 && $('end').classList.contains('hidden')) { $('end').classList.remove('hidden'); $('shop').classList.add('hidden'); document.body.classList.remove('playing'); setView('map'); } }
@@ -1184,12 +1190,12 @@ $('bDrive').onclick = () => toggleMap(false);
 $('shop').addEventListener('click', e => { if (e.target === $('shop') || e.target.classList.contains('col')) toggleShop(false); });
 $('bPause').onclick = () => pauseMenu(true);
 $('bResume').onclick = () => pauseMenu(false);
-$('bQuit').onclick = () => { if (G && G.mode === 'online') { mpSend({ k: 'quit', from: G.me }); mpLeave(); } toMenu(); };
+$('bQuit').onclick = () => { if (G && G.mode === 'online') { mpSend({ k: 'quit', from: G.me }); mpLeave(); clearRec(); } toMenu(); };
 $('bMenu').onclick = () => { mpLeave(); toMenu(); };
 $('bAgain').onclick = () => { if (G.mode === 'online') hostStart(); else cpuMatch(); };
 $('bSound').onclick = () => setSound(SET.sound ? 0 : 1);
 function pauseMenu(on) { if (!G) return; $('pause').classList.toggle('hidden', !on); if (G.mode === 'cpu') G.paused = on; toggleShop(false); document.body.classList.toggle('playing', !on); }
-function toMenu() { G = null; AIM.on = false; for (const id of ['pause', 'end', 'hud', 'shop']) $(id).classList.add('hidden'); $('title').classList.remove('hidden'); document.body.classList.remove('playing'); menuBackdrop(); }
+function toMenu() { G = null; AIM.on = false; $('hold').classList.add('hidden'); setTimeout(showRejoin, 0); for (const id of ['pause', 'end', 'hud', 'shop']) $(id).classList.add('hidden'); $('title').classList.remove('hidden'); document.body.classList.remove('playing'); menuBackdrop(); }
 function setSound(v) { SET.sound = v; saveSet(); AUD.apply(); $('bSound').textContent = v ? '🔊' : '🔇'; document.querySelectorAll('#segS button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
 function setRivals(v) { SET.rivals = v; saveSet(); document.querySelectorAll('#segN button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
 function setDiff(v) { SET.diff = v; saveSet(); document.querySelectorAll('#segD button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
@@ -1203,29 +1209,99 @@ function menuBackdrop() { genMap((Math.random() * 1e9) | 0, 2); backdrop = true;
 
 // ================= online (Arcade Shelf relay) =================
 // Up to 6 launchers per room. The lowest seat in the room hosts: it starts matches and rematches.
-// Every message names its sender's player number; each player judges hits on themselves.
+// Players are known by a persistent id (pid), so someone who drops out can come back to the same launcher:
+// while they're gone everyone else's match is paused for up to HOLD_S seconds.
 const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://relay.thearcadeshelf.com');
-const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', MAX_PLAYERS = 6;
-const MP = { ws: null, seat: -1, code: '', present: new Set() };
+const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', MAX_PLAYERS = 6, HOLD_S = 90;
+const MP = { ws: null, seat: -1, code: '', present: new Set(), pidOf: new Map(), pid: '', retry: 0, want: false };
+try { MP.pid = localStorage.getItem('blindfire.pid') || ''; } catch (e) { }
+if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('blindfire.pid', MP.pid); } catch (e) { } }
 const mpStatus = h => { $('mpStatus').innerHTML = h; };
 function mpSend(o) { if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
-function mpLeave() { if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (e) { } } MP.ws = null; MP.seat = -1; MP.present.clear(); renderLobby(); }
+function mpLeave() { MP.want = false; clearTimeout(MP.retryT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (e) { } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); renderLobby(); }
 const isHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+const seatPid = s => s === MP.seat ? MP.pid : (MP.pidOf.get(s) || 's' + s);
 function mpConnect(code) {
-  mpLeave(); MP.code = code;
+  mpLeave(); MP.code = code; MP.want = true;
   let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=blindfire&room=' + code); } catch (e) { mpStatus('Could not reach the game server.'); return; }
-  MP.ws = ws; mpStatus(`Connecting to <b>${code}</b>…`);
+  MP.ws = ws; if (!(G && G.mode === 'online')) mpStatus(`Connecting to <b>${code}</b>…`);
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } mpMsg(m); };
-  ws.onerror = () => mpStatus('Could not reach the game server. Try again in a moment.');
-  ws.onclose = () => { MP.ws = null; MP.present.clear(); renderLobby(); if (G && G.mode === 'online' && !G.over) { say('Connection lost', 3); endMatch(-1, 'left'); } else mpStatus('Disconnected from the room.'); };
+  ws.onerror = () => { if (!(G && G.mode === 'online')) mpStatus('Could not reach the game server. Try again in a moment.'); };
+  ws.onclose = () => {
+    MP.ws = null; MP.seat = -1; MP.present.clear(); renderLobby();
+    // dropped in the middle of a match: freeze and keep trying to get back in
+    if (G && G.mode === 'online' && !G.over && MP.want) { G.lost = G.lost || { t: HOLD_S }; renderHold(); MP.retryT = setTimeout(() => { if (G && G.lost && !G.over) mpConnect(MP.code); }, 2500); }
+    else mpStatus('Disconnected from the room.');
+  };
 }
+// ---------- saving enough of your own launcher to come back to it
+const REC_KEY = 'blindfire.rejoin';
+function saveRec() {
+  if (!G || G.mode !== 'online' || G.over || !MP.code) return;
+  const p = ME();
+  try { localStorage.setItem(REC_KEY, JSON.stringify({ room: MP.code, seed: SEED, pid: MP.pid, ts: Date.now(), x: p.x, y: p.y, hd: p.hd, hp: p.hp, max: p.max, money: p.money, lv: p.lv, st: p.st, cd: p.cd })); } catch (e) { }
+}
+function loadRec() { try { const r = JSON.parse(localStorage.getItem(REC_KEY) || 'null'); return r && Date.now() - r.ts < 15 * 60e3 ? r : null; } catch (e) { return null; } }
+function clearRec() { try { localStorage.removeItem(REC_KEY); } catch (e) { } showRejoin(); }
+function showRejoin() { const r = loadRec(); $('rejoinRow').classList.toggle('hidden', !r || !!G); if (r) $('bRejoin').textContent = `↩ Rejoin match · ${r.room}`; }
+addEventListener('beforeunload', saveRec);
+addEventListener('pagehide', saveRec);
+// ---------- waiting for someone who dropped out
+function startHold(pid) {
+  if (!G || G.over || !G.roster) return; const i = G.roster.indexOf(pid); if (i < 0 || !G.players[i].alive) return;
+  G.hold = G.hold || {}; if (!(pid in G.hold)) G.hold[pid] = HOLD_S; renderHold(); AUD.warn();
+}
+function endHold(pid, drop) {
+  if (!G || !G.hold || !(pid in G.hold)) return;
+  delete G.hold[pid]; if (!Object.keys(G.hold).length) G.hold = null;
+  const i = G.roster ? G.roster.indexOf(pid) : -1;
+  if (drop && i >= 0 && G.players[i].alive) eliminate(G.players[i], 'left', null);
+  else if (i >= 0) say(pname(G.players[i]) + ' is back!', 2);
+  renderHold();
+}
+function holdTick(dt) {
+  if (G.lost) { G.lost.t -= dt; if (G.lost.t <= 0) { G.lost = null; MP.want = false; renderHold(); endMatch(-1, 'left'); } else renderHold(); return true; }
+  if (!G.hold) return false;
+  for (const pid in G.hold) { G.hold[pid] -= dt; if (G.hold[pid] <= 0) endHold(pid, true); }
+  renderHold(); return !!G.hold;
+}
+function renderHold() {
+  const box = $('hold');
+  if (!G || (!G.hold && !G.lost) || G.over) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  if (G.lost) { $('holdT').textContent = `Connection lost · reconnecting… ${Math.ceil(G.lost.t)} s`; $('bHoldGo').classList.add('hidden'); return; }
+  const parts = Object.entries(G.hold).map(([pid, t]) => { const i = G.roster.indexOf(pid); return (i >= 0 ? pname(G.players[i]) : 'A player') + ` lost connection · waiting ${Math.ceil(t)} s for them to rejoin`; });
+  $('holdT').textContent = parts.join(' · ');
+  $('bHoldGo').classList.toggle('hidden', !isHost());
+}
+$('bHoldGo').onclick = () => { if (!G || !G.hold) return; for (const pid of Object.keys(G.hold)) { mpSend({ k: 'drop', pid }); endHold(pid, true); } };
+// ---------- the host brings a returning player up to date
+function sendSync(pid) {
+  if (!G || G.over || !G.roster) return;
+  mpSend({ k: 'sync', to: pid, seed: SEED, roster: G.roster, t: +G.t.toFixed(2), out: G.out, log: G.log.slice(-400),
+    players: G.players.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), hd: +p.hd.toFixed(2), hp: Math.round(p.hp), max: p.max, alive: p.alive })) });
+  mpSend({ k: 'resume', pid }); endHold(pid, false);
+}
+function applySync(m) {
+  const meI = m.roster.indexOf(MP.pid); if (meI < 0) return;
+  newMatch({ mode: 'online', me: meI, seed: m.seed, n: m.roster.length, roster: m.roster });
+  G.t = m.t; G.out = (m.out || []).slice();
+  m.players.forEach((s, i) => { const p = G.players[i]; Object.assign(p, { x: s.x, y: s.y, hd: s.hd, hp: s.hp, max: s.max, alive: s.alive, known: true }); });
+  for (const [x, y, r] of m.log || []) { burn(x, y, r); G.log.push([x, y, r]); }
+  const rec = loadRec(), me = ME();
+  if (rec && rec.seed === m.seed && rec.room === MP.code) { Object.assign(me, { money: rec.money, lv: rec.lv, st: rec.st, cd: rec.cd || 0 }); if (rec.max > me.max) { me.max = rec.max; me.hp = Math.min(me.hp, me.max); } }
+  GL.hd = me.hd; renderRivals(); renderShop(); lastMoney = -1;
+  if (!me.alive) setView('map'); else setView('drive');
+  say(me.alive ? 'Back in the match!' : 'Back in the room · you were knocked out', 3);
+}
+// ---------- lobby
 function renderLobby() {
   const on = MP.seat >= 0;
   $('lobby').classList.toggle('hidden', !on); $('joinRows').classList.toggle('hidden', on);
   if (!on) return;
   const seats = [...MP.present].sort((a, b) => a - b);
   $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${k === 0 ? COLS[0] : COLS[k % 7]}">${s === MP.seat ? 'You' : 'Player ' + (k + 1)}${k === 0 ? ' · host' : ''}</span>`).join('');
-  const host = isHost(), link = `${location.origin}${location.pathname}?room=${MP.code}`;
+  const host = isHost();
   $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
   $('bStart').textContent = seats.length < 2 ? 'Waiting for players…' : `▶ Start · ${seats.length} players`;
   $('roomCode').textContent = MP.code; $('bShare').classList.toggle('hidden', !navigator.share);
@@ -1233,27 +1309,42 @@ function renderLobby() {
 }
 function hostStart() {
   if (!isHost()) return;
-  const roster = [...MP.present].sort((a, b) => a - b).slice(0, MAX_PLAYERS), seed = (Math.random() * 1e9) | 0;
+  const roster = [...MP.present].sort((a, b) => a - b).slice(0, MAX_PLAYERS).map(seatPid), seed = (Math.random() * 1e9) | 0;
   mpSend({ k: 'start', seed, roster }); beginOnline(seed, roster);
 }
 function beginOnline(seed, roster) {
-  const me = roster.indexOf(MP.seat);
+  const me = roster.indexOf(MP.pid);
   if (me < 0) { mpStatus('A match is under way. You will play the next one.'); return; }
-  newMatch({ mode: 'online', me, seed, n: roster.length, roster });
+  clearRec(); newMatch({ mode: 'online', me, seed, n: roster.length, roster });
 }
 function mpMsg(m) {
   if (m.k === 'full') { mpStatus('That room is full.'); return; }
-  if (m.k === 'hello') { MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat }); renderLobby(); return; }
-  if (m.k === 'here') { const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (isNew) mpSend({ k: 'here', seat: MP.seat }); renderLobby(); if (G && G.over) updateAgain(); return; }
-  if (m.k === 'peer') {
-    if (m.on) MP.present.add(m.seat); else MP.present.delete(m.seat);
-    renderLobby(); if (G && G.over) updateAgain();
-    if (!m.on && G && G.mode === 'online' && G.roster) { const i = G.roster.indexOf(m.seat); if (i >= 0 && G.players[i].alive && !G.over) eliminate(G.players[i], 'left', null); }
+  if (m.k === 'hello') {
+    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid }); renderLobby();
+    // coming back to a match: wait for the host's sync; if nothing comes the match is over
+    if (loadRec() && loadRec().room === MP.code) { clearTimeout(MP.syncT); MP.syncT = setTimeout(() => { if (!(G && G.mode === 'online' && !G.lost)) { clearRec(); mpStatus('That match has ended. You can join the next one from here.'); } else if (G && G.lost) { G.lost = null; renderHold(); endMatch(-1, 'left'); } }, 8000); }
     return;
   }
-  if (m.k === 'start') { if (G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(MP.seat)) return; beginOnline(m.seed, m.roster || [0, 1]); return; }
+  if (m.k === 'here') {
+    const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
+    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1 });   // always answer a newcomer so everyone knows everyone's id
+    renderLobby(); if (G && G.over) updateAgain();
+    // a player from the running match is back
+    if (m.pid && !m.re && G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(m.pid) && m.pid !== MP.pid && isHost()) sendSync(m.pid);
+    return;
+  }
+  if (m.k === 'peer') {
+    if (m.on) MP.present.add(m.seat); else { MP.present.delete(m.seat); const pid = MP.pidOf.get(m.seat); MP.pidOf.delete(m.seat); if (pid && G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(pid)) startHold(pid); }
+    renderLobby(); if (G && G.over) updateAgain(); renderHold();
+    return;
+  }
+  if (m.k === 'sync') { if (m.to === MP.pid && (!G || G.mode !== 'online' || G.lost || G.over || !G.roster || G.roster.join() !== m.roster.join())) { clearTimeout(MP.syncT); applySync(m); } else if (m.to === MP.pid && G) { G.lost = null; renderHold(); } return; }
+  if (m.k === 'resume') { endHold(m.pid, false); return; }
+  if (m.k === 'drop') { endHold(m.pid, true); return; }
+  if (m.k === 'start') { if (G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(MP.pid)) return; beginOnline(m.seed, m.roster || []); return; }
   if (!G || G.mode !== 'online' || typeof m.from !== 'number' || !G.players[m.from] || m.from === G.me) return;
   const me = ME(), p = G.players[m.from];
+  if (G.hold && G.roster && G.roster[m.from] in G.hold) endHold(G.roster[m.from], false);
   if (m.k === 'pos') { p.x = m.x; p.y = m.y; p.hd = m.hd; p.known = true; if (m.hp !== undefined && p.alive) { p.hp = m.hp; p.max = m.max; } }
   else if (m.k === 'fire') {
     G.missiles.push({ id: 'r' + m.from + '-' + m.id, rid: m.id, o: m.from, sx: m.sx, sy: m.sy, tx: m.tx, ty: m.ty, t: 0, T: m.T, r: m.r, cl: m.cl || 0 });
@@ -1272,6 +1363,7 @@ function mpMsg(m) {
 $('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); };
 $('bJoin').onclick = () => { AUD.init(); const c = $('roomIn').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes are 5 letters.'); return; } mpConnect(c); };
 $('bStart').onclick = () => { AUD.init(); hostStart(); };
+$('bRejoin').onclick = () => { const r = loadRec(); if (!r) { showRejoin(); return; } AUD.init(); if ($('friend').classList.contains('hidden')) drawer('friend'); mpConnect(r.room); mpStatus(`Rejoining <b>${r.room}</b>…`); };
 // copy the invite: Clipboard API, with a fallback for older or non-secure pages
 const roomLink = () => `${location.origin}${location.pathname}?room=${MP.code}`;
 async function copyText(text, btn) {
@@ -1363,6 +1455,7 @@ function drawBackdrop(t) {
 }
 layout(); setSound(SET.sound); setDiff(SET.diff); setRivals(SET.rivals); setAutoDrive(SET.autoDrive === 1 ? 1 : 0);
 try { glInitDrive(); } catch (e) { console.error(e); GL.fail = true; }
+showRejoin();
 menuBackdrop();
 if (Q.get('room')) { drawer('friend'); $('roomIn').value = Q.get('room').toUpperCase(); mpConnect(Q.get('room').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 5)); }
 requestAnimationFrame(frame);
