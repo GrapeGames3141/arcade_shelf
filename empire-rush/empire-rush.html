@@ -61,6 +61,13 @@
   .btn.on { border-color:var(--gold); box-shadow:inset 0 0 0 1px var(--gold); }
   .btn .ql { position:absolute; right:3px; top:2px; font:700 11px/1 ui-monospace,monospace; color:#fff; text-shadow:0 1px 2px #000; }
   .btn .bar { position:absolute; left:0; bottom:0; height:3px; background:var(--gold); }
+  .btn .hk { position:absolute; left:3px; top:2px; font:700 10px/1 ui-monospace,monospace; color:#ffe6a8; background:rgba(0,0,0,.55); border-radius:3px; padding:2px 3px; pointer-events:none; }
+  body.touch .btn .hk { display:none; }
+  #keysBox { text-align:left; margin-top:10px; }
+  #keysBox .kgrid { display:grid; grid-template-columns:1fr auto; gap:4px 12px; align-items:center; font-size:13px; color:#e3d6bd; max-height:46vh; overflow:auto; padding-right:4px; }
+  #keysBox .kb { min-width:74px; padding:5px 8px; border-radius:6px; border:1px solid rgba(255,224,165,.35); background:#2a211a; color:#ffe6a8; font:700 12px/1 ui-monospace,monospace; cursor:pointer; }
+  #keysBox .kb.wait { border-color:var(--gold); background:#4a3d30; }
+  #keysBox h4 { grid-column:1/-1; margin:10px 0 2px; color:#f3dca4; font:700 13px/1.2 Georgia,serif; letter-spacing:.04em; }
   .btn.txt { font:600 11px/1.15 system-ui; padding:3px; }
   #tip { position:fixed; z-index:20; pointer-events:none; max-width:260px; padding:8px 10px; font-size:12px; display:none; }
   #tip h4 { margin:0 0 3px; font-size:13px; } #tip p { margin:4px 0 0; color:var(--dim); }
@@ -170,6 +177,7 @@
     <div class="sub">Raise a clan from cave to town. Keep the fires lit. Burn your rival's hall.</div>
     <ul>
       <li><b>Gather</b> food, wood, stone and gold with your people. Build dwellings to grow the clan.</li>
+      <li><b>Build faster</b> with more hands: every worker on a building speeds it up. Select it and press <b>Add a builder</b>, or send workers to it.</li>
       <li><b>Changed your mind?</b> Esc or right-click stops placing a building. Select a building that is still going up and press <b>Cancel</b> (or Delete) to get its resources back.</li>
       <li><b>Every dawn</b> your people eat. Run out of food and they starve. Plant <b>fields</b> early: they never run out, and in <b>winter</b> they only grow slowly.</li>
       <li><b>At night</b> wolves hunt anyone outside the firelight. Build braziers and lookouts, or ring the bell to shelter in the Hearth Hall. Every fifth night is a <b>Blood Moon</b>.</li>
@@ -180,15 +188,16 @@
       <button class="choice" data-d="0">Easy</button><button class="choice on" data-d="1">Normal</button><button class="choice" data-d="2">Hard</button>
     </div>
     <div class="row"><button class="go" id="bStart">Light the hearth</button></div>
-    <div class="hint" id="ctlHint">Left-click or drag to select · Right-click to gather, build, attack or move · WASD/arrows or screen edges to pan · Wheel to zoom · . next idle worker · H Hearth Hall · B bell · Ctrl+1–9 groups</div>
+    <div class="hint" id="ctlHint">Left-click or drag to select · Right-click to gather, build, attack or move · WASD/arrows or screen edges to pan · Wheel to zoom · . next idle worker · H Hearth Hall · B bell · Ctrl+1–9 groups · Command buttons have letter keys; change any key in the pause menu (Hotkeys)</div>
   </div>
 </div>
 <div id="pause" class="ov" hidden>
   <div class="card pn">
     <h2>Paused</h2>
     <div class="row"><button class="go" id="bResume">Resume</button></div>
-    <div class="row"><button class="choice" id="bRestart">New game</button><button class="choice" id="bHelp">How to play</button></div>
+    <div class="row"><button class="choice" id="bRestart">New game</button><button class="choice" id="bHelp">How to play</button><button class="choice" id="bKeys">Hotkeys</button></div>
     <div class="hint" id="helpText" hidden></div>
+    <div id="keysBox" hidden></div>
   </div>
 </div>
 <div id="end" class="ov" hidden>
@@ -1677,10 +1686,22 @@ function resize() {
   lightC.width = Math.ceil(VW / 2); lightC.height = Math.ceil(VH / 2);
   clampCam();
 }
+// The HUD covers the top and bottom of the screen, so the camera may go that much past the map edge:
+// the last row of the map can always be pulled up above the info panel and buttons.
+const HUDPAD = { t: 0, b: 0, at: -1 };
+function hudPads() {
+  const now = performance.now(); if (now - HUDPAD.at < 300) return HUDPAD; HUDPAD.at = now;
+  const top = document.getElementById('top'), bot = document.getElementById('bottom'), info = document.getElementById('info');
+  HUDPAD.t = top ? Math.max(0, top.getBoundingClientRect().bottom) : 0;
+  let y = VH;
+  for (const el of [bot, info]) { if (!el || el.classList.contains('empty')) continue; const r = el.getBoundingClientRect(); if (r.height && r.top < y) y = r.top; }
+  HUDPAD.b = Math.max(0, VH - y);
+  return HUDPAD;
+}
 function clampCam() {
-  const hw = VW / 2 / cam.z, hh = VH / 2 / cam.z;
+  const hw = VW / 2 / cam.z, hh = VH / 2 / cam.z, p = G && G.started ? hudPads() : { t: 0, b: 0 };
   cam.x = hw * 2 > WPX ? WPX / 2 : clamp(cam.x, hw - T, WPX - hw + T);
-  cam.y = hh * 2 > WPX ? WPX / 2 : clamp(cam.y, hh - T * 2, WPX - hh + T * 5);
+  cam.y = hh * 2 > WPX + (p.t + p.b) / cam.z ? WPX / 2 : clamp(cam.y, hh - T * 2 - p.t / cam.z, WPX - hh + T * 5 + p.b / cam.z);
 }
 const toWorld = (sx, sy) => ({ x: cam.x + (sx - VW / 2) / cam.z, y: cam.y + (sy - VH / 2) / cam.z });
 const toScreen = (wx, wy) => ({ x: (wx - cam.x) * cam.z + VW / 2, y: (wy - cam.y) * cam.z + VH / 2 });
@@ -3102,7 +3123,9 @@ function cmdList() {
   const b = sel[0];
   if (sel.length === 1 && b.ent === 'b' && b.team === 0 && !b.done) {
     const back = refundOf(b);
-    return [{ id: 'bcancel', icon: iconURL('x', 'stop'), tip: { h: 'Cancel building', cost: back, p: `Stop building this ${bName(b)} and get these resources back. Its builders go back to work. (Delete key)` }, act: () => cancelBuilding(b) }];
+    return [{ id: 'addb', icon: iconURL('x', 'build'), tip: { h: 'Add a builder', p: 'Sends the nearest free worker to help. Every extra builder makes it go up faster. You can also select workers and right-click or tap the building.' }, act: () => addBuilder(b) },
+      { id: 'addb3', icon: iconURL('x', 'help'), ql: '+3', tip: { h: 'Add 3 builders', p: 'Sends the three nearest free workers.' }, act: () => { for (let i = 0; i < 3; i++) if (!addBuilder(b, i > 0)) break; } },
+      { id: 'bcancel', icon: iconURL('x', 'stop'), tip: { h: 'Cancel building', cost: back, p: `Stop building this ${bName(b)} and get these resources back. Its builders go back to work. (Delete key)` }, act: () => cancelBuilding(b) }];
   }
   if (sel.length === 1 && b.ent === 'b' && b.team === 0 && b.done) {
     const d = BLD[b.type], out = [];
@@ -3130,7 +3153,8 @@ function buildCmds(force) {
     UI.cmdKey = key; box.innerHTML = '';
     for (const c of list) {
       const el = document.createElement('button'); el.className = 'btn'; el.dataset.id = c.id;
-      el.innerHTML = `<img src="${c.icon}" alt=""><span class="ql"></span><i class="bar" style="width:0"></i>`;
+      const hk = KEYMAP['slot' + box.children.length];
+      el.innerHTML = `<img src="${c.icon}" alt=""><span class="ql"></span><i class="bar" style="width:0"></i>${hk ? `<b class="hk">${keyLabel(hk)}</b>` : ''}`;
       el.addEventListener('click', e => { e.stopPropagation(); if (ghostClick()) return; const cur = cmdList().find(x => x.id === c.id); if (!cur) return; if (cur.lock) { sfx('bad'); return; } cur.act(); updCmdState(); });
       el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') showTip(el, c.id); });
       el.addEventListener('pointerleave', hideTip);
@@ -3152,7 +3176,8 @@ function updCmdState(list = cmdList()) {
 function showTip(el, id) {
   const c = cmdList().find(x => x.id === id); if (!c) return;
   const tip = $('tip');
-  tip.innerHTML = `<h4>${c.tip.h}</h4>${c.tip.cost ? costHTML(c.tip.cost) : ''}<p>${c.tip.p || ''}</p>${c.lock ? `<p style="color:var(--gold)">Requires ${c.lock.startsWith('NEEDS') ? c.lock.toLowerCase() : 'the ' + c.lock.charAt(0) + c.lock.slice(1).toLowerCase() + ' Age'}.</p>` : ''}`;
+  const hk = isTouch() ? '' : KEYMAP['slot' + [...$('cmds').children].indexOf(el)];
+  tip.innerHTML = `<h4>${c.tip.h}${hk ? ` <span style="opacity:.7;font:700 11px ui-monospace,monospace">[${keyLabel(hk)}]</span>` : ''}</h4>${c.tip.cost ? costHTML(c.tip.cost) : ''}<p>${c.tip.p || ''}</p>${c.lock ? `<p style="color:var(--gold)">Requires ${c.lock.startsWith('NEEDS') ? c.lock.toLowerCase() : 'the ' + c.lock.charAt(0) + c.lock.slice(1).toLowerCase() + ' Age'}.</p>` : ''}`;
   tip.style.display = 'block';
   const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
   tip.style.left = clamp(r.left + r.width / 2 - tw / 2, 6, VW - tw - 6) + 'px'; tip.style.top = Math.max(6, r.top - th - 8) + 'px';
@@ -3204,13 +3229,15 @@ function updInfo() {
     f = e.done ? e.hp / e.maxhp : e.prog;
     const d = BLD[e.type];
     stats = `<span>HP <b>${Math.ceil(e.hp)}/${e.maxhp}</b></span>${d.pop ? `<span>Housing <b>+${d.pop}</b></span>` : ''}${d.drop ? `<span>Drop-off <b>${d.drop.length === 4 ? 'all' : d.drop.join(', ')}</b></span>` : ''}${d.atk ? `<span>Arrows <b>${d.atk + G.teams[e.team].era * 2}</b></span>` : ''}${d.light ? `<span>Firelight <b>${d.light}</b></span>` : ''}`;
-    if (d.farm && e.team === 0) task = G.winter ? 'Frozen until spring.' : farmers(e) ? 'Being worked.' : 'Idle field — send a worker.';
+    if (!e.done && e.team === 0) { const nb = G.units.filter(u => u.team === 0 && u.st === 'build' && u.tgt === e.id && !u.dead).length, rate = G.units.filter(u => u.team === 0 && u.st === 'build' && u.tgt === e.id && !u.dead && edgeDist(u, e) <= 14).length;
+      task = nb ? `${nb} builder${nb > 1 ? 's' : ''}${rate ? ` · about ${Math.ceil((1 - e.prog) * d.time / rate)}s left` : ' on the way'}. More builders finish faster.` : 'No one is building this. Add a builder.'; }
+    if (d.farm && e.team === 0 && e.done) task = G.winter ? 'Frozen until spring.' : farmers(e) ? 'Being worked.' : 'Idle field — send a worker.';
     if (e.team === 0 && e.queue.length) {
       const q0 = e.queue[0];
       task = q0.housed ? 'Waiting for housing…' : q0.u ? `Training ${unitName({ type: q0.u, team: 0 })}` : `Researching ${TECH[q0.k].name}`;
       extra = '<div class="queue">' + e.queue.map((q, i) => `<div class="qi" data-i="${i}" title="Click to cancel"><img src="${q.u ? iconURL('u', q.u) : iconURL('t', q.k)}"><i style="width:${i === 0 ? (q.t / (q.u ? UNIT[q.u].time : TECH[q.k].time)) * 100 : 0}%"></i></div>`).join('') + '</div>';
     }
-    if (e.team === 0 && d.trains && !e.queue.length) task = 'Right-click the ground or a resource to set a rally point.';
+    if (e.team === 0 && e.done && d.trains && !e.queue.length) task = 'Right-click the ground or a resource to set a rally point.';
     if (e.type === 'tc' && e.team === 0) { const n = shelterCount(e); if (n) task = `Sheltering ${n} ${n > 1 ? 'people' : 'person'}. ` + (G.bell[0] ? 'The bell is ringing.' : ''); }
   } else {
     title = e.kind === 'tree' ? (e.pine ? 'Pine' : 'Oak') : e.kind === 'berry' ? 'Berry Bush' : e.kind === 'carcass' ? 'Carcass' : e.kind === 'gold' ? 'Gold Mine' : 'Stone Quarry';
@@ -3395,10 +3422,68 @@ function boxSelect(a, b, add) {
   if (list.length || !add) setSel(list);
   if (list.length) sfx('click');
 }
+// Send the nearest free worker (idle first, then gatherers) to help put up a building.
+function addBuilder(b, quiet) {
+  const vs = G.units.filter(u => u.team === 0 && u.type === 'villager' && !u.dead && !(u.st === 'build' && u.tgt === b.id) && u.st !== 'build' && !u.hidden);
+  const score = u => dist(u.x, u.y, b.x, b.y) + (u.st === 'idle' ? 0 : 6 * T);
+  const u = vs.sort((a, c) => score(a) - score(c))[0];
+  if (!u) { if (!quiet) { alertMsg('No free workers to send.'); sfx('bad'); } return false; }
+  u.job = null; orderBuild(u, b); sfx('click'); G.uiDirty = true;
+  return true;
+}
 function nextIdle() {
   const idle = G.units.filter(u => u.team === 0 && u.type === 'villager' && u.st === 'idle');
   if (!idle.length) { alertMsg('No idle workers.'); return; }
   const u = idle[UI.idleIx++ % idle.length]; setSel([u]); centerOn(u.x, u.y);
+}
+
+// Hotkeys ---------------------------------------------------------------------------
+// Every action can be rebound (pause menu → Hotkeys). Command buttons are keyed by their slot in the panel.
+const SLOT_KEYS = ['KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyF', 'KeyG', 'KeyJ', 'KeyK', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyY', 'KeyU', 'KeyI', 'KeyO'];
+const KEY_ACTIONS = [
+  ['Camera', [['up', 'Pan up', 'KeyW'], ['down', 'Pan down', 'KeyS'], ['left', 'Pan left', 'KeyA'], ['right', 'Pan right', 'KeyD'], ['zin', 'Zoom in', 'Equal'], ['zout', 'Zoom out', 'Minus'], ['alert', 'Jump to last alert', 'Space']]],
+  ['Village', [['idle', 'Next idle worker', 'Period'], ['home', 'Select Hearth Hall', 'KeyH'], ['bell', 'Ring the bell', 'KeyB'], ['del', 'Cancel building / dismiss unit', 'Delete'], ['pause', 'Pause', 'KeyP'], ['speed', 'Game speed', 'KeyL']]],
+  ['Command buttons (left to right, top to bottom)', SLOT_KEYS.map((k, i) => ['slot' + i, `Button ${i + 1}`, k])],
+];
+const KEY_DEF = Object.fromEntries(KEY_ACTIONS.flatMap(([, list]) => list.map(([id, , k]) => [id, k])));
+let KEYMAP = { ...KEY_DEF };
+try { Object.assign(KEYMAP, JSON.parse(localStorage.getItem('empire-rush.keys') || '{}')); } catch (err) { /* storage unavailable */ }
+const saveKeys = () => { try { localStorage.setItem('empire-rush.keys', JSON.stringify(KEYMAP)); } catch (err) { /* ignore */ } };
+const keyLabel = c => !c ? '—' : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : c.startsWith('Numpad') ? 'Num ' + c.slice(6) :
+  ({ Period: '.', Comma: ',', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', Space: 'Space', Delete: 'Del', Backspace: 'Bksp', Tab: 'Tab', Enter: 'Enter', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Insert: 'Ins', Home: 'Home', End: 'End', PageUp: 'PgUp', PageDown: 'PgDn' })[c] || c;
+const actionFor = code => Object.keys(KEYMAP).find(id => KEYMAP[id] === code);
+let rebinding = null;
+function renderKeys() {
+  const box = $('keysBox');
+  box.innerHTML = `<div class="kgrid">${KEY_ACTIONS.map(([h, list]) => `<h4>${h}</h4>` + list.map(([id, label]) => `<span>${label}</span><button class="kb${rebinding === id ? ' wait' : ''}" data-k="${id}">${rebinding === id ? 'Press a key…' : keyLabel(KEYMAP[id])}</button>`).join('')).join('')}</div>
+    <p style="font-size:12px;color:#cdbb95;margin:8px 0 0">Click a key, then press the new one. Esc cancels, Backspace clears. Arrow keys, Esc, 1–9 groups and Ctrl+1–9 always work.</p>
+    <div class="row"><button class="choice" id="bKeysReset">Reset to defaults</button></div>`;
+  box.querySelectorAll('.kb').forEach(b => b.onclick = () => { rebinding = rebinding === b.dataset.k ? null : b.dataset.k; renderKeys(); });
+  $('bKeysReset').onclick = () => { KEYMAP = { ...KEY_DEF }; saveKeys(); rebinding = null; renderKeys(); UI.cmdKey = ''; };
+}
+function rebindKey(e) {
+  e.preventDefault(); e.stopPropagation();
+  const id = rebinding; rebinding = null;
+  if (e.code === 'Escape') { renderKeys(); return; }
+  if (e.code === 'Backspace') { KEYMAP[id] = ''; }
+  else if (/^(Arrow|Digit[1-9]|Control|Shift|Alt|Meta)/.test(e.code)) { renderKeys(); return; }
+  else { const other = actionFor(e.code); if (other && other !== id) KEYMAP[other] = KEYMAP[id]; KEYMAP[id] = e.code; }  // swap with whatever had that key
+  saveKeys(); renderKeys(); UI.cmdKey = '';
+}
+function runAction(id, e) {
+  if (/^slot\d+$/.test(id)) { const el = $('cmds').children[+id.slice(4)]; if (el) el.click(); return true; }
+  switch (id) {
+    case 'idle': nextIdle(); return true;
+    case 'home': { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } return true; }
+    case 'bell': if (G.teams[0].tc) ringBell(0, !G.bell[0]); return true;
+    case 'alert': e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); return true;
+    case 'del': if (SEL.length === 1 && SEL[0].ent === 'b' && SEL[0].team === 0 && !SEL[0].done) cancelBuilding(SEL[0]); else if (myUnits().length === 1) killUnit(myUnits()[0], null); return true;
+    case 'zin': cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX); clampCam(); return true;
+    case 'zout': cam.z = clamp(cam.z / 1.15, ZMIN, ZMAX); clampCam(); return true;
+    case 'pause': $('bMenu').click(); return true;
+    case 'speed': $('bSpeed').click(); return true;
+  }
+  return false;   // pan keys are read every frame
 }
 
 // Input -------------------------------------------------------------------------
@@ -3527,30 +3612,29 @@ $('mini').addEventListener('pointerdown', e => {
 $('mini').addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
+  if (rebinding) { rebindKey(e); return; }
   keys[e.code] = true;
   if (!G.started || G.over) return;
+  if (paused) { if (e.code === KEYMAP.pause || e.key === 'Escape') { if (!$('keysBox').hidden && e.key === 'Escape') return; $('bResume').click(); } return; }
   const k = e.key;
-  if (k === 'Escape') { if (UI.place || UI.amove) { UI.place = null; UI.amove = false; UI.wallLine = null; G.uiDirty = true; } else setSel([]); }
-  else if (k === '.') nextIdle();
-  else if (k === 'b' || k === 'B') { if (G.teams[0].tc) ringBell(0, !G.bell[0]); }
-  else if (k === 'h' || k === 'H') { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } }
-  else if (k === ' ') { e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); }
-  else if (k === 'Delete' && SEL.length === 1 && SEL[0].ent === 'b' && SEL[0].team === 0 && !SEL[0].done) cancelBuilding(SEL[0]);
-  else if (k === 'Delete' && myUnits().length === 1) { killUnit(myUnits()[0], null); }
-  else if (/^[1-9]$/.test(k)) {
+  if (k === 'Escape') { if (UI.place || UI.amove) { UI.place = null; UI.amove = false; UI.wallLine = null; G.uiDirty = true; } else setSel([]); return; }
+  if (/^[1-9]$/.test(k)) {
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); G.groups[k] = myUnits().map(u => u.id); alertMsg(`Group ${k} set (${G.groups[k].length}).`); }
     else if (G.groups[k]) { const list = G.groups[k].map(id => G.unitById.get(id)).filter(Boolean); const now = performance.now(); if (UI.lastGroup === k && now - UI.lastGroupT < 400 && list.length) centerOn(list[0].x, list[0].y); UI.lastGroup = k; UI.lastGroupT = now; setSel(list); }
+    return;
   }
-  else if (k === '+' || k === '=') cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX);
-  else if (k === '-') cam.z = clamp(cam.z / 1.15, ZMIN, ZMAX);
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const id = actionFor(e.code);
+  if (id) runAction(id, e);
+  else if (k === '+' ) { cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX); clampCam(); }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.in = false; });
 function panInput(dt) {
   if (!G.started) return;
   let vx = 0, vy = 0; const s = 700 / cam.z;
-  if (keys.ArrowLeft || keys.KeyA) vx -= 1; if (keys.ArrowRight || keys.KeyD) vx += 1;
-  if (keys.ArrowUp || keys.KeyW) vy -= 1; if (keys.ArrowDown || keys.KeyS) vy += 1;
+  if (keys.ArrowLeft || keys[KEYMAP.left]) vx -= 1; if (keys.ArrowRight || keys[KEYMAP.right]) vx += 1;
+  if (keys.ArrowUp || keys[KEYMAP.up]) vy -= 1; if (keys.ArrowDown || keys[KEYMAP.down]) vy += 1;
   if (!TEST && mouse.in && document.hasFocus() && !pts.size && !document.body.classList.contains('touch')) {
     const m = 8; if (mouse.x < m) vx -= 1; if (mouse.x > VW - m) vx += 1; if (mouse.y < m) vy -= 1; if (mouse.y > VH - m) vy += 1;
   }
@@ -3656,8 +3740,9 @@ $('bStart').onclick = startGame;
 $('bAgain').onclick = () => { $('end').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; };
 $('bLook').onclick = () => { $('end').hidden = true; UI.looking = true; };
 $('bMenu').onclick = () => { if (!G.started) return; paused = true; $('pause').hidden = false; };
-$('bResume').onclick = () => { paused = false; $('pause').hidden = true; };
+$('bResume').onclick = () => { paused = false; $('pause').hidden = true; rebinding = null; $('keysBox').hidden = true; };
 $('bRestart').onclick = () => { $('pause').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; paused = false; };
+$('bKeys').onclick = () => { const b = $('keysBox'); b.hidden = !b.hidden; rebinding = null; if (!b.hidden) { $('helpText').hidden = true; renderKeys(); } };
 $('bHelp').onclick = () => { const h = $('helpText'); h.hidden = !h.hidden; h.innerHTML = $('menu').querySelector('ul').outerHTML + '<p>' + $('ctlHint').textContent + '</p>'; };
 $('bSpeed').onclick = () => { if (!G) return; G.speed = G.speed === 1 ? 1.5 : G.speed === 1.5 ? 2 : 1; $('bSpeed').textContent = G.speed + '×'; };
 $('bSound').onclick = () => { muted = !muted; $('bSound').style.opacity = muted ? .45 : 1; try { localStorage.setItem('empire-rush.mute', muted ? '1' : '0'); } catch (err) { /* ignore */ } };
