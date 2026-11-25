@@ -25,7 +25,11 @@ function cpuBuild(side) {
     col(t, fx, 1 + Math.floor(r() * 3));
   }
   for (let k = 0; k < 12 && money(side) >= 15; k++) put('hay', 20 + r() * 600, GY - 22 - Math.floor(r() * 3) * 44);
-  for (let i = 0; i < 180; i++) physAdvance(1 / 60);
+  for (let i = 0; i < 60; i++) physAdvance(1 / 60);
+  // honey the hut and a few walls
+  const glue = BODIES.filter(b => b.side === side && b.piece && b.piece !== 'hay' && b.kind !== 'bell').sort(() => r() - 0.5);
+  for (const b of glue.slice(0, [3, 6, 10][SET.diff])) honey(side, b, true);
+  for (let i = 0; i < 120; i++) physAdvance(1 / 60);
   if (bellOK(side)) { // fallback: a plain pillar
     for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
     col('stone', 60, 3); col('crate', 300, 2); put('bell', 300, GY - 88 - 18);

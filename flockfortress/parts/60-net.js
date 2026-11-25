@@ -62,7 +62,7 @@ function applySync(m) {
   if (m.phase === 'build') {
     resetWorld();
     for (const s of [0, 1]) if (G.forts[s]) buildFrom(s, G.forts[s]);
-    const rec = loadRec(); if (!G.ready[me] && rec && rec.build) for (const [t, x, y, a, rot] of rec.build) placePiece(me, t, x, y, rot, true);
+    const rec = loadRec(); if (!G.ready[me] && rec && rec.build) buildFrom(me, rec.build);
     G.phase = 'build'; G.builder = me; camTo('build', me, true);
   } else {
     resetWorld(); applyState(st, true); G.phase = 'siege'; G.shot = null; newWind(); camTo('aim', G.turn, true);

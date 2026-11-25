@@ -173,6 +173,7 @@ function draw(t) {
   }
   drawCatapult(0, t); drawCatapult(1, t);
   for (const b of BODIES) if (b.piece && (G.phase !== 'build' || G.mode === 'cpu' || isBuilderView(b.side))) drawPiece(b, b.ghost ? 0 : 1);
+  for (const w of WELDS) { if (G.phase === 'build' && !(G.mode === 'cpu' || isBuilderView(w.a.side))) continue; const [wx, wy] = weldAnchor(w), [sx, sy] = w2s(wx, wy), r = Math.max(2.5, 5.5 * CAM.z); ctx.fillStyle = 'rgba(232,162,28,.92)'; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(sx + r * 0.3, sy + r * 1.1, r * 0.45, r * 0.8, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,240,180,.8)'; ctx.beginPath(); ctx.arc(sx - r * 0.3, sy - r * 0.35, r * 0.32, 0, TAU); ctx.fill(); }
   for (const b of BODIES) if (b.kind === 'sheep') drawSheep(b);
   // build ghost
   if (G.phase === 'build' && BUILD.ghost && G.sel !== 'remove') { const g = BUILD.ghost; drawPiece(Object.assign({ id: 0, a: 0 }, g), g.ok ? 0.55 : 0.25); if (!g.ok) { const [gx, gy] = w2s(g.x, g.y); ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 2; ctx.strokeRect(gx - g.hw * CAM.z, gy - g.hh * CAM.z, g.hw * 2 * CAM.z, g.hh * 2 * CAM.z); } }

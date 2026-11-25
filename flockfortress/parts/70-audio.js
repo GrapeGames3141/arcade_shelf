@@ -20,6 +20,7 @@ const AUD = {
   place(t) { const f = t === 'stone' || t === 'slab' ? 180 : t === 'hay' ? 420 : 260; this.tone(f, f * 0.7, 0.1, 'triangle', 0.15); this.noise(0.06, 'lowpass', 800, 300, 0.12); },
   launch() { this.noise(0.4, 'bandpass', 500, 1800, 0.3, 0, 1.2); this.tone(90, 50, 0.25, 'sawtooth', 0.12); },
   bell(v = 1) { for (const [f, d, a] of [[880, 2.6, 0.2], [880 * 2.76, 1.6, 0.08], [880 * 5.4, 0.9, 0.04], [440, 3, 0.1]]) this.tone(f, f * 0.995, d, 'sine', a * v, 0, 0.004); },
+  honey() { this.noise(0.25, 'lowpass', 600, 200, 0.25, 0, 2); this.tone(220, 160, 0.2, 'sine', 0.12); },
   click() { this.tone(300, 260, 0.05, 'square', 0.05); },
   ready() { this.tone(523, 523, 0.18, 'triangle', 0.14); this.tone(784, 784, 0.25, 'triangle', 0.14, 0.12); },
   win() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.4, 'triangle', 0.15, i * 0.12)); this.bell(0.6); },

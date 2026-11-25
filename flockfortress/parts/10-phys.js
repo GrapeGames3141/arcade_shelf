@@ -11,7 +11,7 @@ function hash(x, y, s) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 
 // Boxes and circles, sequential impulses with warm starting and accumulated clamping, box-box contacts by
 // reference-face clipping (after Erin Catto's Box2D-Lite). Screen coordinates: +y is down. Units are pixels.
 const PH = { g: 900, iters: 10, bias: 0.2, slop: 0.6, sub: 3 };
-let BODIES = [], ARB = new Map(), NEXT_ID = 1;
+let BODIES = [], ARB = new Map(), NEXT_ID = 1, WELDS = [];
 function mkBody(o) {
   const b = Object.assign({ id: NEXT_ID++, x: 0, y: 0, a: 0, vx: 0, vy: 0, w: 0, shape: 'box', hw: 10, hh: 10, r: 10, dens: 1, fric: 0.6, rest: 0.05, stat: false, sleep: 0, asleep: false, kind: 'block' }, o);
   setMass(b); BODIES.push(b); return b;
@@ -22,7 +22,7 @@ function setMass(b) {
   else { b.m = Math.PI * b.r * b.r * b.dens / 1000; b.I = b.m * b.r * b.r / 2; }
   b.im = 1 / b.m; b.iI = 1 / b.I;
 }
-function removeBody(b) { const i = BODIES.indexOf(b); if (i >= 0) BODIES.splice(i, 1); for (const k of [...ARB.keys()]) { const a = ARB.get(k); if (a.b1 === b || a.b2 === b) ARB.delete(k); } }
+function removeBody(b) { const i = BODIES.indexOf(b); if (i >= 0) BODIES.splice(i, 1); WELDS = WELDS.filter(w => w.a !== b && w.b !== b); for (const k of [...ARB.keys()]) { const a = ARB.get(k); if (a.b1 === b || a.b2 === b) ARB.delete(k); } }
 function wake(b) { if (b.stat) return; b.asleep = false; b.sleep = 0; }
 function aabb(b) {
   if (b.shape === 'circle') return [b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r];
@@ -94,6 +94,48 @@ function clip(vin, nx, ny, off) {
   if (d0 * d1 < 0) { const t = d0 / (d0 - d1); out.push([vin[0][0] + t * (vin[1][0] - vin[0][0]), vin[0][1] + t * (vin[1][1] - vin[0][1])]); }
   return out;
 }
+// --- welds (honey): hold two bodies together at an anchor point until pulled harder than their strength
+function weld(a, b, x, y, strength = 330) {
+  if (a === b || a.stat || b.stat || WELDS.some(w => (w.a === a && w.b === b) || (w.a === b && w.b === a))) return null;
+  const la = toLocal(a, x, y), lb = toLocal(b, x, y);
+  const w = { a, b, lax: la[0], lay: la[1], lbx: lb[0], lby: lb[1], ref: b.a - a.a, px: 0, py: 0, pw: 0, str: strength };
+  WELDS.push(w); return w;
+}
+function toLocal(b, x, y) { const c = Math.cos(b.a), s = Math.sin(b.a), dx = x - b.x, dy = y - b.y; return [c * dx + s * dy, -s * dx + c * dy]; }
+function weldAnchor(w) { const c = Math.cos(w.a.a), s = Math.sin(w.a.a); return [w.a.x + c * w.lax - s * w.lay, w.a.y + s * w.lax + c * w.lay]; }
+function weldPrep(dt) {
+  for (const w of WELDS) {
+    const A = w.a, B = w.b;
+    if (A.asleep && B.asleep) { w.off = true; continue; }
+    if ((A.pinned && A.kind !== 'sheep') || (B.pinned && B.kind !== 'sheep')) { w.off = true; w.px = w.py = w.pw = 0; continue; }   // held in place while building: nothing to solve
+    w.off = false; if (A.asleep) wake(A); if (B.asleep) wake(B);
+    const ca = Math.cos(A.a), sa = Math.sin(A.a), cb = Math.cos(B.a), sb = Math.sin(B.a);
+    w.rax = ca * w.lax - sa * w.lay; w.ray = sa * w.lax + ca * w.lay; w.rbx = cb * w.lbx - sb * w.lby; w.rby = sb * w.lbx + cb * w.lby;
+    const iA = A.iI, iB = B.iI, mA = A.im, mB = B.im;
+    const k11 = mA + mB + iA * w.ray * w.ray + iB * w.rby * w.rby, k12 = -iA * w.rax * w.ray - iB * w.rbx * w.rby, k22 = mA + mB + iA * w.rax * w.rax + iB * w.rbx * w.rbx, det = k11 * k22 - k12 * k12 || 1e-9;
+    w.i11 = k22 / det; w.i12 = -k12 / det; w.i22 = k11 / det; w.mw = 1 / (iA + iB || 1e-9);
+    // position drift to correct softly
+    w.cx = (B.x + w.rbx) - (A.x + w.rax); w.cy = (B.y + w.rby) - (A.y + w.ray); w.ca = (B.a - A.a) - w.ref;
+    w.bf = 0.2 / dt; w.got = 0;
+    A.vx -= mA * w.px; A.vy -= mA * w.py; A.w -= iA * (w.rax * w.py - w.ray * w.px + w.pw);
+    B.vx += mB * w.px; B.vy += mB * w.py; B.w += iB * (w.rbx * w.py - w.rby * w.px + w.pw);
+  }
+}
+function weldSolve() {
+  for (const w of WELDS) {
+    if (w.off) continue;
+    const A = w.a, B = w.b;
+    const lw = -w.mw * ((B.w - A.w) + w.bf * w.ca); w.pw += lw; A.w -= A.iI * lw; B.w += B.iI * lw;
+    const cx = B.vx - B.w * w.rby - A.vx + A.w * w.ray + w.bf * w.cx, cy = B.vy + B.w * w.rbx - A.vy - A.w * w.rax + w.bf * w.cy;
+    const px = -(w.i11 * cx + w.i12 * cy), py = -(w.i12 * cx + w.i22 * cy);
+    w.px += px; w.py += py; w.got += Math.abs(px) + Math.abs(py) + Math.abs(lw) * 0.05;
+    A.vx -= A.im * px; A.vy -= A.im * py; A.w -= A.iI * (w.rax * py - w.ray * px);
+    B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (w.rbx * py - w.rby * px);
+  }
+}
+function weldBreak() {
+  for (let i = WELDS.length - 1; i >= 0; i--) { const w = WELDS[i]; if (w.off) continue; if (hyp(w.px, w.py) > w.str || w.got > w.str * 2.2) { WELDS.splice(i, 1); if (HOOK.unweld) HOOK.unweld(w); } }
+}
 // --- the step
 const HOOK = { contact: null, step: null };   // the game listens for hard impacts and per-step effects
 function physStep(dt) {
@@ -109,6 +151,7 @@ function physStep(dt) {
       const A0 = P.b, B0 = Qb.b;
       if ((A0.stat || A0.asleep) && (B0.stat || B0.asleep)) { const k = A0.id < B0.id ? A0.id + ':' + B0.id : B0.id + ':' + A0.id; if (ARB.has(k)) seen.add(k); continue; }
       if (A0.ghost || B0.ghost) continue;
+      if ((A0.pinned && A0.kind !== 'sheep' || A0.stat) && (B0.pinned && B0.kind !== 'sheep' || B0.stat)) { ARB.delete(A0.id < B0.id ? A0.id + ':' + B0.id : B0.id + ':' + A0.id); continue; }
       const [A, B] = A0.id < B0.id ? [A0, B0] : [B0, A0], key = A.id + ':' + B.id;
       const cs = collide(A, B);
       if (!cs) { ARB.delete(key); continue; }
@@ -146,8 +189,9 @@ function physStep(dt) {
     }
     arb.fresh = false;
   }
+  weldPrep(dt);
   // iterate impulses
-  for (let it = 0; it < PH.iters; it++) for (const arb of ARB.values()) {
+  for (let it = 0; it < PH.iters; it++) { weldSolve(); for (const arb of ARB.values()) {
     const A = arb.b1, B = arb.b2;
     for (const c of arb.cs) {
       let dvx = B.vx - B.w * c.r2y - A.vx + A.w * c.r1y, dvy = B.vy + B.w * c.r2x - A.vy - A.w * c.r1x;
@@ -164,6 +208,8 @@ function physStep(dt) {
       B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (c.r2x * py - c.r2y * px);
     }
   }
+  }
+  weldBreak();
   // integrate and sleep
   for (const b of BODIES) {
     if (b.stat || b.asleep) continue;

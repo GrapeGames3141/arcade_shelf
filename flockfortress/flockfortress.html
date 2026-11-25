@@ -118,7 +118,7 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; background: rgba(255, 255
       <div id="mpStatus"></div>
     </div>
     <div class="panel drawer hidden" id="how">
-      <div class="grp"><h5>1 · BUILD</h5><p>Spend your budget on hay, wood and stone, and hide your golden bell somewhere off the ground. Pieces drop where you place them, so test your walls as you go.</p></div>
+      <div class="grp"><h5>1 · BUILD</h5><p>You have a minute. Spend your budget on hay, wood and stone and hide your golden bell somewhere off the ground. Pieces drop onto whatever is below and hold still while you build; the shake test shows what would fall. Use honey to glue a piece to everything it touches, so roofs and overhangs hold until a big blast tears them loose.</p></div>
       <div class="grp"><h5>2 · SIEGE</h5><p>Take turns pulling back the catapult and launching sheep. They explode a moment after they land, and a blast sets off any sheep nearby, each bigger than the last.</p></div>
       <div class="grp"><h5>3 · WIN</h5><p>Knock the other bell to the ground to win the round. Out of sheep? Most damage wins. Best of three rounds.</p></div>
       <div class="grp"><h5>SHEEP</h5><p>Sheep · Lamb trio (tap to split) · Ram (smashes, no blast) · Fluffball (grows as it rolls) · Black sheep (sticks, big blast)</p></div>
@@ -162,7 +162,7 @@ function hash(x, y, s) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 
 // Boxes and circles, sequential impulses with warm starting and accumulated clamping, box-box contacts by
 // reference-face clipping (after Erin Catto's Box2D-Lite). Screen coordinates: +y is down. Units are pixels.
 const PH = { g: 900, iters: 10, bias: 0.2, slop: 0.6, sub: 3 };
-let BODIES = [], ARB = new Map(), NEXT_ID = 1;
+let BODIES = [], ARB = new Map(), NEXT_ID = 1, WELDS = [];
 function mkBody(o) {
   const b = Object.assign({ id: NEXT_ID++, x: 0, y: 0, a: 0, vx: 0, vy: 0, w: 0, shape: 'box', hw: 10, hh: 10, r: 10, dens: 1, fric: 0.6, rest: 0.05, stat: false, sleep: 0, asleep: false, kind: 'block' }, o);
   setMass(b); BODIES.push(b); return b;
@@ -173,7 +173,7 @@ function setMass(b) {
   else { b.m = Math.PI * b.r * b.r * b.dens / 1000; b.I = b.m * b.r * b.r / 2; }
   b.im = 1 / b.m; b.iI = 1 / b.I;
 }
-function removeBody(b) { const i = BODIES.indexOf(b); if (i >= 0) BODIES.splice(i, 1); for (const k of [...ARB.keys()]) { const a = ARB.get(k); if (a.b1 === b || a.b2 === b) ARB.delete(k); } }
+function removeBody(b) { const i = BODIES.indexOf(b); if (i >= 0) BODIES.splice(i, 1); WELDS = WELDS.filter(w => w.a !== b && w.b !== b); for (const k of [...ARB.keys()]) { const a = ARB.get(k); if (a.b1 === b || a.b2 === b) ARB.delete(k); } }
 function wake(b) { if (b.stat) return; b.asleep = false; b.sleep = 0; }
 function aabb(b) {
   if (b.shape === 'circle') return [b.x - b.r, b.y - b.r, b.x + b.r, b.y + b.r];
@@ -245,6 +245,48 @@ function clip(vin, nx, ny, off) {
   if (d0 * d1 < 0) { const t = d0 / (d0 - d1); out.push([vin[0][0] + t * (vin[1][0] - vin[0][0]), vin[0][1] + t * (vin[1][1] - vin[0][1])]); }
   return out;
 }
+// --- welds (honey): hold two bodies together at an anchor point until pulled harder than their strength
+function weld(a, b, x, y, strength = 330) {
+  if (a === b || a.stat || b.stat || WELDS.some(w => (w.a === a && w.b === b) || (w.a === b && w.b === a))) return null;
+  const la = toLocal(a, x, y), lb = toLocal(b, x, y);
+  const w = { a, b, lax: la[0], lay: la[1], lbx: lb[0], lby: lb[1], ref: b.a - a.a, px: 0, py: 0, pw: 0, str: strength };
+  WELDS.push(w); return w;
+}
+function toLocal(b, x, y) { const c = Math.cos(b.a), s = Math.sin(b.a), dx = x - b.x, dy = y - b.y; return [c * dx + s * dy, -s * dx + c * dy]; }
+function weldAnchor(w) { const c = Math.cos(w.a.a), s = Math.sin(w.a.a); return [w.a.x + c * w.lax - s * w.lay, w.a.y + s * w.lax + c * w.lay]; }
+function weldPrep(dt) {
+  for (const w of WELDS) {
+    const A = w.a, B = w.b;
+    if (A.asleep && B.asleep) { w.off = true; continue; }
+    if ((A.pinned && A.kind !== 'sheep') || (B.pinned && B.kind !== 'sheep')) { w.off = true; w.px = w.py = w.pw = 0; continue; }   // held in place while building: nothing to solve
+    w.off = false; if (A.asleep) wake(A); if (B.asleep) wake(B);
+    const ca = Math.cos(A.a), sa = Math.sin(A.a), cb = Math.cos(B.a), sb = Math.sin(B.a);
+    w.rax = ca * w.lax - sa * w.lay; w.ray = sa * w.lax + ca * w.lay; w.rbx = cb * w.lbx - sb * w.lby; w.rby = sb * w.lbx + cb * w.lby;
+    const iA = A.iI, iB = B.iI, mA = A.im, mB = B.im;
+    const k11 = mA + mB + iA * w.ray * w.ray + iB * w.rby * w.rby, k12 = -iA * w.rax * w.ray - iB * w.rbx * w.rby, k22 = mA + mB + iA * w.rax * w.rax + iB * w.rbx * w.rbx, det = k11 * k22 - k12 * k12 || 1e-9;
+    w.i11 = k22 / det; w.i12 = -k12 / det; w.i22 = k11 / det; w.mw = 1 / (iA + iB || 1e-9);
+    // position drift to correct softly
+    w.cx = (B.x + w.rbx) - (A.x + w.rax); w.cy = (B.y + w.rby) - (A.y + w.ray); w.ca = (B.a - A.a) - w.ref;
+    w.bf = 0.2 / dt; w.got = 0;
+    A.vx -= mA * w.px; A.vy -= mA * w.py; A.w -= iA * (w.rax * w.py - w.ray * w.px + w.pw);
+    B.vx += mB * w.px; B.vy += mB * w.py; B.w += iB * (w.rbx * w.py - w.rby * w.px + w.pw);
+  }
+}
+function weldSolve() {
+  for (const w of WELDS) {
+    if (w.off) continue;
+    const A = w.a, B = w.b;
+    const lw = -w.mw * ((B.w - A.w) + w.bf * w.ca); w.pw += lw; A.w -= A.iI * lw; B.w += B.iI * lw;
+    const cx = B.vx - B.w * w.rby - A.vx + A.w * w.ray + w.bf * w.cx, cy = B.vy + B.w * w.rbx - A.vy - A.w * w.rax + w.bf * w.cy;
+    const px = -(w.i11 * cx + w.i12 * cy), py = -(w.i12 * cx + w.i22 * cy);
+    w.px += px; w.py += py; w.got += Math.abs(px) + Math.abs(py) + Math.abs(lw) * 0.05;
+    A.vx -= A.im * px; A.vy -= A.im * py; A.w -= A.iI * (w.rax * py - w.ray * px);
+    B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (w.rbx * py - w.rby * px);
+  }
+}
+function weldBreak() {
+  for (let i = WELDS.length - 1; i >= 0; i--) { const w = WELDS[i]; if (w.off) continue; if (hyp(w.px, w.py) > w.str || w.got > w.str * 2.2) { WELDS.splice(i, 1); if (HOOK.unweld) HOOK.unweld(w); } }
+}
 // --- the step
 const HOOK = { contact: null, step: null };   // the game listens for hard impacts and per-step effects
 function physStep(dt) {
@@ -260,6 +302,7 @@ function physStep(dt) {
       const A0 = P.b, B0 = Qb.b;
       if ((A0.stat || A0.asleep) && (B0.stat || B0.asleep)) { const k = A0.id < B0.id ? A0.id + ':' + B0.id : B0.id + ':' + A0.id; if (ARB.has(k)) seen.add(k); continue; }
       if (A0.ghost || B0.ghost) continue;
+      if ((A0.pinned && A0.kind !== 'sheep' || A0.stat) && (B0.pinned && B0.kind !== 'sheep' || B0.stat)) { ARB.delete(A0.id < B0.id ? A0.id + ':' + B0.id : B0.id + ':' + A0.id); continue; }
       const [A, B] = A0.id < B0.id ? [A0, B0] : [B0, A0], key = A.id + ':' + B.id;
       const cs = collide(A, B);
       if (!cs) { ARB.delete(key); continue; }
@@ -297,8 +340,9 @@ function physStep(dt) {
     }
     arb.fresh = false;
   }
+  weldPrep(dt);
   // iterate impulses
-  for (let it = 0; it < PH.iters; it++) for (const arb of ARB.values()) {
+  for (let it = 0; it < PH.iters; it++) { weldSolve(); for (const arb of ARB.values()) {
     const A = arb.b1, B = arb.b2;
     for (const c of arb.cs) {
       let dvx = B.vx - B.w * c.r2y - A.vx + A.w * c.r1y, dvy = B.vy + B.w * c.r2x - A.vy - A.w * c.r1x;
@@ -315,6 +359,8 @@ function physStep(dt) {
       B.vx += B.im * px; B.vy += B.im * py; B.w += B.iI * (c.r2x * py - c.r2y * px);
     }
   }
+  }
+  weldBreak();
   // integrate and sleep
   for (const b of BODIES) {
     if (b.stat || b.asleep) continue;
@@ -335,7 +381,7 @@ function contactsOf(b) { const out = []; for (const a of ARB.values()) if (a.b1 
 const WORLD = { W: 2600, H: 1000, ground: 780 };
 const ZONES = [{ x0: 150, x1: 810, cat: 930, dir: 1 }, { x0: 1790, x1: 2450, cat: 1670, dir: -1 }];
 const BELL_MIN = 40;          // the bell must start at least this far above the ground
-const BUDGET = 1600, BUILD_S = 120, VMAX = 1300;
+const BUDGET = 1600, BUILD_S = 60, VMAX = 1300, HONEY = 10;
 const PIECES = {
   hay: { nm: 'Hay', hw: 22, hh: 22, dens: 0.35, hp: 45, cost: 15, fric: 0.9 },
   crate: { nm: 'Crate', hw: 22, hh: 22, dens: 0.75, hp: 80, cost: 30, fric: 0.7 },
@@ -361,7 +407,7 @@ const saveSet = () => { try { localStorage.setItem('flockfortress.set', JSON.str
 let G = null, GROUND = null;
 const FX = [];   // particles: { x, y, vx, vy, t, life, k, s, c }
 function resetWorld() {
-  BODIES = []; ARB = new Map(); NEXT_ID = 1;
+  BODIES = []; ARB = new Map(); NEXT_ID = 1; WELDS = [];
   GROUND = mkBody({ stat: true, x: WORLD.W / 2, y: WORLD.ground + 200, hw: WORLD.W, hh: 200, kind: 'ground', fric: 0.9 });
   FX.length = 0;
 }
@@ -393,36 +439,65 @@ function newRound() {
   renderBars();
 }
 // ---------- building
-function money(side) { return BUDGET - BODIES.filter(b => b.side === side && b.piece).reduce((s, b) => s + PIECES[b.piece].cost, 0); }
+function money(side) { return BUDGET - BODIES.filter(b => b.side === side && b.piece).reduce((s, b) => s + PIECES[b.piece].cost, 0) - HONEY * WELDS.filter(w => w.a.side === side).length; }
+// honey: glue a piece to every piece it touches (the bell never sticks)
+function honey(side, b, quiet) {
+  if (!b || !b.piece || b.side !== side) return 0;
+  if (b.kind === 'bell') { if (!quiet) say('Honey won\'t stick to the bell', '', 1.4); return 0; }
+  let n = 0;
+  const big = { shape: 'box', x: b.x, y: b.y, a: b.a, hw: b.hw + 2.5, hh: b.hh + 2.5 };
+  for (const o of BODIES) {
+    if (o === b || !o.piece || o.side !== side || o.kind === 'bell') continue;
+    const cs = collide(big, o); if (!cs || !cs.length) continue;
+    if (money(side) < HONEY) break;
+    const x = cs.reduce((s, c) => s + c.x, 0) / cs.length, y = cs.reduce((s, c) => s + c.y, 0) / cs.length;
+    if (weld(b, o, x, y)) n++;
+  }
+  if (!quiet) { if (n) { say(`Glued ${n} joint${n > 1 ? 's' : ''}`, '$' + n * HONEY, 1.1); AUD.honey(); } else { say(money(side) < HONEY ? 'Not enough money' : 'Nothing new to glue here', 'Honey sticks a piece to whatever it touches', 1.6); AUD.click(); } }
+  return n;
+}
 function bellOf(side) { return BODIES.find(b => b.kind === 'bell' && b.side === side); }
-function placePiece(side, t, x, y, rot, quiet) {
+function placePiece(side, t, x, y, rot, quiet, pin = G && G.phase === 'build' && !quiet) {
   const P = PIECES[t], z = ZONES[side];
   if (!P) return null;
   if (t === 'bell' && bellOf(side)) { if (!quiet) say('You already have a bell', '', 1.2); return null; }
   if (P.cost > money(side)) { if (!quiet) { say('Not enough money', '', 1.2); AUD.click(); } return null; }
   const hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
   if (x - hw < z.x0 || x + hw > z.x1 || y + hh > WORLD.ground + 1 || y - hh < 120) { if (!quiet) AUD.click(); return null; }
-  const probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  const probe = { shape: 'box', x, y, a: 0, hw: hw - 0.6, hh: hh - 0.6 };
   for (const b of BODIES) if (b !== GROUND && b.side === side && collide(probe, b)) { if (!quiet) AUD.click(); return null; }
   const b = mkBody({ x, y, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
+  if (pin) b.pinned = true;
   if (!quiet) AUD.place(t);
   return b;
 }
+// let gravity act on a side's pieces for a moment (the shake test and Ready)
+function release(side) { for (const b of BODIES) if (b.side === side && b.piece) { b.pinned = false; wake(b); } }
+function repin(side) { for (const b of BODIES) if (b.side === side && b.piece) { b.pinned = true; b.vx = b.vy = b.w = 0; } }
+function shakeTest(side) { if (G.testT > 0) return; release(side); G.testT = 2.5; G.testSide = side; say('Shake test', 'Pieces stay wherever they land', 1.6); AUD.thud(0.6); }
 function removePiece(b) { if (!b || !b.piece) return; removeBody(b); AUD.click(); for (const o of BODIES) wake(o); }
-function serializeFort(side) { return BODIES.filter(b => b.side === side && b.piece).map(b => [b.piece, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(4), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
-function buildFrom(side, list) {
+function serializeFort(side) {
+  const ps = BODIES.filter(b => b.side === side && b.piece);
+  return { p: ps.map(b => [b.piece, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(4), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]),
+    w: WELDS.filter(w => w.a.side === side).map(w => { const [x, y] = weldAnchor(w); return [ps.indexOf(w.a), ps.indexOf(w.b), Math.round(x * 10) / 10, Math.round(y * 10) / 10]; }).filter(w => w[0] >= 0 && w[1] >= 0) };
+}
+function buildFrom(side, fort) {
   for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
+  const list = Array.isArray(fort) ? fort : fort.p, made = [];
   let k = 0;
   for (const [t, x, y, a, rot] of list) {
     const P = PIECES[t], hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
     const b = mkBody({ x, y, a, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
-    b.id = 1000 * (side + 1) + (k++); b.asleep = true;
+    b.id = 1000 * (side + 1) + (k++); b.asleep = true; made.push(b);
   }
+  for (const [i, j, x, y] of (fort.w || [])) if (made[i] && made[j]) weld(made[i], made[j], x, y);
 }
 function bellOK(side) { const b = bellOf(side); if (!b) return 'Place your bell first'; const bottom = b.y + Math.max(b.hw, b.hh); return bottom > WORLD.ground - BELL_MIN ? 'Your bell must sit off the ground' : ''; }
 function readyUp(side) {
   if (G.phase !== 'build' || G.ready[side]) return;
-  const bad = bellOK(side); if (bad) { say(bad, 'Put it on top of some blocks', 2); AUD.click(); return; }
+  let bad = bellOK(side); if (bad) { say(bad, 'Put it on top of some blocks', 2); AUD.click(); return; }
+  release(side); G.testT = 0; for (let i = 0; i < 100; i++) physAdvance(1 / 60);
+  bad = bellOK(side); if (bad) { repin(side); say('Your bell fell off!', 'It settled too low · prop it up or glue its stand', 2.6); AUD.click(); renderBars(); return; }
   G.ready[side] = true; G.forts[side] = serializeFort(side); G.lastFort[side] = normFort(side);
   if (isMine(side)) try { localStorage.setItem('flockfortress.lastfort', JSON.stringify(G.lastFort[side])); } catch (e) { }
   AUD.ready();
@@ -497,6 +572,7 @@ HOOK.contact = (A, B, speed) => {
   }
   if (speed > 260) AUD.thud(Math.min(1, speed / 900), (A.piece || B.piece));
 };
+HOOK.unweld = w => { const [x, y] = weldAnchor(w); for (let i = 0; i < 6; i++) FX.push({ x, y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 160, t: 0, life: 0.7, k: 'chip', s: 3 + Math.random() * 3, c: '#e8a21c', a: 0, w: 0 }); };
 HOOK.step = dt => {
   if (!G || !G.shot) return;
   for (const s of BODIES.slice()) {
@@ -546,6 +622,7 @@ function explode(s) {
     if (!b.stat) { b.vx += dx / dl * J * b.im * 0.06; b.vy += (dy / dl - 0.35) * J * b.im * 0.06; b.w += (Math.random() - 0.5) * k * 6; }
     if (b.kind === 'block') hurt(b, 135 * k * (R / 78), s.side);
   }
+  for (const w of WELDS.slice()) { const [wx, wy] = weldAnchor(w); if (hyp(wx - s.x, wy - s.y) < R * 0.55) { WELDS.splice(WELDS.indexOf(w), 1); HOOK.unweld(w); } }
   // wool everywhere
   puff(s.x, s.y, Math.round(18 + R / 4), '#fff', R);
   FX.push({ x: s.x, y: s.y, t: 0, life: 0.45, k: 'ring', s: R });
@@ -617,7 +694,7 @@ function showRoundCard(winner, why, done) {
 function snapState(full) {
   return { round: G.round, phase: G.phase, wins: G.wins, dmg: G.dmg, ammo: G.ammo, turn: G.turn, turnN: G.turnN, starter: G.starter,
     bodies: BODIES.filter(b => b !== GROUND && (full || !b.asleep)).map(b => [b.id, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(3), b.kind, b.piece || b.st || '', b.side ?? -1, Math.round(b.hp || 0), +(b.r || 0).toFixed(1), b.hw, b.hh]),
-    live: full ? null : BODIES.filter(b => b !== GROUND).map(b => b.id) };
+    live: full ? null : BODIES.filter(b => b !== GROUND).map(b => b.id), welds: full ? WELDS.map(w => { const [x, y] = weldAnchor(w); return [w.a.id, w.b.id, Math.round(x * 10) / 10, Math.round(y * 10) / 10]; }) : null };
 }
 function applyState(st, full) {
   if (full) { G.round = st.round; G.wins = st.wins; G.dmg = st.dmg; G.ammo = st.ammo; G.turn = st.turn; G.turnN = st.turnN; G.starter = st.starter; }
@@ -635,6 +712,7 @@ function applyState(st, full) {
     if (hp && b.maxhp) b.hp = hp;
     b.vx = b.vy = b.w = 0; b.asleep = true;
   }
+  if (full && st.welds) { WELDS = []; const byId2 = new Map(BODIES.map(b => [b.id, b])); for (const [a, b, x, y] of st.welds) if (byId2.get(a) && byId2.get(b)) weld(byId2.get(a), byId2.get(b), x, y); }
   const live = st.live ? new Set(st.live) : seen;
   for (const b of BODIES.slice()) if (b !== GROUND && !live.has(b.id)) { if (b.kind === 'block') hurt(b, 1e9, 1 - b.side); else removeBody(b); }
 }
@@ -815,6 +893,7 @@ function draw(t) {
   }
   drawCatapult(0, t); drawCatapult(1, t);
   for (const b of BODIES) if (b.piece && (G.phase !== 'build' || G.mode === 'cpu' || isBuilderView(b.side))) drawPiece(b, b.ghost ? 0 : 1);
+  for (const w of WELDS) { if (G.phase === 'build' && !(G.mode === 'cpu' || isBuilderView(w.a.side))) continue; const [wx, wy] = weldAnchor(w), [sx, sy] = w2s(wx, wy), r = Math.max(2.5, 5.5 * CAM.z); ctx.fillStyle = 'rgba(232,162,28,.92)'; ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(sx + r * 0.3, sy + r * 1.1, r * 0.45, r * 0.8, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,240,180,.8)'; ctx.beginPath(); ctx.arc(sx - r * 0.3, sy - r * 0.35, r * 0.32, 0, TAU); ctx.fill(); }
   for (const b of BODIES) if (b.kind === 'sheep') drawSheep(b);
   // build ghost
   if (G.phase === 'build' && BUILD.ghost && G.sel !== 'remove') { const g = BUILD.ghost; drawPiece(Object.assign({ id: 0, a: 0 }, g), g.ok ? 0.55 : 0.25); if (!g.ok) { const [gx, gy] = w2s(g.x, g.y); ctx.strokeStyle = '#ff5a4a'; ctx.lineWidth = 2; ctx.strokeRect(gx - g.hw * CAM.z, gy - g.hh * CAM.z, g.hw * 2 * CAM.z, g.hh * 2 * CAM.z); } }
@@ -856,13 +935,18 @@ function aimVel() {
 }
 function ghostAt(X, Y) {
   const side = G.builder, [wx, wy] = s2w(X, Y), t = G.sel;
-  if (t === 'remove' || !PIECES[t]) { BUILD.ghost = null; return; }
+  if (t === 'remove' || t === 'honey' || !PIECES[t]) { BUILD.ghost = null; return; }
   const P = PIECES[t], rot = t === 'plank' || t === 'slab' ? G.rot : 0, hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
-  const x = Math.round(wx / 4) * 4, y = Math.min(Math.round(wy / 4) * 4, WORLD.ground - hh);
-  const z = ZONES[side], probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  // snap to an 11 px grid, and line up with the piece under the pointer so columns stack straight
+  let x = Math.round(wx / 11) * 11; const y = Math.min(Math.round(wy / 4) * 4, WORLD.ground - hh);
+  const under = BODIES.find(b => b.piece && b.side === side && collide({ shape: 'circle', x: wx, y: wy + hh, r: 4 }, b));
+  if (under && Math.abs(under.hw - hw) < 4 && Math.abs(under.x - wx) < under.hw + 4) x = under.x;
+  const z = ZONES[side], probe = { shape: 'box', x, y, a: 0, hw: hw - 0.6, hh: hh - 0.6 };
   const hits = () => BODIES.some(b => b !== GROUND && b.side === side && collide(probe, b));
-  // pointing at a stack lifts the piece up onto it
-  for (let k = 0; k < 60 && hits(); k++) probe.y -= 2;
+  const floor = WORLD.ground - hh;
+  if (hits()) { for (let k = 0; k < 200 && hits(); k++) probe.y -= 2; }   // pointing into a stack lifts the piece onto it
+  else { while (probe.y + 4 <= floor) { probe.y += 4; if (hits()) { probe.y -= 4; break; } } }   // otherwise it drops until it lands
+  for (let k = 0; k < 8; k++) { probe.y += 0.5; if (hits() || probe.y > floor) { probe.y -= 0.5; break; } }
   let ok = x - hw >= z.x0 && x + hw <= z.x1 && probe.y - hh >= 120 && P.cost <= money(side) && !(t === 'bell' && bellOf(side)) && !hits();
   BUILD.ghost = { x, y: probe.y, hw, hh, piece: t, ok, rot, side };
 }
@@ -871,7 +955,8 @@ function pDown(e) {
   if (!G || G.paused || $('card').offsetParent || !$('title').classList.contains('hidden')) return;
   AUD.init();
   if (G.phase === 'build' && !G.ready[G.builder] && isMine(G.builder)) {
-    if (e.button === 2 || G.sel === 'remove') { removePiece(pieceAt(e.clientX, e.clientY, G.builder)); ghostAt(e.clientX, e.clientY); return; }
+    if (e.button === 2 || G.sel === 'remove') { removePiece(pieceAt(e.clientX, e.clientY, G.builder)); ghostAt(e.clientX, e.clientY); renderBars(); return; }
+    if (G.sel === 'honey') { honey(G.builder, pieceAt(e.clientX, e.clientY, G.builder)); renderBars(); return; }
     ghostAt(e.clientX, e.clientY); const g = BUILD.ghost;
     if (g && g.ok) { placePiece(G.builder, g.piece, g.x, g.y, g.rot); if (g.piece === 'bell') { G.sel = 'hay'; renderBars(); } }
     else if (g) AUD.click();
@@ -905,7 +990,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyV') toggleView();
   if (G.phase === 'build') {
     if (e.code === 'KeyR') { G.rot = G.rot ? 0 : 1; renderBars(); if (MOUSE.x) ghostAt(MOUSE.x, MOUSE.y); }
-    const k = /^Digit([1-7])$/.exec(e.code); if (k) { const opts = [...PIECE_ORDER, 'remove']; G.sel = opts[+k[1] - 1] || G.sel; renderBars(); }
+    const k = /^Digit([1-7])$/.exec(e.code); if (k) { const opts = [...PIECE_ORDER, 'honey', 'remove']; G.sel = opts[+k[1] - 1] || G.sel; renderBars(); }
     if (e.code === 'Enter') readyUp(G.builder);
   } else if (G.phase === 'siege') {
     const k = /^Digit([1-5])$/.exec(e.code); if (k && canAim()) { const t = SHEEP_ORDER[+k[1] - 1]; if (G.ammo[G.turn][t] > 0) { AIM.type = t; renderBars(); } }
@@ -948,14 +1033,16 @@ function renderBars() {
   if (building) {
     const side = G.builder, m = money(side), hasBell = !!bellOf(side);
     bb.innerHTML = '';
-    for (const t of [...PIECE_ORDER, 'remove']) {
+    for (const t of [...PIECE_ORDER, 'honey', 'remove']) {
       if (t === 'bell' && hasBell) continue;
       const P = PIECES[t], btn = document.createElement('button'); btn.className = 'slot' + (G.sel === t ? ' on' : '');
       if (t === 'remove') btn.innerHTML = '<span style="font-size:22px">✋</span>Remove';
+      else if (t === 'honey') { btn.innerHTML = '<span style="font-size:22px">🍯</span>Honey<b>$' + HONEY + '</b>'; btn.title = 'Glue a piece to everything it touches'; btn.disabled = m < HONEY; }
       else { btn.append(pieceIcon(t)); btn.append(P.nm); if (P.cost) { const b = document.createElement('b'); b.textContent = '$' + P.cost; btn.append(b); } btn.disabled = P.cost > m; }
       btn.onclick = () => { G.sel = t; renderBars(); };
       bb.append(btn);
     }
+    const sk = document.createElement('button'); sk.className = 'slot act'; sk.innerHTML = '<span style="font-size:20px">〰</span>Shake test'; sk.title = 'Let gravity act for a moment'; sk.disabled = G.testT > 0; sk.onclick = () => { shakeTest(side); renderBars(); }; bb.append(sk);
     const rot = document.createElement('button'); rot.className = 'slot act'; rot.innerHTML = '<span style="font-size:20px">⟳</span>Rotate'; rot.onclick = () => { G.rot = G.rot ? 0 : 1; renderBars(); }; bb.append(rot);
     if (G.lastFort[side]) { const lf = document.createElement('button'); lf.className = 'slot act'; lf.innerHTML = '<span style="font-size:20px">↺</span>Last fort'; lf.onclick = () => rebuildLast(side); bb.append(lf); }
     const clr = document.createElement('button'); clr.className = 'slot act'; clr.innerHTML = '<span style="font-size:20px">🧹</span>Clear'; clr.onclick = () => { for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b); G.sel = 'bell'; renderBars(); }; bb.append(clr);
@@ -977,11 +1064,17 @@ function renderBars() {
   hudTick();
 }
 // forts are remembered relative to the front edge of the zone, so a fort built on one side rebuilds mirrored on the other
-function normFort(side) { const z = ZONES[side]; return BODIES.filter(b => b.side === side && b.piece).sort((p, q) => q.y - p.y).map(b => [b.piece, Math.round(side === 0 ? z.x1 - b.x : b.x - z.x0), Math.round(b.y), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
+function normFort(side) {
+  const z = ZONES[side], fx = x => Math.round(side === 0 ? z.x1 - x : x - z.x0), ps = BODIES.filter(b => b.side === side && b.piece).sort((p, q) => q.y - p.y);
+  return { p: ps.map(b => [b.piece, fx(b.x), Math.round(b.y), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]),
+    w: WELDS.filter(w => w.a.side === side).map(w => [ps.indexOf(w.a), ps.indexOf(w.b), ...(([x, y]) => [fx(x), Math.round(y)])(weldAnchor(w))]).filter(w => w[0] >= 0 && w[1] >= 0) };
+}
 function rebuildLast(side) {
   for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b);
   const z = ZONES[side];
-  for (const [t, dx, y, rot] of G.lastFort[side] || []) placePiece(side, t, side === 0 ? z.x1 - dx : z.x0 + dx, y, rot, true);
+  const lf = G.lastFort[side] || [], list = Array.isArray(lf) ? lf : lf.p, made = [], X = dx => side === 0 ? z.x1 - dx : z.x0 + dx;
+  for (const [t, dx, y, rot] of list) made.push(placePiece(side, t, X(dx), y, rot, true, true));
+  for (const [i, j, dx, y] of (lf.w || [])) if (made[i] && made[j] && money(side) >= HONEY) weld(made[i], made[j], X(dx), y);
   G.sel = bellOf(side) ? 'hay' : 'bell'; renderBars(); AUD.place('crate');
 }
 function hudTick() {
@@ -1027,7 +1120,8 @@ function tick(dt) {
   for (let i = FX.length - 1; i >= 0; i--) { const p = FX[i]; p.t += dt; if (p.t > p.life) { FX.splice(i, 1); continue; } if (p.k !== 'ring') { p.vy += (p.k === 'chip' ? 900 : 120) * dt; p.vx *= 1 - dt * (p.k === 'wool' ? 2.5 : 0.5); p.x += p.vx * dt; p.y += p.vy * dt; if (p.a !== undefined) p.a += p.w * dt; if (p.k === 'chip' && p.y > WORLD.ground) { p.y = WORLD.ground; p.vy *= -0.3; p.vx *= 0.6; } } }
   if (G.paused || (G.mode === 'online' && holdTick(dt))) return;
   if (G.phase === 'build') {
-    if (G.mode !== 'local') { G.buildT -= dt; if (G.buildT <= 0 && !G.ready[G.me]) autoReady(); }
+    if (G.testT > 0) { G.testT -= dt; if (G.testT <= 0) { repin(G.testSide); renderBars(); } }
+    if (G.mode !== 'local') { const was = G.buildT; G.buildT -= dt; if (was > 10 && G.buildT <= 10 && !G.ready[G.me]) { say('10 seconds left!', 'Press Ready when your fort is done', 1.6); AUD.click(); } if (G.buildT <= 0 && !G.ready[G.me]) autoReady(); }
     physAdvance(dt);
   } else if (G.phase === 'siege' && G.shot) {
     if (G.mode !== 'online' || G.authority) {
@@ -1076,7 +1170,11 @@ function cpuBuild(side) {
     col(t, fx, 1 + Math.floor(r() * 3));
   }
   for (let k = 0; k < 12 && money(side) >= 15; k++) put('hay', 20 + r() * 600, GY - 22 - Math.floor(r() * 3) * 44);
-  for (let i = 0; i < 180; i++) physAdvance(1 / 60);
+  for (let i = 0; i < 60; i++) physAdvance(1 / 60);
+  // honey the hut and a few walls
+  const glue = BODIES.filter(b => b.side === side && b.piece && b.piece !== 'hay' && b.kind !== 'bell').sort(() => r() - 0.5);
+  for (const b of glue.slice(0, [3, 6, 10][SET.diff])) honey(side, b, true);
+  for (let i = 0; i < 120; i++) physAdvance(1 / 60);
   if (bellOK(side)) { // fallback: a plain pillar
     for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
     col('stone', 60, 3); col('crate', 300, 2); put('bell', 300, GY - 88 - 18);
@@ -1189,7 +1287,7 @@ function applySync(m) {
   if (m.phase === 'build') {
     resetWorld();
     for (const s of [0, 1]) if (G.forts[s]) buildFrom(s, G.forts[s]);
-    const rec = loadRec(); if (!G.ready[me] && rec && rec.build) for (const [t, x, y, a, rot] of rec.build) placePiece(me, t, x, y, rot, true);
+    const rec = loadRec(); if (!G.ready[me] && rec && rec.build) buildFrom(me, rec.build);
     G.phase = 'build'; G.builder = me; camTo('build', me, true);
   } else {
     resetWorld(); applyState(st, true); G.phase = 'siege'; G.shot = null; newWind(); camTo('aim', G.turn, true);
@@ -1292,6 +1390,7 @@ const AUD = {
   place(t) { const f = t === 'stone' || t === 'slab' ? 180 : t === 'hay' ? 420 : 260; this.tone(f, f * 0.7, 0.1, 'triangle', 0.15); this.noise(0.06, 'lowpass', 800, 300, 0.12); },
   launch() { this.noise(0.4, 'bandpass', 500, 1800, 0.3, 0, 1.2); this.tone(90, 50, 0.25, 'sawtooth', 0.12); },
   bell(v = 1) { for (const [f, d, a] of [[880, 2.6, 0.2], [880 * 2.76, 1.6, 0.08], [880 * 5.4, 0.9, 0.04], [440, 3, 0.1]]) this.tone(f, f * 0.995, d, 'sine', a * v, 0, 0.004); },
+  honey() { this.noise(0.25, 'lowpass', 600, 200, 0.25, 0, 2); this.tone(220, 160, 0.2, 'sine', 0.12); },
   click() { this.tone(300, 260, 0.05, 'square', 0.05); },
   ready() { this.tone(523, 523, 0.18, 'triangle', 0.14); this.tone(784, 784, 0.25, 'triangle', 0.14, 0.12); },
   win() { [523, 659, 784, 1046].forEach((f, i) => this.tone(f, f, 0.4, 'triangle', 0.15, i * 0.12)); this.bell(0.6); },

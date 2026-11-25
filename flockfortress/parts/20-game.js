@@ -2,7 +2,7 @@
 const WORLD = { W: 2600, H: 1000, ground: 780 };
 const ZONES = [{ x0: 150, x1: 810, cat: 930, dir: 1 }, { x0: 1790, x1: 2450, cat: 1670, dir: -1 }];
 const BELL_MIN = 40;          // the bell must start at least this far above the ground
-const BUDGET = 1600, BUILD_S = 120, VMAX = 1300;
+const BUDGET = 1600, BUILD_S = 60, VMAX = 1300, HONEY = 10;
 const PIECES = {
   hay: { nm: 'Hay', hw: 22, hh: 22, dens: 0.35, hp: 45, cost: 15, fric: 0.9 },
   crate: { nm: 'Crate', hw: 22, hh: 22, dens: 0.75, hp: 80, cost: 30, fric: 0.7 },
@@ -28,7 +28,7 @@ const saveSet = () => { try { localStorage.setItem('flockfortress.set', JSON.str
 let G = null, GROUND = null;
 const FX = [];   // particles: { x, y, vx, vy, t, life, k, s, c }
 function resetWorld() {
-  BODIES = []; ARB = new Map(); NEXT_ID = 1;
+  BODIES = []; ARB = new Map(); NEXT_ID = 1; WELDS = [];
   GROUND = mkBody({ stat: true, x: WORLD.W / 2, y: WORLD.ground + 200, hw: WORLD.W, hh: 200, kind: 'ground', fric: 0.9 });
   FX.length = 0;
 }
@@ -60,36 +60,65 @@ function newRound() {
   renderBars();
 }
 // ---------- building
-function money(side) { return BUDGET - BODIES.filter(b => b.side === side && b.piece).reduce((s, b) => s + PIECES[b.piece].cost, 0); }
+function money(side) { return BUDGET - BODIES.filter(b => b.side === side && b.piece).reduce((s, b) => s + PIECES[b.piece].cost, 0) - HONEY * WELDS.filter(w => w.a.side === side).length; }
+// honey: glue a piece to every piece it touches (the bell never sticks)
+function honey(side, b, quiet) {
+  if (!b || !b.piece || b.side !== side) return 0;
+  if (b.kind === 'bell') { if (!quiet) say('Honey won\'t stick to the bell', '', 1.4); return 0; }
+  let n = 0;
+  const big = { shape: 'box', x: b.x, y: b.y, a: b.a, hw: b.hw + 2.5, hh: b.hh + 2.5 };
+  for (const o of BODIES) {
+    if (o === b || !o.piece || o.side !== side || o.kind === 'bell') continue;
+    const cs = collide(big, o); if (!cs || !cs.length) continue;
+    if (money(side) < HONEY) break;
+    const x = cs.reduce((s, c) => s + c.x, 0) / cs.length, y = cs.reduce((s, c) => s + c.y, 0) / cs.length;
+    if (weld(b, o, x, y)) n++;
+  }
+  if (!quiet) { if (n) { say(`Glued ${n} joint${n > 1 ? 's' : ''}`, '$' + n * HONEY, 1.1); AUD.honey(); } else { say(money(side) < HONEY ? 'Not enough money' : 'Nothing new to glue here', 'Honey sticks a piece to whatever it touches', 1.6); AUD.click(); } }
+  return n;
+}
 function bellOf(side) { return BODIES.find(b => b.kind === 'bell' && b.side === side); }
-function placePiece(side, t, x, y, rot, quiet) {
+function placePiece(side, t, x, y, rot, quiet, pin = G && G.phase === 'build' && !quiet) {
   const P = PIECES[t], z = ZONES[side];
   if (!P) return null;
   if (t === 'bell' && bellOf(side)) { if (!quiet) say('You already have a bell', '', 1.2); return null; }
   if (P.cost > money(side)) { if (!quiet) { say('Not enough money', '', 1.2); AUD.click(); } return null; }
   const hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
   if (x - hw < z.x0 || x + hw > z.x1 || y + hh > WORLD.ground + 1 || y - hh < 120) { if (!quiet) AUD.click(); return null; }
-  const probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  const probe = { shape: 'box', x, y, a: 0, hw: hw - 0.6, hh: hh - 0.6 };
   for (const b of BODIES) if (b !== GROUND && b.side === side && collide(probe, b)) { if (!quiet) AUD.click(); return null; }
   const b = mkBody({ x, y, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
+  if (pin) b.pinned = true;
   if (!quiet) AUD.place(t);
   return b;
 }
+// let gravity act on a side's pieces for a moment (the shake test and Ready)
+function release(side) { for (const b of BODIES) if (b.side === side && b.piece) { b.pinned = false; wake(b); } }
+function repin(side) { for (const b of BODIES) if (b.side === side && b.piece) { b.pinned = true; b.vx = b.vy = b.w = 0; } }
+function shakeTest(side) { if (G.testT > 0) return; release(side); G.testT = 2.5; G.testSide = side; say('Shake test', 'Pieces stay wherever they land', 1.6); AUD.thud(0.6); }
 function removePiece(b) { if (!b || !b.piece) return; removeBody(b); AUD.click(); for (const o of BODIES) wake(o); }
-function serializeFort(side) { return BODIES.filter(b => b.side === side && b.piece).map(b => [b.piece, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(4), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
-function buildFrom(side, list) {
+function serializeFort(side) {
+  const ps = BODIES.filter(b => b.side === side && b.piece);
+  return { p: ps.map(b => [b.piece, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(4), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]),
+    w: WELDS.filter(w => w.a.side === side).map(w => { const [x, y] = weldAnchor(w); return [ps.indexOf(w.a), ps.indexOf(w.b), Math.round(x * 10) / 10, Math.round(y * 10) / 10]; }).filter(w => w[0] >= 0 && w[1] >= 0) };
+}
+function buildFrom(side, fort) {
   for (const b of BODIES.filter(b => b.side === side)) removeBody(b);
+  const list = Array.isArray(fort) ? fort : fort.p, made = [];
   let k = 0;
   for (const [t, x, y, a, rot] of list) {
     const P = PIECES[t], hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
     const b = mkBody({ x, y, a, hw, hh, dens: P.dens, fric: P.fric, kind: t === 'bell' ? 'bell' : 'block', piece: t, side, hp: P.hp, maxhp: P.hp });
-    b.id = 1000 * (side + 1) + (k++); b.asleep = true;
+    b.id = 1000 * (side + 1) + (k++); b.asleep = true; made.push(b);
   }
+  for (const [i, j, x, y] of (fort.w || [])) if (made[i] && made[j]) weld(made[i], made[j], x, y);
 }
 function bellOK(side) { const b = bellOf(side); if (!b) return 'Place your bell first'; const bottom = b.y + Math.max(b.hw, b.hh); return bottom > WORLD.ground - BELL_MIN ? 'Your bell must sit off the ground' : ''; }
 function readyUp(side) {
   if (G.phase !== 'build' || G.ready[side]) return;
-  const bad = bellOK(side); if (bad) { say(bad, 'Put it on top of some blocks', 2); AUD.click(); return; }
+  let bad = bellOK(side); if (bad) { say(bad, 'Put it on top of some blocks', 2); AUD.click(); return; }
+  release(side); G.testT = 0; for (let i = 0; i < 100; i++) physAdvance(1 / 60);
+  bad = bellOK(side); if (bad) { repin(side); say('Your bell fell off!', 'It settled too low · prop it up or glue its stand', 2.6); AUD.click(); renderBars(); return; }
   G.ready[side] = true; G.forts[side] = serializeFort(side); G.lastFort[side] = normFort(side);
   if (isMine(side)) try { localStorage.setItem('flockfortress.lastfort', JSON.stringify(G.lastFort[side])); } catch (e) { }
   AUD.ready();
@@ -164,6 +193,7 @@ HOOK.contact = (A, B, speed) => {
   }
   if (speed > 260) AUD.thud(Math.min(1, speed / 900), (A.piece || B.piece));
 };
+HOOK.unweld = w => { const [x, y] = weldAnchor(w); for (let i = 0; i < 6; i++) FX.push({ x, y, vx: (Math.random() - 0.5) * 160, vy: -Math.random() * 160, t: 0, life: 0.7, k: 'chip', s: 3 + Math.random() * 3, c: '#e8a21c', a: 0, w: 0 }); };
 HOOK.step = dt => {
   if (!G || !G.shot) return;
   for (const s of BODIES.slice()) {
@@ -213,6 +243,7 @@ function explode(s) {
     if (!b.stat) { b.vx += dx / dl * J * b.im * 0.06; b.vy += (dy / dl - 0.35) * J * b.im * 0.06; b.w += (Math.random() - 0.5) * k * 6; }
     if (b.kind === 'block') hurt(b, 135 * k * (R / 78), s.side);
   }
+  for (const w of WELDS.slice()) { const [wx, wy] = weldAnchor(w); if (hyp(wx - s.x, wy - s.y) < R * 0.55) { WELDS.splice(WELDS.indexOf(w), 1); HOOK.unweld(w); } }
   // wool everywhere
   puff(s.x, s.y, Math.round(18 + R / 4), '#fff', R);
   FX.push({ x: s.x, y: s.y, t: 0, life: 0.45, k: 'ring', s: R });
@@ -284,7 +315,7 @@ function showRoundCard(winner, why, done) {
 function snapState(full) {
   return { round: G.round, phase: G.phase, wins: G.wins, dmg: G.dmg, ammo: G.ammo, turn: G.turn, turnN: G.turnN, starter: G.starter,
     bodies: BODIES.filter(b => b !== GROUND && (full || !b.asleep)).map(b => [b.id, Math.round(b.x * 10) / 10, Math.round(b.y * 10) / 10, +b.a.toFixed(3), b.kind, b.piece || b.st || '', b.side ?? -1, Math.round(b.hp || 0), +(b.r || 0).toFixed(1), b.hw, b.hh]),
-    live: full ? null : BODIES.filter(b => b !== GROUND).map(b => b.id) };
+    live: full ? null : BODIES.filter(b => b !== GROUND).map(b => b.id), welds: full ? WELDS.map(w => { const [x, y] = weldAnchor(w); return [w.a.id, w.b.id, Math.round(x * 10) / 10, Math.round(y * 10) / 10]; }) : null };
 }
 function applyState(st, full) {
   if (full) { G.round = st.round; G.wins = st.wins; G.dmg = st.dmg; G.ammo = st.ammo; G.turn = st.turn; G.turnN = st.turnN; G.starter = st.starter; }
@@ -302,6 +333,7 @@ function applyState(st, full) {
     if (hp && b.maxhp) b.hp = hp;
     b.vx = b.vy = b.w = 0; b.asleep = true;
   }
+  if (full && st.welds) { WELDS = []; const byId2 = new Map(BODIES.map(b => [b.id, b])); for (const [a, b, x, y] of st.welds) if (byId2.get(a) && byId2.get(b)) weld(byId2.get(a), byId2.get(b), x, y); }
   const live = st.live ? new Set(st.live) : seen;
   for (const b of BODIES.slice()) if (b !== GROUND && !live.has(b.id)) { if (b.kind === 'block') hurt(b, 1e9, 1 - b.side); else removeBody(b); }
 }

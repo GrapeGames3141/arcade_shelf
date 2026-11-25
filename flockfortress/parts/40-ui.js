@@ -14,13 +14,18 @@ function aimVel() {
 }
 function ghostAt(X, Y) {
   const side = G.builder, [wx, wy] = s2w(X, Y), t = G.sel;
-  if (t === 'remove' || !PIECES[t]) { BUILD.ghost = null; return; }
+  if (t === 'remove' || t === 'honey' || !PIECES[t]) { BUILD.ghost = null; return; }
   const P = PIECES[t], rot = t === 'plank' || t === 'slab' ? G.rot : 0, hw = rot ? P.hh : P.hw, hh = rot ? P.hw : P.hh;
-  const x = Math.round(wx / 4) * 4, y = Math.min(Math.round(wy / 4) * 4, WORLD.ground - hh);
-  const z = ZONES[side], probe = { shape: 'box', x, y, a: 0, hw: hw - 1, hh: hh - 1 };
+  // snap to an 11 px grid, and line up with the piece under the pointer so columns stack straight
+  let x = Math.round(wx / 11) * 11; const y = Math.min(Math.round(wy / 4) * 4, WORLD.ground - hh);
+  const under = BODIES.find(b => b.piece && b.side === side && collide({ shape: 'circle', x: wx, y: wy + hh, r: 4 }, b));
+  if (under && Math.abs(under.hw - hw) < 4 && Math.abs(under.x - wx) < under.hw + 4) x = under.x;
+  const z = ZONES[side], probe = { shape: 'box', x, y, a: 0, hw: hw - 0.6, hh: hh - 0.6 };
   const hits = () => BODIES.some(b => b !== GROUND && b.side === side && collide(probe, b));
-  // pointing at a stack lifts the piece up onto it
-  for (let k = 0; k < 60 && hits(); k++) probe.y -= 2;
+  const floor = WORLD.ground - hh;
+  if (hits()) { for (let k = 0; k < 200 && hits(); k++) probe.y -= 2; }   // pointing into a stack lifts the piece onto it
+  else { while (probe.y + 4 <= floor) { probe.y += 4; if (hits()) { probe.y -= 4; break; } } }   // otherwise it drops until it lands
+  for (let k = 0; k < 8; k++) { probe.y += 0.5; if (hits() || probe.y > floor) { probe.y -= 0.5; break; } }
   let ok = x - hw >= z.x0 && x + hw <= z.x1 && probe.y - hh >= 120 && P.cost <= money(side) && !(t === 'bell' && bellOf(side)) && !hits();
   BUILD.ghost = { x, y: probe.y, hw, hh, piece: t, ok, rot, side };
 }
@@ -29,7 +34,8 @@ function pDown(e) {
   if (!G || G.paused || $('card').offsetParent || !$('title').classList.contains('hidden')) return;
   AUD.init();
   if (G.phase === 'build' && !G.ready[G.builder] && isMine(G.builder)) {
-    if (e.button === 2 || G.sel === 'remove') { removePiece(pieceAt(e.clientX, e.clientY, G.builder)); ghostAt(e.clientX, e.clientY); return; }
+    if (e.button === 2 || G.sel === 'remove') { removePiece(pieceAt(e.clientX, e.clientY, G.builder)); ghostAt(e.clientX, e.clientY); renderBars(); return; }
+    if (G.sel === 'honey') { honey(G.builder, pieceAt(e.clientX, e.clientY, G.builder)); renderBars(); return; }
     ghostAt(e.clientX, e.clientY); const g = BUILD.ghost;
     if (g && g.ok) { placePiece(G.builder, g.piece, g.x, g.y, g.rot); if (g.piece === 'bell') { G.sel = 'hay'; renderBars(); } }
     else if (g) AUD.click();
@@ -63,7 +69,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyV') toggleView();
   if (G.phase === 'build') {
     if (e.code === 'KeyR') { G.rot = G.rot ? 0 : 1; renderBars(); if (MOUSE.x) ghostAt(MOUSE.x, MOUSE.y); }
-    const k = /^Digit([1-7])$/.exec(e.code); if (k) { const opts = [...PIECE_ORDER, 'remove']; G.sel = opts[+k[1] - 1] || G.sel; renderBars(); }
+    const k = /^Digit([1-7])$/.exec(e.code); if (k) { const opts = [...PIECE_ORDER, 'honey', 'remove']; G.sel = opts[+k[1] - 1] || G.sel; renderBars(); }
     if (e.code === 'Enter') readyUp(G.builder);
   } else if (G.phase === 'siege') {
     const k = /^Digit([1-5])$/.exec(e.code); if (k && canAim()) { const t = SHEEP_ORDER[+k[1] - 1]; if (G.ammo[G.turn][t] > 0) { AIM.type = t; renderBars(); } }
@@ -106,14 +112,16 @@ function renderBars() {
   if (building) {
     const side = G.builder, m = money(side), hasBell = !!bellOf(side);
     bb.innerHTML = '';
-    for (const t of [...PIECE_ORDER, 'remove']) {
+    for (const t of [...PIECE_ORDER, 'honey', 'remove']) {
       if (t === 'bell' && hasBell) continue;
       const P = PIECES[t], btn = document.createElement('button'); btn.className = 'slot' + (G.sel === t ? ' on' : '');
       if (t === 'remove') btn.innerHTML = '<span style="font-size:22px">✋</span>Remove';
+      else if (t === 'honey') { btn.innerHTML = '<span style="font-size:22px">🍯</span>Honey<b>$' + HONEY + '</b>'; btn.title = 'Glue a piece to everything it touches'; btn.disabled = m < HONEY; }
       else { btn.append(pieceIcon(t)); btn.append(P.nm); if (P.cost) { const b = document.createElement('b'); b.textContent = '$' + P.cost; btn.append(b); } btn.disabled = P.cost > m; }
       btn.onclick = () => { G.sel = t; renderBars(); };
       bb.append(btn);
     }
+    const sk = document.createElement('button'); sk.className = 'slot act'; sk.innerHTML = '<span style="font-size:20px">〰</span>Shake test'; sk.title = 'Let gravity act for a moment'; sk.disabled = G.testT > 0; sk.onclick = () => { shakeTest(side); renderBars(); }; bb.append(sk);
     const rot = document.createElement('button'); rot.className = 'slot act'; rot.innerHTML = '<span style="font-size:20px">⟳</span>Rotate'; rot.onclick = () => { G.rot = G.rot ? 0 : 1; renderBars(); }; bb.append(rot);
     if (G.lastFort[side]) { const lf = document.createElement('button'); lf.className = 'slot act'; lf.innerHTML = '<span style="font-size:20px">↺</span>Last fort'; lf.onclick = () => rebuildLast(side); bb.append(lf); }
     const clr = document.createElement('button'); clr.className = 'slot act'; clr.innerHTML = '<span style="font-size:20px">🧹</span>Clear'; clr.onclick = () => { for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b); G.sel = 'bell'; renderBars(); }; bb.append(clr);
@@ -135,11 +143,17 @@ function renderBars() {
   hudTick();
 }
 // forts are remembered relative to the front edge of the zone, so a fort built on one side rebuilds mirrored on the other
-function normFort(side) { const z = ZONES[side]; return BODIES.filter(b => b.side === side && b.piece).sort((p, q) => q.y - p.y).map(b => [b.piece, Math.round(side === 0 ? z.x1 - b.x : b.x - z.x0), Math.round(b.y), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]); }
+function normFort(side) {
+  const z = ZONES[side], fx = x => Math.round(side === 0 ? z.x1 - x : x - z.x0), ps = BODIES.filter(b => b.side === side && b.piece).sort((p, q) => q.y - p.y);
+  return { p: ps.map(b => [b.piece, fx(b.x), Math.round(b.y), b.hw > b.hh ? 0 : (PIECES[b.piece].hw > PIECES[b.piece].hh ? 1 : 0)]),
+    w: WELDS.filter(w => w.a.side === side).map(w => [ps.indexOf(w.a), ps.indexOf(w.b), ...(([x, y]) => [fx(x), Math.round(y)])(weldAnchor(w))]).filter(w => w[0] >= 0 && w[1] >= 0) };
+}
 function rebuildLast(side) {
   for (const b of BODIES.filter(b => b.side === side && b.piece)) removeBody(b);
   const z = ZONES[side];
-  for (const [t, dx, y, rot] of G.lastFort[side] || []) placePiece(side, t, side === 0 ? z.x1 - dx : z.x0 + dx, y, rot, true);
+  const lf = G.lastFort[side] || [], list = Array.isArray(lf) ? lf : lf.p, made = [], X = dx => side === 0 ? z.x1 - dx : z.x0 + dx;
+  for (const [t, dx, y, rot] of list) made.push(placePiece(side, t, X(dx), y, rot, true, true));
+  for (const [i, j, dx, y] of (lf.w || [])) if (made[i] && made[j] && money(side) >= HONEY) weld(made[i], made[j], X(dx), y);
   G.sel = bellOf(side) ? 'hay' : 'bell'; renderBars(); AUD.place('crate');
 }
 function hudTick() {
@@ -185,7 +199,8 @@ function tick(dt) {
   for (let i = FX.length - 1; i >= 0; i--) { const p = FX[i]; p.t += dt; if (p.t > p.life) { FX.splice(i, 1); continue; } if (p.k !== 'ring') { p.vy += (p.k === 'chip' ? 900 : 120) * dt; p.vx *= 1 - dt * (p.k === 'wool' ? 2.5 : 0.5); p.x += p.vx * dt; p.y += p.vy * dt; if (p.a !== undefined) p.a += p.w * dt; if (p.k === 'chip' && p.y > WORLD.ground) { p.y = WORLD.ground; p.vy *= -0.3; p.vx *= 0.6; } } }
   if (G.paused || (G.mode === 'online' && holdTick(dt))) return;
   if (G.phase === 'build') {
-    if (G.mode !== 'local') { G.buildT -= dt; if (G.buildT <= 0 && !G.ready[G.me]) autoReady(); }
+    if (G.testT > 0) { G.testT -= dt; if (G.testT <= 0) { repin(G.testSide); renderBars(); } }
+    if (G.mode !== 'local') { const was = G.buildT; G.buildT -= dt; if (was > 10 && G.buildT <= 10 && !G.ready[G.me]) { say('10 seconds left!', 'Press Ready when your fort is done', 1.6); AUD.click(); } if (G.buildT <= 0 && !G.ready[G.me]) autoReady(); }
     physAdvance(dt);
   } else if (G.phase === 'siege' && G.shot) {
     if (G.mode !== 'online' || G.authority) {

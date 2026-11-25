@@ -2,6 +2,6 @@
   "title": "Flock & Fortress",
   "description": "Build a fort from hay, wood and stone and hide your golden bell off the ground, then take turns launching exploding sheep at each other. A blast sets off any sheep nearby, each bigger than the last. Lamb trios split in mid-air, rams smash, fluffballs grow as they roll, black sheep stick and blow. Knock the other bell to the ground to win the round; best of three. Play the CPU, pass and play, or a friend online.",
   "category": "Strategy",
-  "controls": "Build: pick a piece and click to drop it, R rotates, right-click removes. Siege: drag back anywhere to aim and let go to launch, 1-5 pick a sheep, Space splits the lamb trio, V zooms out. Touch: tap to build, drag to aim, tap mid-flight to split.",
+  "controls": "Build (60 s): pick a piece and click to drop it, R rotates, Honey glues a piece to whatever it touches, Shake test shows what would fall, right-click removes. Siege: drag back anywhere to aim and let go, 1-5 pick a sheep, Space splits the lamb trio, V zooms out. Touch: tap to build, drag to aim, tap mid-flight to split.",
   "requirements": "Any modern browser. Online play needs an internet connection."
 }
