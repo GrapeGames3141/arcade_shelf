@@ -9,7 +9,7 @@
 :root { --ink: #eef3ea; --soft: #9fb0a0; --dim: #6c7c6d; --you: #5fd4ff; --foe: #ff7a4a; --gold: #f2c45a; --bg: #0b110d; --panel: rgba(12, 18, 14, .86); --line: rgba(200, 230, 210, .14); }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font: 15px/1.4 ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
-#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#c, #g { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
 .hidden { display: none !important; }
 kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); background: rgba(255, 255, 255, .08); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 3px 6px; margin-right: 6px; }
@@ -64,12 +64,16 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #topR { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 6px; pointer-events: auto; }
 .ib { width: 40px; height: 40px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); display: grid; place-items: center; font-size: 16px; padding: 0; }
-#bShop { width: auto; padding: 0 14px; font-weight: 800; font-size: 14px; gap: 6px; display: flex; align-items: center; }
+.ib.wide { width: auto; padding: 0 14px; font-weight: 800; font-size: 14px; gap: 6px; display: flex; align-items: center; }
+#bMap.on { background: var(--gold); color: #10170f; border-color: var(--gold); }
+#status { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 14px; pointer-events: none; white-space: nowrap; }
+#status.ready { color: var(--gold); border-color: rgba(242,196,90,.5); }
+body.touch #status { bottom: calc(150px + env(safe-area-inset-bottom)); }
 #bShop.afford { border-color: var(--gold); color: var(--gold); }
 #msg { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); font-weight: 800; font-size: 15px; padding: 8px 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
 #msg.on { opacity: 1; }
 /* shop: one row per upgrade, name + pips + price */
-#shop { position: fixed; z-index: 15; right: calc(10px + env(safe-area-inset-right)); top: calc(58px + env(safe-area-inset-top)); width: 300px; padding: 8px; display: grid; gap: 2px; }
+#shopList { width: min(420px, 100%); padding: 8px; display: grid; gap: 2px; }
 .up { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; border: 0; background: none; text-align: left; width: 100%; }
 .up:hover:not(:disabled) { background: rgba(255, 255, 255, .06); }
 .up:disabled { cursor: default; }
@@ -89,20 +93,31 @@ body.touch #miniw { left: auto; right: calc(10px + env(safe-area-inset-right)); 
 /* touch stick */
 #stick { position: fixed; z-index: 12; left: calc(22px + env(safe-area-inset-left)); bottom: calc(22px + env(safe-area-inset-bottom)); width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .05); display: none; }
 #stick i { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
-body.touch.playing #stick { display: block; }
-@media (max-width: 640px) { #mini { width: 144px; height: 90px; } #hp { top: calc(56px + env(safe-area-inset-top)); height: 30px; font-size: 10px; } .bar { width: 70px; } #rivals.one .rb { width: 70px; } #rivals .rb { width: 20px; } #bShop .t { display: none; } .up { padding: 5px 8px; } #shop { left: 10px; right: 10px; width: auto; top: auto; bottom: calc(10px + env(safe-area-inset-bottom)); } #msg { top: 96px; font-size: 14px; } }
+body.touch.playing.driving #stick { display: block; }
+body:not(.driving) #miniw { display: none; }
+@media (max-width: 640px) { #mini { width: 144px; height: 90px; } #hp { top: calc(56px + env(safe-area-inset-top)); height: 30px; font-size: 10px; } .bar { width: 70px; } #rivals.one .rb { width: 70px; } #rivals .rb { width: 20px; } #bShop .t { display: none; } .up { padding: 5px 8px; } #msg { top: 96px; font-size: 14px; } }
 </style>
 </head>
 <body>
+<canvas id="g"></canvas>
 <canvas id="c"></canvas>
 <div id="hud" class="hidden">
   <div id="money" class="chip">$0</div>
   <div id="hp" class="chip"><span style="color:var(--you)">YOU</span><div class="bar" id="hpYou"><i></i></div><div id="rivals"></div></div>
-  <div id="topR"><button class="ib" id="bShop" title="Upgrades (B)">🛠 <span class="t">Upgrades</span></button><button class="ib" id="bSound" title="Sound (M)">🔊</button><button class="ib" id="bPause" title="Menu (Esc)">❚❚</button></div>
+  <div id="topR"><button class="ib wide" id="bMap" title="Map (M)">🗺 <span class="t">Map</span></button><button class="ib wide" id="bShop" title="Upgrades (B)">🛠 <span class="t">Upgrades</span></button><button class="ib" id="bSound" title="Sound (M)">🔊</button><button class="ib" id="bPause" title="Menu (Esc)">❚❚</button></div>
   <div id="msg" class="chip"></div>
+  <div id="status" class="chip"></div>
   <div id="miniw" class="panel"><canvas id="mini" width="200" height="125"></canvas></div>
 </div>
-<div id="shop" class="panel hidden"></div>
+<div id="shop" class="screen center hidden">
+  <div class="col">
+    <div class="logo" style="font-size:44px">Upgrades</div>
+    <div class="tag">You can't drive or fire while you're in here.</div>
+    <div class="stats"><span id="shopMoney" style="color:var(--gold)">$0</span></div>
+    <div id="shopList" class="panel"></div>
+    <div><button class="btn big" id="bShopClose">▶ Back to driving</button></div>
+  </div>
+</div>
 <div id="stick"><i></i></div>
 
 <div id="title" class="screen">
@@ -126,8 +141,10 @@ body.touch.playing #stick { display: block; }
       <div class="grp"><h5>THE IDEA</h5><p>You can't see your rivals. Fire anyway. The closer you land, the more you earn. Spend it on bigger blasts. Last launcher standing wins.</p></div>
       <div class="grp"><h5>CLUES</h5><p>Every landing is marked Cold → Scorching. A flash shows roughly where a rival fired from.</p></div>
       <div class="grp"><h5>DANGER</h5><p>Your own blast kills you. The aim ring turns red when you're inside it. Forest hides your launches.</p></div>
-      <div class="grp keyOnly"><h5>CONTROLS</h5><div class="ks"><span><kbd>WASD</kbd>drive</span><span><kbd>Click</kbd>fire</span><span><kbd>Arrows</kbd>scroll</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>Space</kbd>back to you</span><span><kbd>B</kbd>upgrades</span><span><kbd>Esc</kbd>menu</span></div></div>
-      <div class="grp touchOnly"><h5>CONTROLS</h5><div class="ks"><span>Stick drives</span><span>Tap the map to fire</span><span>Drag to scroll · pinch to zoom</span></div></div>
+      <div class="grp"><h5>THREE MODES</h5><p>Drive, look at the map, or upgrade, one at a time. The match keeps going while you're in the map or the upgrades, so be quick.</p></div>
+      <div class="grp keyOnly"><h5>DRIVE</h5><div class="ks"><span><kbd>W S</kbd>throttle</span><span><kbd>A D</kbd>steer</span><span><kbd>M</kbd>open the map</span><span><kbd>B</kbd>upgrades</span></div></div>
+      <div class="grp keyOnly"><h5>MAP</h5><div class="ks"><span><kbd>Click</kbd>fire</span><span><kbd>Drag</kbd>scroll</span><span><kbd>Wheel</kbd>zoom</span><span><kbd>M</kbd>back to driving</span></div></div>
+      <div class="grp touchOnly"><h5>CONTROLS</h5><div class="ks"><span>Stick drives and steers</span><span>Map button, then tap to fire</span><span>Drag to scroll · pinch to zoom</span></div></div>
     </div>
     <div class="panel drawer hidden" id="settings">
       <div class="set">CPU rivals<div class="seg" id="segN"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="5">5</button></div></div>
@@ -170,74 +187,77 @@ try { Object.assign(SET, JSON.parse(localStorage.getItem('blindfire.set') || '{}
 const saveSet = () => { try { localStorage.setItem('blindfire.set', JSON.stringify(SET)); } catch (e) { } };
 
 // ================= map =================
-const MW = 1600, MH = 1000, CS = 10, TW = MW / CS, TH = MH / CS;
+const MW = 4800, MH = 3000, CS = 10, TW = MW / CS, TH = MH / CS;
 const GRASS = 0, FOREST = 1, WATER = 2, ROCK = 3;
 let cells = new Uint8Array(TW * TH), elev = null, terrainCv = null, scorchCv = null, SEED = 1;
 let SPAWNS = [[260, 500], [1340, 500]];
 function spawnBases(n, seed) {
-  if (n <= 2) return [[260, 500], [1340, 500]];
+  if (n <= 2) return [[800, 1500], [4000, 1500]];
   const r = rng(seed ^ 0x5bd1e995), a0 = r() * TAU, out = [];
-  for (let k = 0; k < n; k++) { const a = a0 + k * TAU / n; out.push([800 + Math.cos(a) * 560, 500 + Math.sin(a) * 330]); }
+  for (let k = 0; k < n; k++) { const a = a0 + k * TAU / n; out.push([2400 + Math.cos(a) * 1750, 1500 + Math.sin(a) * 1050]); }
   return out;
 }
 // Every match rolls a new map: its own water level, forest cover, mountains, maybe a river, and a season.
 const THEMES = {
-  summer: { grass: [92, 132, 60], floor: [64, 100, 46], sand: [196, 180, 128], rock: [128, 122, 110], deep: [26, 60, 92], shallow: [56, 110, 128], leaf: [[58, 112, 44], [74, 128, 50], [48, 96, 40]], pine: [32, 78, 46], pineFrac: 0.45, flowers: ['#f2e05a', '#ffffff', '#d97ad9', '#f28a8a'], snow: false },
-  autumn: { grass: [120, 124, 64], floor: [96, 88, 52], sand: [190, 170, 120], rock: [126, 118, 106], deep: [30, 58, 84], shallow: [60, 104, 116], leaf: [[204, 104, 38], [222, 160, 52], [176, 62, 40], [96, 120, 48]], pine: [38, 74, 48], pineFrac: 0.3, flowers: ['#f2c45a', '#e07a3a', '#ffffff'], snow: false },
-  winter: { grass: [222, 230, 236], floor: [196, 206, 214], sand: [204, 206, 200], rock: [150, 152, 158], deep: [34, 64, 92], shallow: [92, 136, 160], leaf: [[150, 136, 120], [168, 150, 132]], pine: [34, 70, 56], pineFrac: 0.8, flowers: ['#ffffff'], snow: true }
+  summer: { grass: [92, 132, 60], floor: [64, 100, 46], sand: [196, 180, 128], rock: [128, 122, 110], deep: [26, 60, 92], shallow: [56, 110, 128], leaf: [[58, 112, 44], [74, 128, 50], [48, 96, 40]], pine: [32, 78, 46], pineFrac: 0.45, snow: false },
+  autumn: { grass: [120, 124, 64], floor: [96, 88, 52], sand: [190, 170, 120], rock: [126, 118, 106], deep: [30, 58, 84], shallow: [60, 104, 116], leaf: [[204, 104, 38], [222, 160, 52], [176, 62, 40], [96, 120, 48]], pine: [38, 74, 48], pineFrac: 0.3, snow: false },
+  winter: { grass: [222, 230, 236], floor: [196, 206, 214], sand: [204, 206, 200], rock: [150, 152, 158], deep: [34, 64, 92], shallow: [92, 136, 160], leaf: [[150, 136, 120], [168, 150, 132]], pine: [34, 70, 56], pineFrac: 0.8, snow: true }
 };
-const TR = 2;  // terrain pixels per map unit
+const TR = 0.5;  // overview map pixels per metre
+const EG = 8, EW = MW / EG + 1, EH = MH / EG + 1;
 let MAP = null, burnt = new Uint8Array(TW * TH), groundSm = null;
+function elevAt(x, y) {
+  const fx = clamp(x / EG, 0, EW - 1.001), fy = clamp(y / EG, 0, EH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+  return lerp(lerp(elev[j * EW + i], elev[j * EW + i + 1], u), lerp(elev[(j + 1) * EW + i], elev[(j + 1) * EW + i + 1], u), v);
+}
 function genMap(seed, n = 2) {
   SEED = seed; R = rng(seed); SPAWNS = spawnBases(n, seed);
   const pr = rng(seed ^ 0x2545f491);
   MAP = {
     theme: ['summer', 'summer', 'autumn', 'winter'][Math.floor(pr() * 4)],
-    wl: 0.31 + pr() * 0.1, rl: 0.66 + pr() * 0.09, fl: 0.49 + pr() * 0.14, scale: 0.0019 + pr() * 0.0016,
-    river: pr() < 0.45 ? { y0: 0.25 + pr() * 0.5, a: 110 + pr() * 150, f: 2 + pr() * 2.5, ph: pr() * TAU, w: 9 + pr() * 9, vertical: pr() < 0.3, fords: [0.2 + pr() * 0.15, 0.5 + pr() * 0.1, 0.75 + pr() * 0.12] } : null
+    wl: 0.31 + pr() * 0.1, rl: 0.66 + pr() * 0.09, fl: 0.49 + pr() * 0.12, scale: 0.0008 + pr() * 0.0007,
+    river: pr() < 0.5 ? { y0: 0.25 + pr() * 0.5, a: 300 + pr() * 400, f: 2 + pr() * 2.5, ph: pr() * TAU, w: 22 + pr() * 22, vertical: pr() < 0.3, fords: [0.2 + pr() * 0.15, 0.5 + pr() * 0.1, 0.75 + pr() * 0.12] } : null
   };
   const th = THEMES[MAP.theme]; MAP.th = th;
-  const E = (x, y) => { let e = fbm(x * MAP.scale, y * MAP.scale, seed, 5); e += 0.12 * (fbm(x * 0.012, y * 0.012, seed + 9, 3) - 0.5); return e; };
+  const E = (x, y) => { let e = fbm(x * MAP.scale, y * MAP.scale, seed, 5); e += 0.12 * (fbm(x * 0.005, y * 0.005, seed + 9, 3) - 0.5); return e; };
   // a winding river: distance to its centre line, with a few shallow fords
   const riverD = (x, y) => {
     const rv = MAP.river; if (!rv) return 1e9;
     const u = rv.vertical ? y / MH : x / MW, along = rv.vertical ? MH : MW, across = rv.vertical ? x : y, base = (rv.vertical ? MW : MH) * rv.y0;
-    const c = base + rv.a * Math.sin(u * TAU * rv.f * 0.5 + rv.ph) + 0.45 * rv.a * Math.sin(u * TAU * rv.f * 1.3 + rv.ph * 2) + 160 * (fbm(u * 5, 3.3, seed + 21, 3) - 0.5);
-    if (rv.fords.some(f => Math.abs(u - f) * along < 14)) return 1e9;
+    const c = base + rv.a * Math.sin(u * TAU * rv.f * 0.5 + rv.ph) + 0.45 * rv.a * Math.sin(u * TAU * rv.f * 1.3 + rv.ph * 2) + 450 * (fbm(u * 5, 3.3, seed + 21, 3) - 0.5);
+    if (rv.fords.some(f => Math.abs(u - f) * along < 30)) return 1e9;
     return Math.abs(across - c);
   };
-  MAP.riverD = riverD;
-  elev = new Float32Array((MW / 4 + 1) * (MH / 4 + 1));
-  const ew = MW / 4 + 1;
-  for (let j = 0; j <= MH / 4; j++) for (let i = 0; i <= MW / 4; i++) { let e = E(i * 4, j * 4); const rd = riverD(i * 4, j * 4); if (MAP.river && rd < MAP.river.w * 2.2) { const k = rd / (MAP.river.w * 2.2); e = Math.min(e, lerp(MAP.wl - 0.03, e, k * k * (3 - 2 * k))); } elev[j * ew + i] = e; }
-  const Ev = (x, y) => { const i = clamp(Math.round(x / 4), 0, MW / 4), j = clamp(Math.round(y / 4), 0, MH / 4); return elev[j * ew + i]; };
+  elev = new Float32Array(EW * EH);
+  for (let j = 0; j < EH; j++) for (let i = 0; i < EW; i++) { let e = E(i * EG, j * EG); const rd = riverD(i * EG, j * EG); if (MAP.river && rd < MAP.river.w * 2.2) { const k = rd / (MAP.river.w * 2.2); e = Math.min(e, lerp(MAP.wl - 0.03, e, k * k * (3 - 2 * k))); } elev[j * EW + i] = e; }
   for (let j = 0; j < TH; j++) for (let i = 0; i < TW; i++) {
-    const x = i * CS + 5, y = j * CS + 5, e = Ev(x, y), m = fbm(x * 0.006 + 40, y * 0.006, seed + 3, 4);
+    const x = i * CS + 5, y = j * CS + 5, e = elevAt(x, y), m = fbm(x * 0.0028 + 40, y * 0.0028, seed + 3, 4) + 0.08 * (fbm(x * 0.02, y * 0.02, seed + 5, 2) - 0.5);
     let t = GRASS; if (e < MAP.wl) t = WATER; else if (e > MAP.rl) t = ROCK; else if (m > MAP.fl) t = FOREST;
-    if (x < 20 || y < 20 || x > MW - 20 || y > MH - 20) t = t === WATER ? WATER : ROCK;
+    if (x < 40 || y < 40 || x > MW - 40 || y > MH - 40) t = t === WATER ? WATER : ROCK;
     cells[j * TW + i] = t;
   }
   // keep the spawn zones open
-  for (const [sx, sy] of SPAWNS) for (let j = 0; j < TH; j++) for (let i = 0; i < TW; i++) { const d = hyp(i * CS + 5 - sx, j * CS + 5 - sy); if (d < 70 && cells[j * TW + i] >= WATER) cells[j * TW + i] = GRASS; }
+  for (const [sx, sy] of SPAWNS) { const r = 130; for (let j = Math.max(0, Math.floor((sy - r) / CS)); j <= Math.min(TH - 1, Math.floor((sy + r) / CS)); j++) for (let i = Math.max(0, Math.floor((sx - r) / CS)); i <= Math.min(TW - 1, Math.floor((sx + r) / CS)); i++) { if (hyp(i * CS + 5 - sx, j * CS + 5 - sy) < r && cells[j * TW + i] >= WATER) { cells[j * TW + i] = GRASS; const e = elevAt(i * CS + 5, j * CS + 5); if (e < MAP.wl + 0.01 || e > MAP.rl) { const ii = Math.round((i * CS + 5) / EG), jj = Math.round((j * CS + 5) / EG); for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const q = (jj + b) * EW + ii + a; if (q >= 0 && q < elev.length) elev[q] = clamp(elev[q], MAP.wl + 0.015, MAP.rl - 0.01); } } } } }
   burnt = new Uint8Array(TW * TH);
+  scorchCv = document.createElement('canvas'); scorchCv.width = MW / 4; scorchCv.height = MH / 4;
   drawTerrain();
-  scorchCv = document.createElement('canvas'); scorchCv.width = MW / 2; scorchCv.height = MH / 2;
+  if (typeof glNewMap === 'function') glNewMap();
 }
 const cellAt = (x, y) => { const i = Math.floor(x / CS), j = Math.floor(y / CS); return i < 0 || j < 0 || i >= TW || j >= TH ? ROCK : cells[j * TW + i]; };
 const passable = (x, y) => { const c = cellAt(x, y); return c === GRASS || c === FOREST; };
 const rgb = (c, f = 1) => `rgb(${c[0] * f | 0},${c[1] * f | 0},${c[2] * f | 0})`;
 function drawTerrain() {
-  const th = MAP.th, sw = MW / 4, sh = MH / 4, ew = sw + 1;
-  // ground colours from the height field: deep water → shallows → sand → grass/forest floor → rock
+  const th = MAP.th, sw = MW / 4, sh = MH / 4;
+  // ground colours from the height field: deep water → shallows → sand → grass/forest floor → rock/snowcaps
   groundSm = document.createElement('canvas'); groundSm.width = sw; groundSm.height = sh;
   const gs = groundSm.getContext('2d'), img = gs.createImageData(sw, sh), d = img.data;
   for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
-    const e = elev[j * ew + i], ex = elev[j * ew + i + 1] - e, ey = elev[(j + 1) * ew + i] - e;
-    const ct = cellAt(i * 4 + 2, j * 4 + 2), n = 0.94 + 0.12 * hash(i, j, 5), lit = 1 + clamp((-ex - ey) * 14, -0.18, 0.18);
+    const x = i * 4 + 2, y = j * 4 + 2, e = elevAt(x, y), ex = elevAt(x + 8, y) - e, ey = elevAt(x, y + 8) - e;
+    const ct = cellAt(x, y), n = 0.94 + 0.12 * hash(i, j, 5), lit = 1 + clamp((-ex - ey) * 14, -0.18, 0.18);
     let c;
     if (e < MAP.wl) { const k = clamp((MAP.wl - e) / 0.08, 0, 1); c = [lerp(th.shallow[0], th.deep[0], k), lerp(th.shallow[1], th.deep[1], k), lerp(th.shallow[2], th.deep[2], k)]; }
-    else if (e < MAP.wl + 0.022 && ct !== ROCK) c = th.sand.map(v => v * lit);
-    else if (ct === ROCK || e > MAP.rl) { const band = Math.floor(e * 22) % 2 ? 1 : 0.93; c = th.rock.map(v => v * lit * band); if (th.snow || e > MAP.rl + 0.06) c = c.map(v => lerp(v, 235, 0.55)); }
+    else if (e < MAP.wl + 0.018 && ct !== ROCK) c = th.sand.map(v => v * lit);
+    else if (ct === ROCK || e > MAP.rl) { const band = Math.floor(e * 30) % 2 ? 1 : 0.94; c = th.rock.map(v => v * lit * band); if (th.snow || e > MAP.rl + 0.07) c = c.map(v => lerp(v, 238, 0.6)); }
     else if (ct === FOREST) c = th.floor.map(v => v * lit);
     else c = th.grass.map(v => v * lit);
     const k = (j * sw + i) * 4; d[k] = c[0] * n; d[k + 1] = c[1] * n; d[k + 2] = c[2] * n; d[k + 3] = 255;
@@ -247,98 +267,64 @@ function drawTerrain() {
   paintRegion(0, 0, MW, MH);
   MAP.miniDirty = true;
 }
-// draws ground, shore foam, grass tufts, flowers, boulders and trees for one rectangle of the map
+// overview map: ground, boulders and treetops for one rectangle
 function paintRegion(x0, y0, x1, y1) {
   const th = MAP.th, g = terrainCv.getContext('2d');
   g.save(); g.setTransform(TR, 0, 0, TR, 0, 0); g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip();
   g.imageSmoothingEnabled = true; g.drawImage(groundSm, 0, 0, MW, MH);
   const i0 = Math.max(0, Math.floor(x0 / CS) - 1), i1 = Math.min(TW - 1, Math.floor(x1 / CS) + 1), j0 = Math.max(0, Math.floor(y0 / CS) - 2), j1 = Math.min(TH - 1, Math.floor(y1 / CS) + 1);
-  // ground details first, trees after so canopies overlap
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     const t = cells[j * TW + i], cx = i * CS, cy = j * CS;
-    if (t === WATER) {
-      // foam where water meets land
-      const land = (a, b) => { const c = cells[(j + b) * TW + i + a]; return c !== undefined && c !== WATER; };
-      if ((i > 0 && land(-1, 0)) || (i < TW - 1 && land(1, 0)) || (j > 0 && land(0, -1)) || (j < TH - 1 && land(0, 1))) { }
-      else if (hash(i, j, 4) < 0.06) { g.strokeStyle = 'rgba(200,230,240,.18)'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(cx + 2, cy + 5); g.quadraticCurveTo(cx + 5, cy + 3, cx + 8, cy + 5); g.stroke(); }
-    } else if (t === GRASS) {
-      if (burnt[j * TW + i]) { g.fillStyle = '#4a3a2a'; g.beginPath(); g.arc(cx + 5, cy + 6, 1.3, 0, TAU); g.fill(); continue; }
-      for (let k = 0; k < 3; k++) {
-        const h = hash(i, j, 70 + k), x = cx + hash(i, j, 80 + k) * CS, y = cy + hash(i, j, 90 + k) * CS;
-        if (h < 0.42) { g.strokeStyle = th.snow ? 'rgba(160,175,190,.5)' : rgb(th.grass, 0.78); g.lineWidth = 0.55; g.beginPath(); g.moveTo(x - 1, y); g.lineTo(x - 1.4, y - 2.2); g.moveTo(x, y); g.lineTo(x, y - 2.8); g.moveTo(x + 1, y); g.lineTo(x + 1.5, y - 2.1); g.stroke(); }
-        else if (h < 0.5) { g.fillStyle = th.flowers[Math.floor(hash(i, j, 100 + k) * th.flowers.length)]; g.beginPath(); g.arc(x, y, 0.75, 0, TAU); g.fill(); }
-      }
-      if (hash(i, j, 7) < 0.012) boulder(g, cx + 5, cy + 5, 2 + hash(i, j, 8) * 2, i, j);
-    } else if (t === ROCK && hash(i, j, 9) < 0.35) boulder(g, cx + hash(i, j, 10) * CS, cy + hash(i, j, 11) * CS, 2.5 + hash(i, j, 12) * 3.5, i, j);
+    if (t === ROCK && hash(i, j, 9) < 0.1) { const r = 3 + hash(i, j, 12) * 5, x = cx + hash(i, j, 10) * CS, y = cy + hash(i, j, 11) * CS; g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(x + 1.5, y + 2, r, 0, TAU); g.fill(); g.fillStyle = th.snow ? '#e8ecef' : rgb(th.rock, 1.08); g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+    else if (t === GRASS && burnt[j * TW + i]) { g.fillStyle = '#3a2c20'; g.fillRect(cx + 4, cy + 4, 2.5, 2.5); }
   }
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cells[j * TW + i] === FOREST) {
-    for (let k = 0; k < 2; k++) { if (k === 1 && hash(i, j, 50) < 0.45) break; tree(g, i * CS + hash(i, j, 11 + k) * CS, j * CS + hash(i, j, 21 + k) * CS, i, j, k); }
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash(i, j, 50) < 0.45) break;
+      const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS, pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, r = (pine ? 4 : 5) * s;
+      const c = pine ? th.pine : th.leaf[Math.floor(hash(i, j, 61 + k) * th.leaf.length)];
+      g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.arc(x + 2.5, y + 2.5, r, 0, TAU); g.fill();
+      g.fillStyle = rgb(c, 0.9); g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      g.fillStyle = th.snow ? 'rgba(245,248,250,.75)' : rgb(c, 1.2); g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.45, 0, TAU); g.fill();
+    }
   }
   g.restore();
 }
-function boulder(g, x, y, r, i, j) {
-  const th = MAP.th;
-  g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(x + r * 0.35, y + r * 0.45, r * 1.05, r * 0.7, 0, 0, TAU); g.fill();
-  g.fillStyle = rgb(th.rock, 0.95); g.beginPath(); g.ellipse(x, y, r, r * 0.78, 0, 0, TAU); g.fill();
-  g.fillStyle = th.snow ? 'rgba(245,248,250,.9)' : 'rgba(255,255,255,.22)'; g.beginPath(); g.ellipse(x - r * 0.25, y - r * 0.28, r * 0.55, r * 0.35, 0, 0, TAU); g.fill();
-}
-function tree(g, x, y, i, j, k) {
-  const th = MAP.th, pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55;
-  if (pine) {
-    const h = 11 * s, w = 4.6 * s;
-    g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(x + 2.6 * s, y + 1.2, w * 0.9, w * 0.45, 0, 0, TAU); g.fill();
-    g.fillStyle = '#4a3322'; g.fillRect(x - 0.6 * s, y - 1.5 * s, 1.2 * s, 2.2 * s);
-    for (let L = 0; L < 3; L++) {
-      const by = y - 1.2 * s - L * h * 0.24, ww = w * (1 - L * 0.24), hh = h * 0.42;
-      g.fillStyle = rgb(th.pine, 0.85 + L * 0.1); g.beginPath(); g.moveTo(x - ww, by); g.lineTo(x + ww, by); g.lineTo(x, by - hh); g.closePath(); g.fill();
-      g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(x - ww, by); g.lineTo(x, by - hh); g.lineTo(x - ww * 0.2, by); g.closePath(); g.fill();
-      if (th.snow) { g.fillStyle = 'rgba(248,250,252,.92)'; g.beginPath(); g.moveTo(x - ww * 0.45, by - hh * 0.5); g.lineTo(x, by - hh); g.lineTo(x + ww * 0.4, by - hh * 0.52); g.closePath(); g.fill(); }
-    }
-  } else {
-    const r = 4.2 * s, c = th.leaf[Math.floor(hash(i, j, 61 + k) * th.leaf.length)];
-    g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.ellipse(x + 2.4 * s, y + 1, r * 1.05, r * 0.6, 0, 0, TAU); g.fill();
-    g.fillStyle = '#5a3d24'; g.fillRect(x - 0.7 * s, y - 2 * s, 1.4 * s, 3 * s);
-    const cy = y - 3.6 * s;
-    g.fillStyle = rgb(c, 0.82); g.beginPath(); g.arc(x, cy, r, 0, TAU); g.fill();
-    g.fillStyle = rgb(c, 1); g.beginPath(); g.arc(x - r * 0.18, cy - r * 0.15, r * 0.78, 0, TAU); g.fill();
-    g.fillStyle = rgb(c, 1.18); g.beginPath(); g.arc(x - r * 0.38, cy - r * 0.38, r * 0.4, 0, TAU); g.fill();
-    if (th.snow) { g.fillStyle = 'rgba(248,250,252,.8)'; g.beginPath(); g.arc(x - r * 0.3, cy - r * 0.45, r * 0.45, 0, TAU); g.fill(); }
-  }
-}
 function burn(x, y, r) {
   // the blast scorches the ground and flattens forest in its radius
-  const g = scorchCv.getContext('2d'), gr = g.createRadialGradient(x / 2, y / 2, 0, x / 2, y / 2, r / 2);
-  gr.addColorStop(0, 'rgba(10,8,6,.7)'); gr.addColorStop(0.6, 'rgba(20,14,8,.45)'); gr.addColorStop(1, 'rgba(20,14,8,0)');
-  g.fillStyle = gr; g.beginPath(); g.arc(x / 2, y / 2, r / 2, 0, TAU); g.fill();
+  const g = scorchCv.getContext('2d'), gr = g.createRadialGradient(x / 4, y / 4, 0, x / 4, y / 4, r / 4);
+  gr.addColorStop(0, 'rgba(10,8,6,.75)'); gr.addColorStop(0.6, 'rgba(20,14,8,.5)'); gr.addColorStop(1, 'rgba(20,14,8,0)');
+  g.fillStyle = gr; g.beginPath(); g.arc(x / 4, y / 4, r / 4, 0, TAU); g.fill();
+  GL.scorchDirty = true;
   const i0 = Math.max(0, Math.floor((x - r) / CS)), i1 = Math.min(TW - 1, Math.floor((x + r) / CS)), j0 = Math.max(0, Math.floor((y - r) / CS)), j1 = Math.min(TH - 1, Math.floor((y + r) / CS));
   let changed = false;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cells[j * TW + i] === FOREST && hyp(i * CS + 5 - x, j * CS + 5 - y) < r * 0.8) { cells[j * TW + i] = GRASS; burnt[j * TW + i] = 1; changed = true; }
-  if (changed) { paintRegion(x - r - 20, y - r - 30, x + r + 20, y + r + 20); MAP.miniDirty = true; }
+  if (changed) { paintRegion(x - r - 20, y - r - 30, x + r + 20, y + r + 20); MAP.miniDirty = true; GL.dirtyTrees = true; }
 }
 
 // ================= upgrades =================
 const UP = [
-  { k: 'blast', ic: '💥', nm: 'Warhead', v: [30, 42, 58, 80, 110, 150, 210, 300, 420], c: [150, 300, 550, 900, 1500, 2400, 3800, 6000], f: v => v + ' m blast' },
+  { k: 'blast', ic: '💥', nm: 'Warhead', v: [40, 55, 75, 100, 140, 200, 300, 450, 700, 1100], c: [150, 300, 550, 900, 1500, 2400, 3800, 6000, 9500], f: v => v + ' m blast' },
   { k: 'reload', ic: '⏱', nm: 'Autoloader', v: [3.2, 2.6, 2.1, 1.7, 1.4, 1.15], c: [120, 260, 480, 800, 1300], f: v => v + ' s reload' },
-  { k: 'speed', ic: '🚀', nm: 'Rocket motor', v: [260, 340, 440, 560, 720], c: [100, 220, 420, 750], f: v => v + ' m/s missiles' },
-  { k: 'move', ic: '🛞', nm: 'Tracks', v: [70, 88, 108, 130, 155], c: [100, 200, 380, 650], f: v => v + ' m/s driving' },
+  { k: 'speed', ic: '🚀', nm: 'Rocket motor', v: [300, 400, 520, 680, 880], c: [100, 220, 420, 750], f: v => v + ' m/s missiles' },
+  { k: 'move', ic: '🛞', nm: 'Tracks', v: [16, 20, 25, 31, 38], c: [100, 200, 380, 650], f: v => Math.round(v * 3.6) + ' km/h driving' },
   { k: 'radar', ic: '📡', nm: 'Radar', v: [0, 1, 2, 3, 4], c: [150, 300, 550, 900], f: v => 'see ' + RADAR.view[v] + ' m · flash ±' + RADAR.fuzz[v] + ' m' },
   { k: 'armor', ic: '🛡', nm: 'Armor', v: [100, 130, 170, 220, 280], c: [150, 300, 550, 900], f: v => v + ' hull' }
 ];
-const RADAR = { view: [120, 140, 165, 190, 220], fuzz: [220, 160, 110, 70, 40], warn: [0.8, 1.1, 1.4, 1.7, 2.0] };
+const RADAR = { view: [180, 210, 250, 290, 340], fuzz: [420, 310, 220, 140, 80], warn: [2.0, 2.6, 3.2, 3.8, 4.5] };
 const stat = (p, k) => { const u = UP.find(u => u.k === k); return u.v[p.lv[k]]; };
 const BANDS = [
   { id: 'hit', nm: 'HIT', g: 0, pay: 200, col: '#ffffff' },
-  { id: 'scorch', nm: 'Scorching', g: 50, pay: 180, col: '#ff4a3a' },
-  { id: 'hot', nm: 'Hot', g: 130, pay: 100, col: '#ff8a3a' },
-  { id: 'warm', nm: 'Warm', g: 260, pay: 45, col: '#f2c45a' },
-  { id: 'cool', nm: 'Cool', g: 420, pay: 15, col: '#7fd0e0' },
+  { id: 'scorch', nm: 'Scorching', g: 90, pay: 180, col: '#ff4a3a' },
+  { id: 'hot', nm: 'Hot', g: 230, pay: 100, col: '#ff8a3a' },
+  { id: 'warm', nm: 'Warm', g: 470, pay: 45, col: '#f2c45a' },
+  { id: 'cool', nm: 'Cool', g: 760, pay: 15, col: '#7fd0e0' },
   { id: 'cold', nm: 'Cold', g: 1e9, pay: 0, col: '#5a8aff' }
 ];
 const bandFor = gap => BANDS.find(b => gap < b.g) || BANDS[5];
 const bandRange = (id, r) => { const i = BANDS.findIndex(b => b.id === id); return [i === 0 ? 0 : r + BANDS[i - 1].g, i === 0 ? r : r + BANDS[i].g]; };
 const dmgAt = (d, r) => (60 + r * 0.5) * (1 - 0.6 * d / r);
-const INCOME = 6;
+const INCOME = 7;
 
 // ================= game state =================
 let G = null;
@@ -348,8 +334,8 @@ const pcol = p => p.i === G.me ? COLS[0] : COLS[1 + (p.i - (p.i > G.me ? 1 : 0))
 const pname = p => p.i === G.me ? 'You' : CNAMES[1 + (p.i - (p.i > G.me ? 1 : 0)) % 6];
 function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: { blast: 0, reload: 0, speed: 0, move: 0, radar: 0, armor: 0 }, cd: 1.5, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
 function spawnPt(i) {
-  const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 350 : 110;
-  for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 220, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
+  const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 1000 : 260;
+  for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 520, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
   return [sx, sy];
 }
 function newMatch(opts) {
@@ -361,7 +347,8 @@ function newMatch(opts) {
   for (const id of ['title', 'pause', 'end']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden'); document.body.classList.add('playing');
   renderRivals(); renderShop(); AUD.init(); lastMoney = -1;
-  layout(); centerOn(ME().x, ME().y, true); miniBase = null;
+  ME().tank = true; GL.hd = ME().hd; $('shop').classList.add('hidden');
+  layout(); centerOn(ME().x, ME().y, true); miniBase = null; setView('drive');
   say(n === 2 ? (G.mode === 'cpu' ? 'Somewhere out there is the CPU. Fire!' : 'Your rival is out there. Fire!') : n - 1 + ' rivals are out there. Last launcher standing wins.', 3);
 }
 const ME = () => G.players[G.me];
@@ -449,7 +436,7 @@ function eliminate(p, why, by) {
   renderRivals();
   const left = alivePlayers();
   if (p.i === G.me) {
-    CAM.follow = false;
+    CAM.follow = false; $('shop').classList.add('hidden'); setView('map');
     G.place = left.length + 1; G.myOut = { why, by: by ? by.i : -1 };
     if (left.length > 1 && G.mode === 'online') { say(why === 'self' ? 'You hit yourself. Watching the rest…' : 'Eliminated. Watching the rest…', 4); AUD.lose(); }
   } else if (!G.over && G.n > 2) { say(pname(p) + (why === 'self' ? ' blew themselves up' : why === 'left' ? ' left' : ' is out') + ' · ' + left.length + ' left', 2.2); }
@@ -484,12 +471,12 @@ function buy(p, k) {
 
 // ================= CPU =================
 // Each CPU keeps a belief map of where its rivals might be and updates it with the same clues you get.
-const BG = 40, BW = MW / BG, BH = MH / BG;
+const BG = 60, BW = MW / BG, BH = MH / BG;
 function aiInit(i) {
-  const ai = { i, b: new Float32Array(BW * BH), blurT: R() * 0.6, wander: null, think: 1 + R(), order: ['blast', 'reload', 'radar', 'blast', 'armor', 'speed', 'blast', 'move', 'reload', 'blast', 'radar', 'armor', 'blast', 'speed', 'reload', 'blast', 'move', 'armor', 'blast', 'radar', 'reload', 'blast', 'speed', 'armor', 'move', 'blast'], oi: 0, noise: [170, 60, 14][SET.diff], slow: [3.0, 1.2, 0.2][SET.diff], dodge: [0.3, 0.75, 1][SET.diff], trust: [0.6, 0.22, 0.05][SET.diff] };
+  const ai = { i, b: new Float32Array(BW * BH), blurT: R() * 0.6, wander: null, think: 1 + R(), order: ['blast', 'reload', 'radar', 'blast', 'armor', 'speed', 'blast', 'move', 'reload', 'blast', 'radar', 'armor', 'blast', 'speed', 'reload', 'blast', 'move', 'armor', 'blast', 'radar', 'reload', 'blast', 'speed', 'armor', 'move', 'blast'], oi: 0, noise: [320, 110, 25][SET.diff], slow: [3.0, 1.2, 0.2][SET.diff], dodge: [0.3, 0.75, 1][SET.diff], trust: [0.6, 0.22, 0.05][SET.diff] };
   aiReset(ai); return ai;
 }
-function aiReset(ai) { const me = G ? G.players[ai.i] : null, sx = me ? me.x : SPAWNS[ai.i][0], sy = me ? me.y : SPAWNS[ai.i][1]; for (let j = 0; j < BH; j++) for (let i = 0; i < BW; i++) { const x = i * BG + BG / 2, y = j * BG + BG / 2; ai.b[j * BW + i] = passable(x, y) ? 0.3 + hyp(x - sx, y - sy) / 400 : 0; } aiNorm(ai); }
+function aiReset(ai) { const me = G ? G.players[ai.i] : null, sx = me ? me.x : SPAWNS[ai.i][0], sy = me ? me.y : SPAWNS[ai.i][1]; for (let j = 0; j < BH; j++) for (let i = 0; i < BW; i++) { const x = i * BG + BG / 2, y = j * BG + BG / 2; ai.b[j * BW + i] = passable(x, y) ? 0.3 + hyp(x - sx, y - sy) / 1200 : 0; } aiNorm(ai); }
 function aiNorm(ai) { let s = 0; for (let i = 0; i < ai.b.length; i++) s += ai.b[i]; if (s <= 0) { aiReset(ai); return; } for (let i = 0; i < ai.b.length; i++) ai.b[i] /= s; }
 function aiMul(ai, fn) { for (let j = 0; j < BH; j++) for (let i = 0; i < BW; i++) { const k = j * BW + i; if (ai.b[k] > 0) ai.b[k] *= fn(i * BG + BG / 2, j * BG + BG / 2); } aiNorm(ai); }
 function aiLaunch(ai, f) { aiMul(ai, (x, y) => 0.03 + Math.exp(-(hyp(x - f.x, y - f.y) ** 2) / (2 * (f.r * 0.75) ** 2))); }
@@ -505,7 +492,7 @@ function aiStep(ai, dt) {
     ai.b = n; aiNorm(ai);
   }
   // rivals it can see up close
-  for (const q of G.players) if (q !== me && q.alive && hyp(q.x - me.x, q.y - me.y) < RADAR.view[me.lv.radar]) aiMul(ai, (x, y) => Math.exp(-(hyp(x - q.x, y - q.y) ** 2) / (2 * 30 * 30)) + 1e-4);
+  for (const q of G.players) if (q !== me && q.alive && hyp(q.x - me.x, q.y - me.y) < RADAR.view[me.lv.radar]) aiMul(ai, (x, y) => Math.exp(-(hyp(x - q.x, y - q.y) ** 2) / (2 * 50 * 50)) + 1e-4);
   // upgrades
   const want = ai.order[ai.oi % ai.order.length], u = UP.find(u => u.k === want);
   if (me.lv[want] >= u.c.length) ai.oi++; else if (me.money >= u.c[me.lv[want]]) { buy(me, want); ai.oi++; }
@@ -514,7 +501,7 @@ function aiStep(ai, dt) {
   for (const m of G.missiles) if (m.o !== me.i && m.T - m.t < RADAR.warn[me.lv.radar] && hyp(m.tx - me.x, m.ty - me.y) < m.r + 25 && R() < ai.dodge) flee = m;
   const r = stat(me, 'blast'), spd = stat(me, 'move');
   let goal = ai.wander;
-  if (flee) { const a = Math.atan2(me.y - flee.ty, me.x - flee.tx); goal = [me.x + Math.cos(a) * 200, me.y + Math.sin(a) * 200]; ai.wander = null; }
+  if (flee) { const a = Math.atan2(me.y - flee.ty, me.x - flee.tx); goal = [me.x + Math.cos(a) * 300, me.y + Math.sin(a) * 300]; ai.wander = null; }
   // fire at the most likely spot, if it's safely outside its own blast
   ai.think -= dt;
   if (me.cd <= 0 && ai.think <= 0) {
@@ -529,7 +516,7 @@ function aiStep(ai, dt) {
   }
   // shoot and scoot: pick a new hiding spot after firing
   if (!goal || hyp(goal[0] - me.x, goal[1] - me.y) < 12) {
-    for (let k = 0; k < 30; k++) { const a = R() * TAU, dd = 90 + R() * 220, x = me.x + Math.cos(a) * dd, y = me.y + Math.sin(a) * dd; if (passable(x, y) && x > 40 && x < MW - 40 && y > 40 && y < MH - 40) { goal = [x, y]; break; } }
+    for (let k = 0; k < 30; k++) { const a = R() * TAU, dd = 150 + R() * 400, x = me.x + Math.cos(a) * dd, y = me.y + Math.sin(a) * dd; if (passable(x, y) && x > 40 && x < MW - 40 && y > 40 && y < MH - 40) { goal = [x, y]; break; } }
     ai.wander = goal;
   }
   if (goal) { const dx = goal[0] - me.x, dy = goal[1] - me.y, l = hyp(dx, dy) || 1; me.mx = dx / l; me.my = dy / l; if (l < 12) me.mx = me.my = 0; } else me.mx = me.my = 0;
@@ -542,14 +529,15 @@ function moveP(p, dt) {
   const sp = stat(p, 'move') * (cellAt(p.x, p.y) === FOREST ? 0.75 : 1);
   const nx = p.x + ux * sp * dt, ny = p.y + uy * sp * dt;
   if (passable(nx, ny)) { p.x = nx; p.y = ny; } else if (passable(nx, p.y)) p.x = nx; else if (passable(p.x, ny)) p.y = ny;
+  if (p.tank) return;
   const want = Math.atan2(uy, ux); let dh = ((want - p.hd + Math.PI) % TAU + TAU) % TAU - Math.PI; p.hd += dh * Math.min(1, dt * 8);
 }
 function step(dt) {
   if (!G || G.paused) return;
   G.t += dt;
   const me = ME();
-  if (G.over) { G.endT -= dt; if (G.endT <= 0 && $('end').classList.contains('hidden')) { $('end').classList.remove('hidden'); $('shop').classList.add('hidden'); document.body.classList.remove('playing'); } }
-  if (!G.over && me.alive) { const iv = inputVec(); me.mx = iv[0]; me.my = iv[1]; } else { me.mx = me.my = 0; }
+  if (G.over) { G.endT -= dt; if (G.endT <= 0 && $('end').classList.contains('hidden')) { $('end').classList.remove('hidden'); $('shop').classList.add('hidden'); document.body.classList.remove('playing'); setView('map'); } }
+  if (!G.over && me.alive && G.view === 'drive') { const [turn, thr] = inputVec(); me.hd += turn * 1.5 * dt * (thr > 0.1 ? -1 : 1); me.mx = Math.cos(me.hd) * -thr; me.my = Math.sin(me.hd) * -thr; } else { me.mx = me.my = 0; }
   if (G.mode === 'cpu' && !G.over) for (const ai of G.ais) aiStep(ai, dt);
   for (const p of G.players) {
     if (G.mode === 'online' && p !== me) continue;
@@ -636,10 +624,270 @@ function drawMini(dt) {
   mctx.strokeStyle = 'rgba(255,255,255,.85)'; mctx.lineWidth = 1; mctx.strokeRect(ax * sx, ay * sy, (bx - ax) * sx, (by - ay) * sy);
 }
 function miniTo(e) { const r = mini.getBoundingClientRect(); centerOn(clamp((e.clientX - r.left) / r.width, 0, 1) * MW, clamp((e.clientY - r.top) / r.height, 0, 1) * MH, false); }
-mini.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); mini.setPointerCapture(e.pointerId); MOUSE.mini = true; miniTo(e); });
-mini.addEventListener('pointermove', e => { if (MOUSE.mini) miniTo(e); });
+mini.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); toggleMap(true); miniTo(e); });
+
 mini.addEventListener('pointerup', () => { MOUSE.mini = false; });
 let fogCv = document.createElement('canvas');
+// ================= drive view: a WebGL2 camera behind your launcher =================
+// Map units are metres. Map x → GL x, map y → GL z, terrain height → GL y.
+const HSTEP = 20, HW = MW / HSTEP + 1, HH = MH / HSTEP + 1, HK = 320;
+let heights = new Float32Array(HW * HH);
+function heightAt(x, y) {
+  const fx = clamp(x / HSTEP, 0, HW - 1.001), fy = clamp(y / HSTEP, 0, HH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+  return lerp(lerp(heights[j * HW + i], heights[j * HW + i + 1], u), lerp(heights[(j + 1) * HW + i], heights[(j + 1) * HW + i + 1], u), v);
+}
+const GL = { gl: null, fail: false, treesAt: null, treeN: 0, dirtyTrees: true, scorchDirty: true, hd: 0 };
+function glProg(gl, vs, fs) {
+  const mk = (t, s) => { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); return sh; };
+  const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, vs)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name.replace('[0]', '')] = gl.getUniformLocation(p, a.name); }
+  return { p, u };
+}
+const GLSL_FOG = `
+uniform vec3 uMe; uniform float uView; uniform vec3 uCam; uniform vec3 uSky; uniform float uSpect;
+vec3 fogs(vec3 col, vec3 w){
+  float d=length(w.xz-uMe.xz); float vis=1.0-smoothstep(uView*0.8,uView*1.15,d);
+  col*=mix(mix(0.3,1.0,vis),1.0,uSpect);
+  float h=length(w-uCam); col=mix(col,uSky,1.0-exp(-max(h-200.0,0.0)*0.0011));
+  return col;
+}`;
+function glInitDrive() {
+  const c = $('g'); const gl = c.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: TEST });
+  if (!gl) { GL.fail = true; return; }
+  GL.gl = gl;
+  GL.terr = glProg(gl, `#version 300 es
+in vec3 aP; in vec3 aN; in float aW; uniform mat4 uVP; out vec3 vW; out vec3 vN; out float vWet;
+void main(){ vW=aP; vN=aN; vWet=aW; gl_Position=uVP*vec4(aP,1.0); }`, `#version 300 es
+precision highp float; in vec3 vW; in vec3 vN; in float vWet; uniform sampler2D uG; uniform sampler2D uS; uniform vec2 uMap; uniform float uT; uniform vec3 uSun; out vec4 o;
+${GLSL_FOG}
+float h21(vec2 p){ p=fract(p*vec2(123.34,456.21)); p+=dot(p,p+45.32); return fract(p.x*p.y); }
+float vn(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),f.x),f.y); }
+void main(){
+  vec2 uv=vW.xz/uMap; vec3 col=texture(uG,uv).rgb;
+  float n=vn(vW.xz*0.35)*0.6+vn(vW.xz*1.7)*0.4; col*=0.84+0.3*n;
+  float sc=texture(uS,uv).a; col=mix(col,vec3(0.07,0.055,0.045),sc*0.85);
+  vec3 N=normalize(vN); float l=0.5+0.65*max(dot(N,uSun),0.0);
+  col*=l;
+  if(vWet>0.5){ float w=vn(vW.xz*0.08+vec2(uT*0.05,uT*0.03))*0.5+vn(vW.xz*0.3-vec2(uT*0.1,0.0))*0.5; col+=vec3(0.06,0.09,0.11)*w; }
+  o=vec4(fogs(col,vW),1.0);
+}`);
+  GL.spr = glProg(gl, `#version 300 es
+in vec2 aQ; in vec4 aI; in vec4 aJ; in vec4 aC; uniform mat4 uVP; uniform vec3 uR; out vec2 vUv; out vec4 vC; out vec3 vW;
+void main(){ vec3 base=aI.xyz; float w=aJ.x, h=aJ.y, slot=aJ.z;
+  vec3 p=base+uR*(aQ.x-0.5)*w+vec3(0,1,0)*(aJ.w>0.5? aQ.y*h : (aQ.y-0.5)*h);
+  vW=p; vUv=vec2((slot+aQ.x)/8.0, aJ.w>0.5? 1.0-aQ.y : 1.0-aQ.y*0.5); vC=aC; gl_Position=uVP*vec4(p,1.0); }`, `#version 300 es
+precision highp float; in vec2 vUv; in vec4 vC; in vec3 vW; uniform sampler2D uA; uniform float uFog; uniform float uTest; out vec4 o;
+${GLSL_FOG}
+void main(){ vec4 t=texture(uA,vUv)*vC; if(uTest>0.5 && t.a<0.5) discard;
+  float dc=length(vW-uCam); if(uTest>0.5 && dc<34.0 && fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>(dc-14.0)/20.0) discard; vec3 c=uFog>0.5?fogs(t.rgb,vW):t.rgb; o=vec4(c, uTest>0.5?1.0:t.a); }`);
+  GL.mesh = glProg(gl, `#version 300 es
+in vec3 aP; in vec3 aN; uniform mat4 uVP; uniform mat4 uM; out vec3 vN; out vec3 vW;
+void main(){ vec4 w=uM*vec4(aP,1.0); vW=w.xyz; vN=mat3(uM)*aN; gl_Position=uVP*w; }`, `#version 300 es
+precision highp float; in vec3 vN; in vec3 vW; uniform vec3 uCol; uniform vec3 uSun; uniform float uEm; out vec4 o;
+${GLSL_FOG}
+void main(){ float l=0.45+0.7*max(dot(normalize(vN),uSun),0.0); vec3 c=uCol*mix(l,1.0,uEm); o=vec4(fogs(c,vW),1.0); }`);
+  GL.ring = glProg(gl, `#version 300 es
+in vec3 aP; in float aA; uniform mat4 uVP; out float vA; void main(){ vA=aA; gl_Position=uVP*vec4(aP,1.0); }`, `#version 300 es
+precision highp float; in float vA; uniform vec4 uCol; out vec4 o; void main(){ o=vec4(uCol.rgb, uCol.a*vA); }`);
+  // unit cube for launchers and missiles
+  const cube = [], cn = [];
+  const F = [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[-1, 0, 0], [0, 1, 0], [0, 0, -1]], [[0, 1, 0], [0, 0, 1], [1, 0, 0]], [[0, -1, 0], [0, 0, -1], [1, 0, 0]], [[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]]];
+  for (const [n, a, b] of F) { const q = (s, t) => [n[0] * 0.5 + a[0] * s + b[0] * t, n[1] * 0.5 + a[1] * s + b[1] * t, n[2] * 0.5 + a[2] * s + b[2] * t]; const v = [q(-.5, -.5), q(.5, -.5), q(.5, .5), q(-.5, -.5), q(.5, .5), q(-.5, .5)]; for (const p of v) { cube.push(...p); cn.push(...n); } }
+  GL.cube = gl.createVertexArray(); gl.bindVertexArray(GL.cube);
+  const cb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, cb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cube), gl.STATIC_DRAW);
+  let loc = gl.getAttribLocation(GL.mesh.p, 'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+  const nb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cn), gl.STATIC_DRAW);
+  loc = gl.getAttribLocation(GL.mesh.p, 'aN'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+  // billboards: one quad, instanced
+  GL.sprVao = gl.createVertexArray(); gl.bindVertexArray(GL.sprVao);
+  const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), gl.STATIC_DRAW);
+  loc = gl.getAttribLocation(GL.spr.p, 'aQ'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  GL.sprBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
+  for (const [nm, off] of [['aI', 0], ['aJ', 16], ['aC', 32]]) { loc = gl.getAttribLocation(GL.spr.p, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
+  GL.ringVao = gl.createVertexArray(); gl.bindVertexArray(GL.ringVao); GL.ringBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
+  loc = gl.getAttribLocation(GL.ring.p, 'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 16, 0);
+  loc = gl.getAttribLocation(GL.ring.p, 'aA'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, 16, 12);
+  gl.bindVertexArray(null);
+  GL.texG = gl.createTexture(); GL.texS = gl.createTexture(); GL.texA = gl.createTexture();
+}
+// called after genMap: terrain mesh, ground texture, sprite atlas
+function glNewMap() {
+  if (GL.fail || !GL.gl) return;
+  const gl = GL.gl, ew = MW / 8 + 1;
+  // heights from the elevation field: water flat, land rises, mountains climb
+  for (let j = 0; j < HH; j++) for (let i = 0; i < HW; i++) {
+    const e = elevAt(i * HSTEP, j * HSTEP);
+    heights[j * HW + i] = e < MAP.wl ? -1.2 : (e - MAP.wl) * HK + Math.max(0, e - MAP.rl) * HK * 1.6;
+  }
+  const n = HW * HH, P = new Float32Array(n * 7);
+  for (let j = 0; j < HH; j++) for (let i = 0; i < HW; i++) {
+    const k = j * HW + i, h = heights[k];
+    const hx = heights[j * HW + Math.min(HW - 1, i + 1)] - heights[j * HW + Math.max(0, i - 1)], hz = heights[Math.min(HH - 1, j + 1) * HW + i] - heights[Math.max(0, j - 1) * HW + i];
+    const nx = -hx, ny = 2 * HSTEP, nz = -hz, l = Math.hypot(nx, ny, nz);
+    P.set([i * HSTEP, h, j * HSTEP, nx / l, ny / l, nz / l, h < -1 ? 1 : 0], k * 7);
+  }
+  const idx = new Uint32Array((HW - 1) * (HH - 1) * 6); let q = 0;
+  for (let j = 0; j < HH - 1; j++) for (let i = 0; i < HW - 1; i++) { const a = j * HW + i, b = a + 1, c = a + HW, d = c + 1; idx.set([a, c, b, b, c, d], q); q += 6; }
+  if (GL.terrVao) gl.deleteVertexArray(GL.terrVao);
+  GL.terrVao = gl.createVertexArray(); gl.bindVertexArray(GL.terrVao);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
+  const T = GL.terr.p;
+  for (const [nm, sz, off] of [['aP', 3, 0], ['aN', 3, 12], ['aW', 1, 24]]) { const loc = gl.getAttribLocation(T, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, 28, off); }
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  GL.terrN = idx.length; gl.bindVertexArray(null);
+  const tex = (t, src, mip) => { gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); if (mip) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); } else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); };
+  tex(GL.texG, groundSm, true); tex(GL.texS, scorchCv, false); tex(GL.texA, makeAtlas(), true);
+  GL.tex = tex; GL.dirtyTrees = true; GL.scorchDirty = false; GL.treesAt = null;
+}
+// sprite atlas: 8 slots of 128×256 — pine, three broadleaf colours, fireball glow, smoke puff, spark
+function makeAtlas() {
+  const th = MAP.th, c = document.createElement('canvas'); c.width = 1024; c.height = 256; const g = c.getContext('2d');
+  const slot = (k, fn) => { g.save(); g.translate(k * 128, 0); fn(); g.restore(); };
+  slot(0, () => {
+    g.fillStyle = '#4a3322'; g.fillRect(58, 200, 12, 56);
+    for (let L = 0; L < 4; L++) { const by = 226 - L * 52, w = 60 - L * 12; g.fillStyle = rgb(th.pine, 0.8 + L * 0.08); g.beginPath(); g.moveTo(64 - w, by); g.lineTo(64 + w, by); g.lineTo(64, by - 92); g.closePath(); g.fill(); g.fillStyle = 'rgba(255,255,255,.08)'; g.beginPath(); g.moveTo(64 - w, by); g.lineTo(64, by - 92); g.lineTo(64 - w * 0.2, by); g.closePath(); g.fill(); if (th.snow) { g.fillStyle = 'rgba(248,250,252,.9)'; g.beginPath(); g.moveTo(64 - w * 0.45, by - 46); g.lineTo(64, by - 92); g.lineTo(64 + w * 0.42, by - 48); g.closePath(); g.fill(); } }
+  });
+  for (let k = 0; k < 3; k++) slot(1 + k, () => {
+    const col = th.leaf[k % th.leaf.length];
+    g.fillStyle = '#5a3d24'; g.fillRect(56, 150, 16, 106);
+    for (const [x, y, r, f] of [[64, 110, 56, 0.8], [44, 120, 36, 0.9], [86, 118, 38, 0.88], [60, 92, 42, 1.0], [52, 78, 22, 1.18], [80, 96, 26, 1.08]]) { g.fillStyle = rgb(col, f); g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
+    if (th.snow) { g.fillStyle = 'rgba(248,250,252,.8)'; g.beginPath(); g.arc(56, 70, 24, 0, TAU); g.fill(); }
+  });
+  slot(4, () => { const r = g.createRadialGradient(64, 192, 0, 64, 192, 62); r.addColorStop(0, 'rgba(255,250,220,1)'); r.addColorStop(0.35, 'rgba(255,180,80,.9)'); r.addColorStop(1, 'rgba(255,90,20,0)'); g.fillStyle = r; g.fillRect(0, 128, 128, 128); });
+  slot(5, () => { for (let k = 0; k < 7; k++) { const x = 64 + Math.cos(k) * 22, y = 192 + Math.sin(k * 1.7) * 18, r = g.createRadialGradient(x, y, 0, x, y, 34); r.addColorStop(0, 'rgba(70,64,58,.55)'); r.addColorStop(1, 'rgba(70,64,58,0)'); g.fillStyle = r; g.fillRect(0, 128, 128, 128); } });
+  slot(6, () => { const r = g.createRadialGradient(64, 192, 0, 64, 192, 60); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.4, 'rgba(255,255,255,.5)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 128, 128, 128); });
+  return c;
+}
+// trees near the camera as billboards (rebuilt as you drive)
+function glTrees(cx, cy) {
+  const R = 1100, out = [], i0 = Math.max(0, Math.floor((cx - R) / CS)), i1 = Math.min(TW - 1, Math.floor((cx + R) / CS)), j0 = Math.max(0, Math.floor((cy - R) / CS)), j1 = Math.min(TH - 1, Math.floor((cy + R) / CS));
+  const th = MAP.th;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    if (cells[j * TW + i] !== FOREST) continue;
+    for (let k = 0; k < 2; k++) {
+      if (k === 1 && hash(i, j, 50) < 0.45) break;
+      const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS;
+      if (hyp(x - cx, y - cy) > R) continue;
+      const pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, h = (pine ? 15 : 12) * s, w = h * 0.55;
+      const slot = pine ? 0 : 1 + Math.floor(hash(i, j, 61 + k) * 3), sh = 0.85 + 0.25 * hash(i, j, 71 + k);
+      out.push(x, heightAt(x, y) - 0.4, y, 0, w, h, slot, 1, sh, sh, sh, 1);
+    }
+  }
+  GL.treesAt = [cx, cy]; GL.treeData = new Float32Array(out); GL.treeN = out.length / 12; GL.dirtyTrees = false;
+}
+// 4×4 matrix helpers (column-major)
+function m4persp(f, a, n, fr) { const t = 1 / Math.tan(f / 2); return [t / a, 0, 0, 0, 0, t, 0, 0, 0, 0, (fr + n) / (n - fr), -1, 0, 0, 2 * fr * n / (n - fr), 0]; }
+function m4look(e, c) {
+  let zx = e[0] - c[0], zy = e[1] - c[1], zz = e[2] - c[2], l = Math.hypot(zx, zy, zz); zx /= l; zy /= l; zz /= l;
+  let xx = zz, xy = 0, xz = -zx; l = Math.hypot(xx, xy, xz) || 1; xx /= l; xz /= l;
+  const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+  return [xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0, -(xx * e[0] + xy * e[1] + xz * e[2]), -(yx * e[0] + yy * e[1] + yz * e[2]), -(zx * e[0] + zy * e[1] + zz * e[2]), 1];
+}
+function m4mul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
+function m4box(x, y, z, yaw, pitch, sx, sy, sz) { // translate · rotY(yaw) · rotZ(pitch) · scale
+  const c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+  // local +x is forward; yaw turns about up, pitch tilts the nose up
+  const fx = c * cp, fy = sp, fz = s * cp, ux = -c * sp, uy = cp, uz = -s * sp, rx = -s, rz = c;
+  return [fx * sx, fy * sx, fz * sx, 0, ux * sy, uy * sy, uz * sy, 0, rx * sz, 0, rz * sz, 0, x, y, z, 1];
+}
+function glRender(dt) {
+  const gl = GL.gl, c = $('g');
+  const W = Math.floor(V.w * V.dpr), H = Math.floor(V.h * V.dpr); if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const me = ME(), th = MAP.th, view = RADAR.view[me.lv.radar];
+  // chase camera: behind and above, looking down the road
+  GL.hd += (((me.hd - GL.hd + Math.PI) % TAU + TAU) % TAU - Math.PI) * Math.min(1, dt * 3.5);
+  const cs = Math.cos(GL.hd), sn = Math.sin(GL.hd), my = heightAt(me.x, me.y);
+  const sh = G.shake > 0 ? G.shake * 0.6 : 0;
+  const ex = me.x - cs * 30, ez = me.y - sn * 30; let ey = my + 15;
+  ey = Math.max(ey, heightAt(ex, ez) + 4, heightAt(me.x - cs * 15, me.y - sn * 15) + 6);
+  const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 45, my + 2, me.y + sn * 45];
+  const VP = m4mul(m4persp(1.05, W / H, 0.6, 4000), m4look(eye, tgt));
+  const right = [-sn, 0, cs];
+  const sky = th.snow ? [0.62, 0.68, 0.74] : MAP.theme === 'autumn' ? [0.62, 0.6, 0.56] : [0.55, 0.68, 0.78];
+  const sun = (() => { const v = [-0.45, 0.75, -0.35], l = Math.hypot(...v); return v.map(a => a / l); })();
+  gl.viewport(0, 0, W, H); gl.clearColor(...sky, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  const spect = me.alive ? 0 : 1;
+  const common = P => { gl.useProgram(P.p); gl.uniformMatrix4fv(P.u.uVP, false, VP); if (P.u.uMe) { gl.uniform3f(P.u.uMe, me.x, my, me.y); gl.uniform1f(P.u.uView, view); gl.uniform3f(P.u.uCam, ...eye); gl.uniform3f(P.u.uSky, ...sky); gl.uniform1f(P.u.uSpect, spect); } if (P.u.uSun) gl.uniform3f(P.u.uSun, ...sun); };
+  if (GL.scorchDirty) { GL.tex(GL.texS, scorchCv, false); GL.scorchDirty = false; }
+  // terrain
+  common(GL.terr);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL.texG); gl.uniform1i(GL.terr.u.uG, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, GL.texS); gl.uniform1i(GL.terr.u.uS, 1);
+  gl.uniform2f(GL.terr.u.uMap, MW, MH); gl.uniform1f(GL.terr.u.uT, G.t);
+  gl.bindVertexArray(GL.terrVao); gl.drawElements(gl.TRIANGLES, GL.terrN, gl.UNSIGNED_INT, 0);
+  // launchers: yours, and rivals you can see
+  common(GL.mesh); gl.bindVertexArray(GL.cube); gl.uniform1f(GL.mesh.u.uEm, 0);
+  const box = (M, col, em = 0) => { gl.uniformMatrix4fv(GL.mesh.u.uM, false, M); gl.uniform3f(GL.mesh.u.uCol, ...col); gl.uniform1f(GL.mesh.u.uEm, em); gl.drawArrays(gl.TRIANGLES, 0, 36); };
+  const hex = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+  const launcher = p => {
+    const y = heightAt(p.x, p.y), c = hex(pcol(p)), a = p.hd, ca = Math.cos(a), sa = Math.sin(a), dark = p.alive ? [0.12, 0.14, 0.12] : [0.06, 0.06, 0.06], col = p.alive ? c : [0.2, 0.2, 0.2];
+    const pitch = Math.atan2(heightAt(p.x + ca * 4, p.y + sa * 4) - heightAt(p.x - ca * 4, p.y - sa * 4), 8);
+    box(m4box(p.x, y + 0.9, p.y, a, pitch, 9, 1.2, 5), dark);
+    box(m4box(p.x - ca * 0.6, y + 2.2, p.y - sa * 0.6, a, pitch, 6.4, 1.7, 4.2), col);
+    box(m4box(p.x + ca * 3.4, y + 2.2, p.y + sa * 3.4, a, pitch, 2, 2.2, 4.2), col.map(v => v * 0.8));
+    box(m4box(p.x - ca * 0.9, y + 3.6, p.y - sa * 0.9, a, pitch + 0.22, 5.2, 1.3, 2.6), [0.86, 0.88, 0.84]);
+    box(m4box(p.x + ca * 1.7, y + 4.15, p.y + sa * 1.7, a, pitch + 0.22, 0.4, 1.0, 2.2), [0.25, 0.25, 0.24]);
+  };
+  for (const p of G.players) { if (p !== me && !(spect || hyp(p.x - me.x, p.y - me.y) < view) || (G.mode === 'online' && p !== me && !p.known)) continue; if (p === me && !me.alive) continue; launcher(p); }
+  if (!me.alive) launcher(me);
+  // missiles you can see
+  const bb = [];
+  for (const m of G.missiles) {
+    const u = m.t / m.T, x = lerp(m.sx, m.tx, u), z = lerp(m.sy, m.ty, u), d = hyp(m.tx - m.sx, m.ty - m.sy), h = lerp(heightAt(m.sx, m.sy), heightAt(m.tx, m.ty), u) + d * 0.22 * 4 * u * (1 - u) + 3;
+    if (!spect && hyp(x - me.x, z - me.y) > view * 1.6 && m.o !== G.me) continue;
+    const vy = d * 0.22 * 4 * (1 - 2 * u) / m.T, vh = d / m.T;
+    box(m4box(x, h, z, Math.atan2(m.ty - m.sy, m.tx - m.sx), Math.atan2(vy, vh), 4, 0.8, 0.8), [0.95, 0.95, 0.9], 1);
+    bb.push(x, h, z, 0, 6, 6, 4, 0, 1, 0.8, 0.5, 0.9);
+  }
+  // incoming shots aimed near you: a red ring on the ground before they land
+  const rings = [];
+  for (const m of G.missiles) {
+    if (m.o === G.me || !me.alive) continue;
+    const left = m.T - m.t, warn = RADAR.warn[me.lv.radar];
+    if (left < warn && hyp(m.tx - me.x, m.ty - me.y) < m.r + view) rings.push([m.tx, m.ty, m.r, 1 - left / warn]);
+  }
+  for (const f of G.fx) if (f.k === 'boom' && hyp(f.x - me.x, f.y - me.y) < 2500) {
+    const u = f.t / 1.2, y = heightAt(f.x, f.y);
+    bb.push(f.x, y + f.r * 0.25, f.y, 0, f.r * 1.4 * Math.min(1, f.t * 5 + 0.2), f.r * 1.2 * Math.min(1, f.t * 5 + 0.2), 4, 0, 1, 1, 1, Math.max(0, 1 - u * 1.3));
+    rings.push([f.x, f.y, f.r * (0.4 + u * 1.2), -Math.max(0, 0.8 - u)]);
+  }
+  for (const f of G.fx) if (f.k === 'smoke' && hyp(f.x - me.x, f.y - me.y) < 2500) { const a = Math.max(0, 1 - f.t / f.life); bb.push(f.x, heightAt(f.x, f.y) + 2 + f.t * 6, f.y, 0, f.s * 2.4 * (1 + f.t), f.s * 2.4 * (1 + f.t), 5, 0, 1, 1, 1, a * 0.9); }
+  // trees
+  if (GL.dirtyTrees || !GL.treesAt || hyp(GL.treesAt[0] - me.x, GL.treesAt[1] - me.y) > 120) glTrees(me.x, me.y);
+  common(GL.spr); gl.uniform3f(GL.spr.u.uR, ...right);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, GL.texA); gl.uniform1i(GL.spr.u.uA, 2);
+  gl.bindVertexArray(GL.sprVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
+  if (GL.treeN) { gl.uniform1f(GL.spr.u.uFog, 1); gl.uniform1f(GL.spr.u.uTest, 1); gl.bufferData(gl.ARRAY_BUFFER, GL.treeData, gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, GL.treeN); }
+  // rings on the ground
+  if (rings.length) {
+    common(GL.ring); gl.bindVertexArray(GL.ringVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    for (const [x, z, r, k] of rings) {
+      const seg = 72, v = [], wdt = Math.max(1.5, r * 0.04);
+      for (let s = 0; s <= seg; s++) { const a = s / seg * TAU, ca = Math.cos(a), sa = Math.sin(a); for (const [rr, al] of [[r - wdt, 0], [r, 1], [r + wdt * 0.3, 0.3]]) { const px = x + ca * rr, pz = z + sa * rr; v.push(px, heightAt(px, pz) + 0.8, pz, al); } }
+      const tri = []; for (let s = 0; s < seg; s++) for (let L = 0; L < 2; L++) { const a = s * 3 + L, b = a + 1, c = a + 3, d = c + 1; tri.push(...v.slice(a * 4, a * 4 + 4), ...v.slice(c * 4, c * 4 + 4), ...v.slice(b * 4, b * 4 + 4), ...v.slice(b * 4, b * 4 + 4), ...v.slice(c * 4, c * 4 + 4), ...v.slice(d * 4, d * 4 + 4)); }
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(tri), gl.DYNAMIC_DRAW);
+      if (k >= 0) gl.uniform4f(GL.ring.u.uCol, 1, 0.25, 0.18, 0.45 + 0.5 * k + 0.15 * Math.sin(G.t * 20)); else gl.uniform4f(GL.ring.u.uCol, 1, 0.95, 0.85, -k);
+      gl.drawArrays(gl.TRIANGLES, 0, tri.length / 4);
+    }
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  // glows and smoke (blended, no depth write)
+  if (bb.length) {
+    common(GL.spr); gl.uniform3f(GL.spr.u.uR, ...right); gl.uniform1i(GL.spr.u.uA, 2); gl.uniform1f(GL.spr.u.uFog, 0); gl.uniform1f(GL.spr.u.uTest, 0);
+    gl.bindVertexArray(GL.sprVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(bb), gl.DYNAMIC_DRAW);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, bb.length / 12);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  gl.bindVertexArray(null);
+  GL.VP = VP;
+}
+// world → screen for HUD labels in drive view
+function glProject(x, h, y) { const M = GL.VP; if (!M) return null; const cx = M[0] * x + M[4] * h + M[8] * y + M[12], cy = M[1] * x + M[5] * h + M[9] * y + M[13], cw = M[3] * x + M[7] * h + M[11] * y + M[15]; if (cw <= 0.1) return null; return [(cx / cw * 0.5 + 0.5) * V.w, (1 - (cy / cw * 0.5 + 0.5)) * V.h]; }
+
 function drawLauncher(p, col, alpha = 1) {
   ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.hd); const k = Math.max(1, 0.75 / V.s); ctx.scale(k, k); ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(-9, -6, 20, 14);
@@ -754,18 +1002,30 @@ function renderRivals() {
 }
 function renderShop() {
   const me = ME();
-  $('shop').innerHTML = UP.map((u, i) => {
+  $('shopList').innerHTML = UP.map((u, i) => {
     const l = me.lv[u.k], max = l >= u.c.length;
     return `<button class="up" data-k="${u.k}"><span class="ic">${u.ic}</span><span><span class="nm">${u.nm}</span><span class="nx">${max ? u.f(u.v[l]) : '→ ' + u.f(u.v[l + 1])}</span><span class="pips">${u.v.map((_, j) => `<i class="${j <= l ? 'on' : ''}"></i>`).join('')}</span></span><span class="pr">${max ? 'MAX' : '$' + u.c[l].toLocaleString()}</span></button>`;
   }).join('');
-  $('shop').querySelectorAll('.up').forEach(b => b.onclick = () => buy(ME(), b.dataset.k));
+  $('shopList').querySelectorAll('.up').forEach(b => b.onclick = () => buy(ME(), b.dataset.k));
   refreshShop();
 }
 function refreshShop() {
   if (!G) return; const me = ME();
-  $('shop').querySelectorAll('.up').forEach(b => { const u = UP.find(u => u.k === b.dataset.k), l = me.lv[u.k], max = l >= u.c.length; b.classList.toggle('max', max); b.classList.toggle('poor', !max && me.money < u.c[l]); b.disabled = max || me.money < u.c[l]; });
+  $('shopMoney').textContent = '$' + Math.floor(me.money).toLocaleString();
+  $('shopList').querySelectorAll('.up').forEach(b => { const u = UP.find(u => u.k === b.dataset.k), l = me.lv[u.k], max = l >= u.c.length; b.classList.toggle('max', max); b.classList.toggle('poor', !max && me.money < u.c[l]); b.disabled = max || me.money < u.c[l]; });
 }
-const toggleShop = on => { const el = $('shop'); el.classList.toggle('hidden', on === undefined ? !el.classList.contains('hidden') : !on); };
+// three exclusive modes: driving, the map (to fire), the upgrade shop
+function setView(v) {
+  if (!G) return; G.view = v;
+  document.body.classList.toggle('driving', v === 'drive');
+  $('bMap').classList.toggle('on', v === 'map'); $('bMap').querySelector('.t').textContent = v === 'map' ? 'Drive' : 'Map';
+  $('shop').classList.toggle('hidden', v !== 'shop');
+  if (v !== 'map') AIM.on = false;
+  if (v === 'map') { const me = ME(); CAM.z = clamp(Math.min(V.w, V.h) / 1700, zFit(), 3.2); centerOn(me.x, me.y, false); }
+  if (v === 'shop') renderShop();
+}
+const toggleShop = on => { if (!G || !ME().alive || G.over) return; const open = on === undefined ? G.view !== 'shop' : on; if (open) setView('shop'); else if (G.view === 'shop') setView('drive'); };
+const toggleMap = on => { if (!G || G.over || !ME().alive) return; const open = on === undefined ? G.view !== 'map' : on; setView(open ? 'map' : 'drive'); };
 
 // ================= input =================
 // WASD drives, the mouse aims and clicks fire anywhere on the map. Arrow keys, screen edges, right-drag or the
@@ -773,7 +1033,7 @@ const toggleShop = on => { const el = $('shop'); el.classList.toggle('hidden', o
 const KEYS = new Set(), AIM = { on: false, w: [0, 0], danger: false, t: 0 }, STK = { id: null, dx: 0, dy: 0 }, MOUSE = { x: 0, y: 0, in: false, drag: null, mini: false };
 function inputVec() {
   let x = 0, y = 0;
-  if (KEYS.has('KeyW')) y -= 1; if (KEYS.has('KeyS')) y += 1; if (KEYS.has('KeyA')) x -= 1; if (KEYS.has('KeyD')) x += 1;
+  if (KEYS.has('KeyW') || (G && G.view === 'drive' && KEYS.has('ArrowUp'))) y -= 1; if (KEYS.has('KeyS') || (G && G.view === 'drive' && KEYS.has('ArrowDown'))) y += 1; if (KEYS.has('KeyA') || (G && G.view === 'drive' && KEYS.has('ArrowLeft'))) x -= 1; if (KEYS.has('KeyD') || (G && G.view === 'drive' && KEYS.has('ArrowRight'))) x += 1;
   if (STK.id !== null) { x = STK.dx; y = STK.dy; }
   if (TEST && window.BF && BF._mv) [x, y] = BF._mv;
   return [x, y];
@@ -781,12 +1041,14 @@ function inputVec() {
 addEventListener('keydown', e => {
   KEYS.add(e.code);
   if (!G || !$('title').classList.contains('hidden')) return;
-  if (e.code === 'KeyB' || e.code === 'Tab') { e.preventDefault(); toggleShop(); }
-  if (/^Digit[1-6]$/.test(e.code)) buy(ME(), UP[+e.code[5] - 1].k);
-  if (e.code === 'Space' || e.code === 'KeyC') { const me = ME(); centerOn(me.x, me.y, true); }
+  if (e.repeat) return;
+  if (e.code === 'KeyB') toggleShop();
+  if (e.code === 'KeyM' || e.code === 'Tab') { e.preventDefault(); toggleMap(); }
+  if (/^Digit[1-6]$/.test(e.code) && G.view === 'shop') buy(ME(), UP[+e.code[5] - 1].k);
+  if ((e.code === 'Space' || e.code === 'KeyC') && G.view === 'map') { const me = ME(); centerOn(me.x, me.y, false); }
   if (e.code === 'Equal' || e.code === 'NumpadAdd') zoomAt(1.2); if (e.code === 'Minus' || e.code === 'NumpadSubtract') zoomAt(1 / 1.2);
-  if (e.code === 'Escape') { if (!$('shop').classList.contains('hidden')) toggleShop(false); else if (!G.over) pauseMenu(!$('pause').classList.contains('hidden') ? false : true); }
-  if (e.code === 'KeyM') setSound(SET.sound ? 0 : 1);
+  if (e.code === 'Escape') { if (G.view === 'shop') toggleShop(false); else if (G.view === 'map' && ME().alive && !G.over) toggleMap(false); else if (!G.over) pauseMenu(!$('pause').classList.contains('hidden') ? false : true); }
+  if (e.code === 'KeyN') setSound(SET.sound ? 0 : 1);
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => KEYS.delete(e.code));
@@ -795,20 +1057,20 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('mousemove', e => {
   MOUSE.x = e.clientX; MOUSE.y = e.clientY; MOUSE.in = true;
   if (MOUSE.drag) { panBy(-(e.clientX - MOUSE.drag.x) / CAM.z, -(e.clientY - MOUSE.drag.y) / CAM.z); MOUSE.drag.x = e.clientX; MOUSE.drag.y = e.clientY; return; }
-  if (!G) return; AIM.on = true; AIM.w = s2w(e.clientX, e.clientY);
+  if (!G || G.view !== 'map') return; AIM.on = true; AIM.w = s2w(e.clientX, e.clientY);
 });
 cv.addEventListener('mouseleave', () => { AIM.on = false; MOUSE.in = false; });
 document.addEventListener('mouseleave', () => { MOUSE.in = false; });
 cv.addEventListener('mousedown', e => {
-  if (!G || G.paused) return; AUD.init(); toggleShop(false);
+  if (!G || G.paused || G.view !== 'map') return; AUD.init();
   if (e.button === 1 || e.button === 2) { e.preventDefault(); MOUSE.drag = { x: e.clientX, y: e.clientY }; return; }
   if (e.button !== 0) return;
   AIM.w = s2w(e.clientX, e.clientY); tryFire();
 });
 addEventListener('mouseup', () => { MOUSE.drag = null; });
-cv.addEventListener('wheel', e => { if (!G && !TEST) return; e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
+cv.addEventListener('wheel', e => { if (!G || G.view !== 'map') return; e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
 function tryFire() {
-  const me = ME(); if (!me.alive || G.over) return;
+  const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
   fire(me, ...AIM.w);
 }
@@ -818,7 +1080,7 @@ stick.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); cons
 function stkMove(t) { const r = stick.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const l = hyp(dx, dy); if (l > 1) { dx /= l; dy /= l; } STK.dx = dx; STK.dy = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; }
 let pinch = null, tapArm = null;
 cv.addEventListener('touchstart', e => {
-  if (!G || G.paused) return; AUD.init(); toggleShop(false);
+  if (!G || G.paused || G.view !== 'map') return; AUD.init();
   for (const t of e.changedTouches) TCH.set(t.identifier, { x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, moved: 0, t0: performance.now() });
   if (TCH.size === 2) { const [a, b] = [...TCH.values()]; pinch = { d: hyp(a.x - b.x, a.y - b.y) }; }
 }, { passive: true });
@@ -855,6 +1117,8 @@ $('bFriend').onclick = () => drawer('friend'); $('bHow').onclick = () => drawer(
 const cpuMatch = () => newMatch({ mode: 'cpu', seed: (Math.random() * 1e9) | 0, n: 1 + SET.rivals });
 $('bCpu').onclick = () => { mpLeave(); cpuMatch(); };
 $('bShop').onclick = () => toggleShop();
+$('bMap').onclick = () => toggleMap();
+$('bShopClose').onclick = () => toggleShop(false);
 $('bPause').onclick = () => pauseMenu(true);
 $('bResume').onclick = () => pauseMenu(false);
 $('bQuit').onclick = () => { if (G && G.mode === 'online') { mpSend({ k: 'quit', from: G.me }); mpLeave(); } toMenu(); };
@@ -964,6 +1228,31 @@ const AUD = {
   lose() { [392, 330, 262, 196].forEach((f, i) => this.tone(f, f * 0.98, 0.45, 'triangle', 0.14, i * 0.15)); }
 };
 
+// ================= drive-view HUD =================
+function driveOverlay() {
+  screenXf(); ctx.clearRect(0, 0, V.w, V.h);
+  const me = ME();
+  // rivals you can see get a name tag
+  ctx.font = '800 12px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const p of G.players) { if (p === me || !p.alive || hyp(p.x - me.x, p.y - me.y) > RADAR.view[me.lv.radar] || (G.mode === 'online' && !p.known)) continue; const s = glProject(p.x, heightAt(p.x, p.y) + 8, p.y); if (!s) continue; ctx.fillStyle = pcol(p); ctx.fillText(pname(p), s[0], s[1]); }
+  // launch flashes: an arrow at the edge of the screen pointing the way
+  for (const f of G.flashes) {
+    const a = clamp(1 - f.t / f.life, 0, 1), ang = Math.atan2(f.y - me.y, f.x - me.x) - GL.hd, d = hyp(f.x - me.x, f.y - me.y);
+    const sx = V.w / 2 + Math.sin(ang) * Math.min(V.w, V.h) * 0.38, sy = V.h / 2 - Math.cos(ang) * Math.min(V.w, V.h) * 0.3;
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang); ctx.globalAlpha = a; ctx.fillStyle = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a';
+    ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(10, 6); ctx.lineTo(-10, 6); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.globalAlpha = a; ctx.fillStyle = '#fff'; ctx.fillText((d / 1000).toFixed(1) + ' km', sx, sy + 20); ctx.globalAlpha = 1;
+  }
+}
+function hudStatus() {
+  const me = ME(), el = $('status'); let t = '', ready = false;
+  if (!me.alive || G.over) t = me.alive ? '' : 'Out · watching the rest';
+  else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · you're stopped while the map is open` : 'Click to fire · you\'re stopped while the map is open';
+  else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
+  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace('Click', 'Tap');
+  if (el.textContent !== t) el.textContent = t;
+  el.classList.toggle('ready', ready); el.classList.toggle('hidden', !t);
+}
 // ================= loop =================
 let last = 0;
 function frame(ts) {
@@ -971,7 +1260,12 @@ function frame(ts) {
   const dt = Math.min(0.05, (ts - (last || ts)) / 1000); last = ts;
   if (!TEST || Q.has('run')) { step(dt); camStep(dt); }
   if (AIM.t > 0) { AIM.t -= dt; if (AIM.t <= 0 && document.body.classList.contains('touch')) AIM.on = false; }
-  if (G) { draw(); drawMini(dt); } else drawBackdrop(ts / 1000);
+  if (G) {
+    const twoD = G.view === 'map' || GL.fail || !ME().alive || G.over;
+    $('g').style.visibility = twoD ? 'hidden' : 'visible';
+    if (twoD) draw(); else { glRender(dt); driveOverlay(); drawMini(dt); }
+    hudStatus();
+  } else drawBackdrop(ts / 1000);
 }
 function drawBackdrop(t) {
   screenXf(); ctx.fillStyle = '#070b08'; ctx.fillRect(0, 0, V.w, V.h);
@@ -985,7 +1279,9 @@ function drawBackdrop(t) {
   }
   ctx.globalAlpha = 1;
 }
-layout(); setSound(SET.sound); setDiff(SET.diff); setRivals(SET.rivals); menuBackdrop();
+layout(); setSound(SET.sound); setDiff(SET.diff); setRivals(SET.rivals);
+try { glInitDrive(); } catch (e) { console.error(e); GL.fail = true; }
+menuBackdrop();
 if (Q.get('room')) { drawer('friend'); $('roomIn').value = Q.get('room').toUpperCase(); mpConnect(Q.get('room').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 5)); }
 requestAnimationFrame(frame);
 
@@ -1001,7 +1297,8 @@ window.BF = {
   give(n) { ME().money += n; },
   buy(k) { return buy(ME(), k); },
   put(i, x, y) { G.players[i].x = x; G.players[i].y = y; },
-  freezeAI(on) { BF._frozen = on; }
+  freezeAI(on) { BF._frozen = on; },
+  view(v) { setView(v); }
 };
 const _aiStep = aiStep; aiStep = (ai, dt) => { if (!BF._frozen) _aiStep(ai, dt); else { G.players[ai.i].mx = G.players[ai.i].my = 0; } };
 </script>

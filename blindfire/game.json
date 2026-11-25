@@ -1,7 +1,7 @@
 {
   "title": "Blindfire",
-  "description": "Artillery in the dark on a scrolling map that's different every match: new lakes, rivers, forests, mountains and season. Drive your launcher and click anywhere to fire at rivals you can't see. Every landing is rated Cold to Scorching and pays more the closer it was; spend it on bigger warheads, faster reloads, radar and armor until one blast covers half the map. Land inside your own blast and you're out. Play the CPU (1\u20135 rivals) or up to six players online with a room code.",
+  "description": "Artillery in the dark across a big 3D map that's new every match: hills, lakes, rivers, forests and a season. Drive your launcher from behind, then stop and open the map to fire blind at rivals you can't see. Every landing is rated Cold to Scorching and pays more the closer it was. Upgrades are their own menu, and the match doesn't wait while you're in the map or the shop. Land inside your own blast and you're out. Play the CPU (1-5 rivals) or up to six players online.",
   "category": "Strategy",
-  "controls": "WASD drive, click to fire, arrow keys / screen edges / right-drag / minimap to scroll, wheel to zoom, Space back to your launcher, B upgrades (1-6 buy), Esc menu, M sound. Touch: stick drives, tap the map to fire, drag to scroll, pinch to zoom.",
-  "requirements": "Any modern browser. Playing a friend needs an internet connection."
+  "controls": "Drive: W/S throttle, A/D steer, M map, B upgrades. Map: click to fire, drag/arrow keys/wheel to look around, M back to driving. Esc menu, N sound. Touch: stick drives; Map button then tap to fire; Upgrades button.",
+  "requirements": "WebGL2 browser. Playing online needs an internet connection."
 }
