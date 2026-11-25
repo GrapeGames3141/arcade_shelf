@@ -92,6 +92,12 @@
   .card h1 { margin:0; font:700 clamp(38px,9vw,64px)/1 Georgia, "Times New Roman", serif; letter-spacing:.08em; color:#f3dca4;
     text-shadow:0 2px 0 #6b3d16, 0 6px 30px rgba(255,140,40,.35); }
   .card h2 { margin:0 0 6px; font:700 34px/1.1 Georgia, serif; color:#f3dca4; }
+  .mp { margin:14px auto 0; padding:12px 12px 4px; max-width:470px; border-top:1px solid rgba(255,224,165,.18); }
+  .mpt { font:700 15px/1.2 Georgia,serif; color:#f3dca4; letter-spacing:.04em; }
+  .mpt span { font:700 10px/1 system-ui; letter-spacing:.12em; text-transform:uppercase; color:#1b140e; background:var(--gold); border-radius:4px; padding:2px 5px; vertical-align:2px; margin-left:6px; }
+  #mpCode { width:96px; text-align:center; text-transform:uppercase; font:700 16px/1 ui-monospace,monospace; letter-spacing:.18em; padding:9px 6px; border-radius:8px; border:1px solid rgba(255,224,165,.35); background:#1d1712; color:#ffe6a8; }
+  #mpStatus { margin-top:6px; min-height:18px; }
+  #mpStatus b { color:#ffe6a8; letter-spacing:.12em; }
   .card .sub { margin:8px 0 16px; color:#e5d3ad; font-size:14px; letter-spacing:.04em; }
   .card ul { text-align:left; margin:0 auto 14px; padding-left:18px; color:#e3d6bd; font-size:13px; max-width:470px; }
   .card li { margin:3px 0; } .card li b { color:var(--gold); }
@@ -190,6 +196,11 @@
       <button class="choice" data-d="0">Easy</button><button class="choice on" data-d="1">Normal</button><button class="choice" data-d="2">Hard</button>
     </div>
     <div class="row"><button class="go" id="bStart">Light the hearth</button></div>
+    <div class="mp" id="mpBox">
+      <div class="mpt">Play a friend online <span>beta</span></div>
+      <div class="row"><button class="choice" id="bMpNew">Create a room</button><input id="mpCode" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code"><button class="choice" id="bMpJoin">Join</button></div>
+      <div class="hint" id="mpStatus">One of you creates a room and shares the code; the other joins with it.</div>
+    </div>
     <div class="hint" id="ctlHint">Left-click or drag to select · Right-click to gather, build, attack or move · Arrow keys or screen edges to scroll · Wheel to zoom · Age of Empires keys: H Hearth Hall (then Q for a villager) · . idle villager · , idle soldier · Q–T, A–G, Z–B command grid · Ctrl+1–9 groups · F3 pause · change any key in the pause menu (Hotkeys)</div>
   </div>
 </div>
@@ -1638,7 +1649,7 @@ function tick(dt) {
   separate();
   for (const b of G.blds.slice()) if (!b.dead) updBld(b, dt);
   updProj(dt);
-  aiUpdate(dt, 1); if (G.ais[0]) aiUpdate(dt, 0);
+  aiUpdate(dt, 1); if (G.ais[0]) aiUpdate(dt, 0);   // a remote player's team has no AI (G.ais[1] is null)
   if (G.units.some(u => u.dead)) G.units = G.units.filter(u => !u.dead);
   for (const d of G.decals) d.t += dt;
   if (G.tick % 30 === 0) G.decals = G.decals.filter(d => d.k === 'stump' || d.k === 'rubble' ? d.t < 400 : d.k === 'body' ? d.t < 30 : d.t < 12);
@@ -2955,6 +2966,9 @@ function drawMini() {
 const $ = id => document.getElementById(id);
 const UI = { place: null, hover: null, wallLine: null, wallStart: null, marks: [], pings: [], amove: false, boxMode: false, lastAlert: null, idleIx: 0, infoKey: '', cmdKey: '' };
 let SEL = [];
+// Online play (proof of concept): the first player in a room hosts and runs the real game; the second sends orders
+// and draws snapshots. Messages go through the Arcade Shelf relay on Cloudflare (services/arcade-relay).
+const MP = { role: null, ws: null, seat: -1, code: '', quiet: false, full: true, last: null, sendT: 0, started: false };
 function setSel(list, keepPlace) {
   for (const e of SEL) e.sel = false;
   SEL = list.filter(e => e && !e.dead);
@@ -3074,7 +3088,7 @@ function drawClock() {
 
 // HUD -------------------------------------------------------------------------
 const fmt = n => Math.floor(n).toLocaleString('en-US');
-function flashRes(k) { const el = $('r-' + k); if (!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+function flashRes(k) { if (MP.quiet) return; const el = $('r-' + k); if (!el) return; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 function noRes(c) { const tm = G.teams[0]; for (const k in c) if (tm.res[k] < c[k]) flashRes(k); sfx('bad'); }
 function updTop() {
   { const n = G.units.filter(u => u.team === 0 && u.type === 'villager' && !u.dead && u.st === 'idle').length; $('idleN').textContent = n; $('bIdle').classList.toggle('zero', !n); $('bIdle').title = `Next idle worker (.) · ${n} idle`; }
@@ -3158,7 +3172,7 @@ function buildCmds(force) {
       const el = document.createElement('button'); el.className = 'btn'; el.dataset.id = c.id;
       const hk = KEYMAP['slot' + box.children.length];
       el.innerHTML = `<img src="${c.icon}" alt=""><span class="ql"></span><i class="bar" style="width:0"></i>${hk ? `<b class="hk">${keyLabel(hk)}</b>` : ''}`;
-      el.addEventListener('click', e => { e.stopPropagation(); if (ghostClick()) return; const cur = cmdList().find(x => x.id === c.id); if (!cur) return; if (cur.lock) { sfx('bad'); return; } cur.act(); updCmdState(); });
+      el.addEventListener('click', e => { e.stopPropagation(); if (ghostClick()) return; const cur = cmdList().find(x => x.id === c.id); if (!cur) return; if (cur.lock) { sfx('bad'); return; } if (MP.role === 'client' && !/^(build|back|help|amove|b:)/.test(cur.id)) { if (cur.poor) { noRes(cur.tip.cost || {}); return; } mpSend({ k: 'c', c: 'btn', id: cur.id, page: UI.cmdPage, sel: SEL.map(x => x.id) }); sfx('click'); return; } cur.act(); updCmdState(); });
       el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') showTip(el, c.id); });
       el.addEventListener('pointerleave', hideTip);
       el.addEventListener('touchstart', () => { showTip(el, c.id); clearTimeout(UI.tipT); UI.tipT = setTimeout(hideTip, 1800); }, { passive: true });
@@ -3255,7 +3269,7 @@ function updInfo() {
   } else {
     const d = box.querySelector('#idesc'); if (d) d.outerHTML = html;
   }
-  box.querySelectorAll('.qi').forEach(el => el.onpointerdown = ev => { ev.stopPropagation(); if (ghostClick()) return; cancelQueue(e, +el.dataset.i); sfx('click'); });
+  box.querySelectorAll('.qi').forEach(el => el.onpointerdown = ev => { ev.stopPropagation(); if (ghostClick()) return; if (MP.role === 'client') mpSend({ k: 'c', c: 'cq', b: e.id, i: +el.dataset.i }); else cancelQueue(e, +el.dataset.i); sfx('click'); });
 }
 function drawPortrait(e) {
   const g = portrait.getContext('2d'); g.clearRect(0, 0, 128, 128);
@@ -3274,7 +3288,7 @@ function drawPortrait(e) {
 }
 // Alerts ----------------------------------------------------------------------
 function alertMsg(text, cls = '', pos = null) {
-  if (TEST && !window.HF_LOG) return;
+  if (MP.quiet || (TEST && !window.HF_LOG)) return;
   const box = $('alerts'), el = document.createElement('div');
   el.className = 'alert ' + cls; el.textContent = text;
   if (pos) { el.onclick = () => centerOn(pos.x, pos.y); UI.lastAlert = pos; UI.pings.push({ x: pos.x, y: pos.y, t: G.time, c: cls }); }
@@ -3291,7 +3305,7 @@ function underAttack(t, att) {
   alertMsg(msg, 'bad', { x: t.x, y: t.y }); sfx('alarm');
 }
 let bannerT = 0;
-function banner(t, s) { if (TEST && !window.HF_LOG) return; $('bannerT').textContent = t; $('bannerS').textContent = s || ''; $('banner').classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => $('banner').classList.remove('show'), 3200); }
+function banner(t, s) { if (MP.quiet || (TEST && !window.HF_LOG)) return; $('bannerT').textContent = t; $('bannerS').textContent = s || ''; $('banner').classList.add('show'); clearTimeout(bannerT); bannerT = setTimeout(() => $('banner').classList.remove('show'), 3200); }
 function centerOn(x, y) { cam.x = x; cam.y = y; clampCam(); }
 function resetView() { const b = G.teams[0].tc || G.blds[0]; cam.z = matchMedia('(pointer: coarse)').matches ? 1.3 : window.innerWidth < 700 ? 1.15 : 1.05; if (b) centerOn(b.x + 40, b.y - 30); }
 
@@ -3323,6 +3337,12 @@ function confirmPlace() {
 }
 function cancelPlace() { UI.place = null; UI.ghostCell = null; UI.wallLine = null; G.uiDirty = true; sfx('click'); }
 function placeAt(type, cells) {
+  if (MP.role === 'client') {
+    if (!myUnits().some(u => u.type === 'villager')) { UI.place = null; return false; }
+    if (!cells.some(([x, y]) => canPlace(type, x, y, 0))) { sfx('bad'); return false; }
+    if (!afford(G.teams[0], BLD[type].cost)) { noRes(BLD[type].cost); return false; }
+    mpSend({ k: 'c', c: 'place', type, cells, sel: SEL.map(e => e.id) }); sfx('place'); return true;
+  }
   const tm = G.teams[0], vills = myUnits().filter(u => u.type === 'villager');
   if (!vills.length) { UI.place = null; return false; }
   let first = null, placed = 0;
@@ -3384,6 +3404,7 @@ function pickAt(wx, wy, rad = 10) {
   return null;
 }
 function command(wx, wy, amove) {
+  if (MP.role === 'client') { mpOrder(wx, wy, amove); return; }
   const units = myUnits();
   if (!units.length) {
     const b = selected()[0];
@@ -3408,7 +3429,7 @@ function command(wx, wy, amove) {
 }
 function clickSelect(wx, wy, add, dbl) {
   const e = pickAt(wx, wy, 9 / cam.z);
-  if (UI.help) { UI.help = false; G.uiDirty = true; if (e && e.ent === 'u' && e.team === 0 && e.type === 'villager' && !SEL.includes(e)) { helpWorker(myUnits(), e); return; } }
+  if (UI.help) { UI.help = false; G.uiDirty = true; if (e && e.ent === 'u' && e.team === 0 && e.type === 'villager' && !SEL.includes(e)) { if (MP.role === 'client') mpSend({ k: 'c', c: 'help', sel: SEL.map(x => x.id), t: e.id }); else helpWorker(myUnits(), e); return; } }
   if (!e) { if (!add) setSel([]); return; }
   if (dbl && e.ent === 'u' && e.team === 0) {
     const a = toWorld(0, 0), b = toWorld(VW, VH);
@@ -3489,9 +3510,9 @@ function runAction(id, e) {
     case 'faster': if (G.speed < 2) { G.speed = G.speed === 1 ? 1.5 : 2; $('bSpeed').textContent = G.speed + '×'; } return true;
     case 'slower': if (G.speed > 1) { G.speed = G.speed === 2 ? 1.5 : 1; $('bSpeed').textContent = G.speed + '×'; } return true;
     case 'home': { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } return true; }
-    case 'bell': if (G.teams[0].tc) ringBell(0, !G.bell[0]); return true;
+    case 'bell': if (MP.role === 'client') mpSend({ k: 'c', c: 'bell' }); else if (G.teams[0].tc) ringBell(0, !G.bell[0]); return true;
     case 'alert': e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); return true;
-    case 'del': if (SEL.length === 1 && SEL[0].ent === 'b' && SEL[0].team === 0 && !SEL[0].done) cancelBuilding(SEL[0]); else if (myUnits().length === 1) killUnit(myUnits()[0], null); return true;
+    case 'del': if (MP.role === 'client') { mpSend({ k: 'c', c: 'del', sel: SEL.map(x => x.id) }); return true; } if (SEL.length === 1 && SEL[0].ent === 'b' && SEL[0].team === 0 && !SEL[0].done) cancelBuilding(SEL[0]); else if (myUnits().length === 1) killUnit(myUnits()[0], null); return true;
     case 'zin': cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX); clampCam(); return true;
     case 'zout': cam.z = clamp(cam.z / 1.15, ZMIN, ZMAX); clampCam(); return true;
     case 'pause': $('bMenu').click(); return true;
@@ -3727,11 +3748,212 @@ function endGame(win) {
   $('endStats').innerHTML = [['Days', G.day], ['Time', `${mins}m ${Math.floor(G.clock % 60)}s`], ['Era', ERA_NAMES[tm.era]], ['Difficulty', DIFF[G.diff].name], ['Trained', s.trained], ['Built', s.built], ['Enemies slain', s.kills], ['People lost', s.lost], ['Gathered', fmt(s.gathered)], ['Rival era', ERA_NAMES[G.teams[1].era]]].map(([a, b]) => `<div>${a} <b>${b}</b></div>`).join('');
   $('end').hidden = false; sfx(win ? 'win' : 'lose');
 }
-function startGame() {
+// Online play -----------------------------------------------------------------------
+const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://relay.thearcadeshelf.com');
+const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const mpStatus = html => { $('mpStatus').innerHTML = html; };
+function mpSend(o) { if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
+function mpLeave() { if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (err) { /* closed */ } } MP.ws = null; MP.role = null; MP.started = false; if (G) G.mp = null; clearInterval(MP.bg); }
+function mpConnect(code) {
+  mpLeave(); MP.code = code; MP.seat = -1;
+  let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=empire-rush&room=' + code); } catch (err) { mpStatus('Could not reach the game server.'); return; }
+  MP.ws = ws; mpStatus(`Connecting to room <b>${code}</b>…`);
+  ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (err) { return; } mpMsg(m); };
+  ws.onerror = () => mpStatus('Could not reach the game server. Try again in a moment.');
+  ws.onclose = () => { const was = MP.started; MP.ws = null; if (was && G && !G.over) { if (MP.role === 'client') mpLost('The connection to the host was lost.'); else { alertMsg('Connection lost. The rival AI takes over.', 'bad'); aiInit(1); MP.role = null; G.mp = null; } } };
+}
+function mpMsg(m) {
+  if (m.k === 'full') { mpStatus('That room already has two players.'); return; }
+  if (m.k === 'hello') {
+    MP.seat = m.seat;
+    const link = `${location.origin}${location.pathname}?room=${MP.code}`;
+    if (m.seat === 0) mpStatus(`Room <b>${MP.code}</b> is open. Send your friend the code or this link:<br><span style="user-select:all">${link}</span><br>Waiting for them to join…`);
+    else mpStatus(`Joined room <b>${MP.code}</b>. Waiting for the host to start…`);
+    return;
+  }
+  if (m.k === 'peer') {
+    if (m.on && MP.seat === 0) {
+      if (!MP.started) { const seed = (Math.random() * 1e6) | 0; MP.started = true; MP.role = 'host'; mpSend({ k: 'start', seed }); startGame({ role: 'host', seed }); alertMsg('Your friend joined. You are the blue clan in the south-west.', 'good'); }
+      else { MP.full = true; mpSend({ k: 'start', seed: G.seed, rejoin: 1 }); alertMsg('Your friend is back.', 'good'); }
+    } else if (!m.on && MP.started) {
+      if (MP.role === 'host' && G && !G.over) { alertMsg('Your friend left. The rival AI takes over until they come back.', 'bad'); aiInit(1); }
+      else if (MP.role === 'client' && G && !G.over) mpLost('The host left the game.');
+    }
+    return;
+  }
+  if (m.k === 'start' && MP.seat === 1) { MP.started = true; MP.role = 'client'; startGame({ role: 'client', seed: m.seed }); return; }
+  if (m.k === 's' && MP.role === 'client' && G && G.mp === 'client') { mpApply(m); return; }
+  if (m.k === 'c' && MP.role === 'host' && G && G.mp === 'host') { G.ais[1] = null; mpCommand(m); }
+}
+function mpLost(text) { G.over = true; $('endT').textContent = 'Disconnected'; $('endS').textContent = text; $('endStats').innerHTML = ''; $('end').hidden = false; }
+function mpSetup(role) {
+  G.mp = role; G.ais[1] = null; MP.full = true; MP.sendT = 0;
+  MP.baseR = new Map(); mpDiff(G.res, MP.baseR, []);
+  if (role === 'host') {
+    G.teams[1].res = { ...G.teams[0].res };   // no head start for a human rival
+    for (const u of G.units) if (u.team === 0 && u.type === 'villager') { const r = findRes(0, 'berry', u.x, u.y, 20 * T); if (r) orderGather(u, r); }
+    clearInterval(MP.bg); MP.bg = setInterval(() => { if (document.hidden && G && G.mp === 'host' && G.started && !G.over) { const now = performance.now(), d = Math.min(1, (now - (MP.bgT || now)) / 1000); MP.bgT = now; for (let s = d; s > 1e-4; s -= 1 / 30) tick(Math.min(s, 1 / 30)); mpHostSend(now, true); } else MP.bgT = performance.now(); }, 250);
+  } else {
+    // the client draws whatever the host sends; its own clan arrives as team 0 in the first snapshot
+    for (const b of G.blds) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
+    G.units = []; G.blds = []; G.unitById.clear(); G.bldById.clear(); G.teams[0].tc = G.teams[1].tc = null; MP.first = true;
+  }
+}
+// Host -> client snapshots: only fields that changed since the last one
+const MP_SKIP = new Set(['path', 'needPath', 'prevJob', 'resume', 'guard', 'skx', 'sky', 'stk', 'repath', 'scan', 'pi', 'cd', 'sel', 'work', 'wt', 'howled', 'fx', 'fy', 'fleeT']);
+const mpVal = v => typeof v === 'number' ? Math.round(v * 100) / 100 : v;
+function mpDiff(list, map, out) {
+  const seen = new Set();
+  for (const e of list) {
+    if (e.dead) continue; seen.add(e.id);
+    let prev = map.get(e.id); const isNew = !prev, ch = {}; let n = 0;
+    if (!prev) { prev = {}; map.set(e.id, prev); }
+    for (const k in e) {
+      if (MP_SKIP.has(k)) continue;
+      const v = e[k]; if (v !== null && typeof v === 'object' && v.ent) continue;
+      const val = mpVal(v), key = val !== null && typeof val === 'object' ? JSON.stringify(val) : val;
+      if (prev[k] !== key) { prev[k] = key; ch[k] = val; n++; }
+    }
+    if (n || isNew) { ch.id = e.id; out.push(ch); }
+  }
+  const gone = []; for (const id of map.keys()) if (!seen.has(id)) gone.push(id);
+  for (const id of gone) map.delete(id);
+  return gone;
+}
+function mpHostSend(now, force) {
+  if (!MP.ws || MP.ws.readyState !== 1 || (!force && now - MP.sendT < 110)) return;
+  MP.sendT = now;
+  const s = { k: 's', u: [], b: [], r: [] };
+  // both sides build the same map from the seed, so resources start from that shared baseline
+  if (MP.full) { s.full = 1; MP.last = { u: new Map(), b: new Map(), r: new Map([...MP.baseR].map(([k, v]) => [k, { ...v }])) }; MP.full = false; }
+  s.ug = mpDiff(G.units, MP.last.u, s.u); s.bg = mpDiff(G.blds, MP.last.b, s.b); s.rg = mpDiff(G.res, MP.last.r, s.r);
+  s.g = { time: G.time, clock: G.clock, day: G.day, dayT: G.dayT, season: G.season, winter: G.winter, bloodNight: G.bloodNight, dark: G.dark, snow: G.snow, bell: G.bell, over: G.over, win: G.over ? !!G.teams[0].tc : null };
+  s.tm = [0, 1].map(i => { const t = G.teams[i]; return { res: t.res, era: t.era, pop: t.pop, cap: t.cap, techs: t.techs, busy: t.busy, atkB: t.atkB, armB: t.armB, upkeepMul: t.upkeepMul, gm: t.gm, stats: t.stats }; });
+  s.p = G.proj.map(p => ({ x: mpVal(p.x), y: mpVal(p.y), sx: p.sx, sy: p.sy, tx: p.tx, ty: p.ty, t: p.t, dur: p.dur, kind: p.kind, ang: p.ang, team: p.team }));
+  mpSend(s);
+}
+const swT = t => t === 0 ? 1 : t === 1 ? 0 : t;
+function mpApply(s) {
+  for (const d of s.r) {
+    const r = G.resById.get(d.id);
+    if (r) Object.assign(r, d);
+    else if (d.kind) { const nr = Object.assign({ ent: 'res' }, d); G.res.push(nr); G.resById.set(nr.id, nr); if (RES_KIND[nr.kind].block) { const i = tid(nr.tx, nr.ty); resAt[i] = nr.id; blk[i] = 1; } }
+  }
+  for (const id of s.rg) { const r = G.resById.get(id); if (r) removeRes(r); }
+  for (const d of s.b) {
+    if ('team' in d) d.team = swT(d.team);
+    let b = G.bldById.get(d.id);
+    if (!b) {
+      b = Object.assign({ ent: 'b', queue: [], rally: null }, d); G.blds.push(b); G.bldById.set(b.id, b);
+      for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); occ[i] = b.id; recalcBlk(i); }
+      if (!s.full && b.team === 0) sfx('place', b.x, b.y);
+    } else { if (d.done && !b.done && b.team === 0) sfx('done', b.x, b.y); Object.assign(b, d); }
+  }
+  for (const id of s.bg) {
+    const b = G.bldById.get(id); if (!b) continue;
+    b.dead = true; G.bldById.delete(id); G.blds = G.blds.filter(o => o !== b);
+    for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
+    if (b.done) { G.decals.push({ k: 'rubble', x: b.x, y: b.y, w: b.type === 'wall' ? 1 : b.w, h: b.type === 'wall' ? 1 : b.h, v: b.v, t: 0 }); for (let i = 0; i < 14 * b.w; i++) puff(b.x + rr(-1, 1) * b.w * T / 2, b.y + rr(-1, 1) * b.h * T / 2, i % 3 ? 'dust' : 'debris'); sfx('collapse', b.x, b.y); }
+  }
+  for (const d of s.u) {
+    if ('team' in d) d.team = swT(d.team);
+    let u = G.unitById.get(d.id);
+    if (!u) { u = Object.assign({ ent: 'u', path: null, sel: false }, d); u._tx = u.x; u._ty = u.y; G.units.push(u); G.unitById.set(u.id, u); }
+    else {
+      const { x, y, ...rest } = d; Object.assign(u, rest);
+      if (x !== undefined) u._tx = x; if (y !== undefined) u._ty = y;
+      if (Math.hypot(u._tx - u.x, u._ty - u.y) > 5 * T) { u.x = u._tx; u.y = u._ty; }
+      if (d.swing > .2 && u.team === 0 && u.st === 'build') sfx('build', u.x, u.y);
+    }
+  }
+  for (const id of s.ug) {
+    const u = G.unitById.get(id); if (!u) continue;
+    u.dead = true; G.unitById.delete(id);
+    if (!u.hidden) { G.decals.push({ k: 'body', type: u.type, team: u.team, x: u.x, y: u.y, face: u.face, t: 0, era: eraOf(u.team) }); sfx(u.team === 2 ? (u.type === 'deer' ? 'thud' : 'yelp') : 'death', u.x, u.y); }
+  }
+  if (s.ug.length) G.units = G.units.filter(u => !u.dead);
+  const oldEra = G.teams[0].era, oldDay = G.day;
+  for (let i = 0; i < 2; i++) { const tm = G.teams[swT(i)]; Object.assign(tm, s.tm[i]); tm.id = swT(i); tm.tc = G.blds.find(b => b.type === 'tc' && b.team === tm.id && b.done && !b.dead) || null; }
+  if (G.teams[0].era > oldEra && !s.full) { banner(ERA_NAMES[G.teams[0].era], 'Your clan advances'); sfx('era'); }
+  const g = s.g;
+  Object.assign(G, { clock: g.clock, day: g.day, dayT: g.dayT, season: g.season, winter: g.winter, bloodNight: g.bloodNight, dark: g.dark, snow: g.snow });
+  G.bell = [g.bell[1], g.bell[0]];
+  if (Math.abs(G.time - g.time) > 1) G.time = g.time;
+  if (G.day > oldDay && !s.full) banner(`Day ${G.day}`, G.winter ? 'Winter · fields grow slowly' : SEASONS[G.season]);
+  G.proj = s.p.map(p => ({ ...p, team: swT(p.team) }));
+  if (s.b.length || s.bg.length || s.r.length || s.rg.length) G.miniDirty = true;
+  if (MP.first && G.teams[0].tc) { MP.first = false; updLights(); updVision(); updFog(); resetView(); }
+  if (g.over && !G.over) endGame(!g.win);
+}
+function mpClientStep(dt) {
+  G.time += dt; G.tick++;
+  const k = Math.min(1, dt * 10);
+  for (const u of G.units) if (u._tx !== undefined) { u.x += (u._tx - u.x) * k; u.y += (u._ty - u.y) * k; }
+  for (const p of G.proj) { p.t = Math.min(p.dur, p.t + dt); }
+  if (G.tick % 15 === 0) updLights();
+  if (G.tick % 6 === 0) updVision();
+  for (const d of G.decals) d.t += dt;
+}
+// Client orders: the client picks what was clicked and sends ids; the host carries them out
+function mpOrder(wx, wy, amove) {
+  const units = myUnits(), ids = SEL.map(e => e.id);
+  if (!units.length) {
+    const b = selected()[0];
+    if (b && b.ent === 'b' && b.team === 0 && BLD[b.type].trains) {
+      const e = pickAt(wx, wy);
+      mpSend({ k: 'c', c: 'rally', sel: ids, x: wx, y: wy, t: e && (e.ent === 'res' || (e.ent === 'b' && e.team === 0)) ? e.id : 0 });
+      UI.marks.push({ x: wx, y: wy, t: G.time, c: 'rgba(255,230,150,A)' }); sfx('click');
+    }
+    return;
+  }
+  const e = amove ? null : pickAt(wx, wy, 12 / Math.max(.7, cam.z)), t = e && !(e.ent === 'u' && e.team === 0 && units.includes(e)) ? e : null;
+  mpSend({ k: 'c', c: 'order', sel: ids, x: wx, y: wy, t: t ? t.id : 0, am: !!amove });
+  const hostileT = t && t.team !== undefined && t.team !== 0;
+  UI.marks.push({ x: t ? t.x : wx, y: t ? t.y : wy, t: G.time, c: hostileT || amove ? 'rgba(255,110,90,A)' : t ? 'rgba(255,230,150,A)' : 'rgba(150,255,140,A)' });
+  sfx(hostileT ? 'order2' : 'order'); UI.amove = false; G.uiDirty = true;
+}
+// The host runs a remote order as if team 1 were the local player: swap the teams, run the normal code, swap back.
+function mpAsRemote(sel, fn) {
+  const flip = () => { for (const u of G.units) u.team = swT(u.team); for (const b of G.blds) b.team = swT(b.team); const t = G.teams; [t[0], t[1]] = [t[1], t[0]]; t[0].id = 0; t[1].id = 1; G.bell.reverse(); };
+  const keep = { SEL, cmdPage: UI.cmdPage, place: UI.place, help: UI.help, amove: UI.amove, wallLine: UI.wallLine, marks: UI.marks.length, muted, expl, vis };
+  MP.quiet = true; muted = true; expl = new Uint8Array(N * N).fill(1); vis = new Uint8Array(N * N).fill(1);
+  flip(); SEL = sel; UI.place = null; UI.help = false; UI.amove = false;
+  try { fn(); } catch (err) { console.warn('remote order failed', err); }
+  finally {
+    flip(); for (const e of SEL) e.sel = false;
+    SEL = keep.SEL; for (const e of SEL) e.sel = true;
+    Object.assign(UI, { cmdPage: keep.cmdPage, place: keep.place, help: keep.help, amove: keep.amove, wallLine: keep.wallLine }); UI.marks.length = Math.min(UI.marks.length, keep.marks);
+    muted = keep.muted; expl = keep.expl; vis = keep.vis; MP.quiet = false; G.uiDirty = true;
+  }
+}
+function mpCommand(m) {
+  if (G.over) return;
+  const sel = (m.sel || []).map(id => getE(id)).filter(e => e && !e.dead && e.team === 1);
+  mpAsRemote(sel, () => {
+    switch (m.c) {
+      case 'order': { const units = myUnits(); const t = m.t ? getE(m.t) : null; if (units.length) commandUnits(units, m.x, m.y, t && !t.dead ? t : null, m.am); break; }
+      case 'rally': { const b = sel[0]; if (b && b.ent === 'b' && BLD[b.type].trains) b.rally = { x: m.x, y: m.y, id: m.t || 0 }; break; }
+      case 'place': if (BLD[m.type] && Array.isArray(m.cells)) placeAt(m.type, m.cells.slice(0, 80)); break;
+      case 'btn': { UI.cmdPage = m.page === 'build' ? 'build' : 'jobs'; const c = cmdList().find(x => x.id === m.id); if (c && !c.lock) c.act(); break; }
+      case 'cq': { const b = getE(m.b); if (b && b.ent === 'b' && b.team === 0) cancelQueue(b, m.i); break; }
+      case 'help': { const t = getE(m.t); if (t && t.ent === 'u' && t.team === 0) helpWorker(myUnits(), t); break; }
+      case 'bell': if (G.teams[0].tc) ringBell(0, !G.bell[0]); break;
+      case 'del': { if (SEL.length === 1 && SEL[0].ent === 'b' && !SEL[0].done) cancelBuilding(SEL[0]); else { const us = myUnits(); if (us.length === 1) killUnit(us[0], null); } break; }
+    }
+  });
+}
+$('bMpNew').onclick = () => { audioInit(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('mpCode').value = c; mpConnect(c); };
+$('bMpJoin').onclick = () => { audioInit(); const c = $('mpCode').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes have 5 letters and numbers.'); return; } mpConnect(c); };
+$('mpCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('bMpJoin').click(); });
+{ const rc = (Q.get('room') || '').toUpperCase(); if (/^[A-Z2-9]{5}$/.test(rc)) { $('mpCode').value = rc; mpStatus(`Tap <b>Join</b> to play in room <b>${rc}</b>.`); } }
+
+function startGame(mp) {
   audioInit();
-  const seed = TEST ? +(Q.get('seed') || 7) : (Math.random() * 1e6) | 0;
+  mp = mp && mp.role ? mp : null;
+  const seed = mp ? mp.seed : TEST ? +(Q.get('seed') || 7) : (Math.random() * 1e6) | 0;
   if (!G || G.seed !== seed) chunks.fill(null);
-  newGame(seed, diff);
+  newGame(seed, mp ? 1 : diff);
+  if (mp) mpSetup(mp.role);
   bakeSnowMask(); bakeMini(); updFog();
   RES.forEach(k => { const c = $('r-' + k).querySelector('canvas'); resIcon(c, k); RES_ICON_URL[k] = c.toDataURL(); });
   resIcon($('r-pop').querySelector('canvas'), 'pop');
@@ -3750,20 +3972,20 @@ function menuWorld() {
 $('diffRow').addEventListener('click', e => { const b = e.target.closest('.choice'); if (!b) return; diff = +b.dataset.d; document.querySelectorAll('#diffRow .choice').forEach(x => x.classList.toggle('on', x === b)); try { localStorage.setItem('empire-rush.diff', diff); } catch (err) { /* ignore */ } });
 document.querySelectorAll('#diffRow .choice').forEach(x => x.classList.toggle('on', +x.dataset.d === diff));
 $('bStart').onclick = startGame;
-$('bAgain').onclick = () => { $('end').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; };
+$('bAgain').onclick = () => { mpLeave(); $('end').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; };
 $('bLook').onclick = () => { $('end').hidden = true; UI.looking = true; };
-$('bMenu').onclick = () => { if (!G.started) return; paused = true; $('pause').hidden = false; };
+$('bMenu').onclick = () => { if (!G.started) return; paused = !MP.role; $('pause').hidden = false; };
 $('bResume').onclick = () => { paused = false; $('pause').hidden = true; rebinding = null; $('keysBox').hidden = true; };
-$('bRestart').onclick = () => { $('pause').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; paused = false; };
+$('bRestart').onclick = () => { mpLeave(); $('pause').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; paused = false; };
 $('bKeys').onclick = () => { const b = $('keysBox'); b.hidden = !b.hidden; rebinding = null; if (!b.hidden) { $('helpText').hidden = true; renderKeys(); } };
 $('bHelp').onclick = () => { const h = $('helpText'); h.hidden = !h.hidden; h.innerHTML = $('menu').querySelector('ul').outerHTML + '<p>' + $('ctlHint').textContent + '</p>'; };
-$('bSpeed').onclick = () => { if (!G) return; G.speed = G.speed === 1 ? 1.5 : G.speed === 1.5 ? 2 : 1; $('bSpeed').textContent = G.speed + '×'; };
+$('bSpeed').onclick = () => { if (!G || MP.role) return; G.speed = G.speed === 1 ? 1.5 : G.speed === 1.5 ? 2 : 1; $('bSpeed').textContent = G.speed + '×'; };
 $('bSound').onclick = () => { muted = !muted; $('bSound').style.opacity = muted ? .45 : 1; try { localStorage.setItem('empire-rush.mute', muted ? '1' : '0'); } catch (err) { /* ignore */ } };
 $('bSound').style.opacity = muted ? .45 : 1;
 $('bBox').onclick = () => { UI.boxMode = !UI.boxMode; $('bBox').classList.toggle('on', UI.boxMode); $('bBox').style.borderColor = UI.boxMode ? 'var(--gold)' : ''; };
 $('bIdle').onclick = () => G.started && nextIdle();
 $('bHome').onclick = () => { const tc = G.started && G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } };
-document.addEventListener('visibilitychange', () => { if (document.hidden && G && G.started && !G.over && !TEST) { paused = true; $('pause').hidden = false; } });
+document.addEventListener('visibilitychange', () => { if (document.hidden && G && G.started && !G.over && !TEST && !MP.role) { paused = true; $('pause').hidden = false; } });
 for (const id of ['top', 'bottom', 'topR', 'touchbar', 'placebar']) $(id).addEventListener('pointerdown', e => e.stopPropagation());
 $('bPlaceOk').onclick = e => { e.stopPropagation(); if (!ghostClick()) confirmPlace(); };
 $('bPlaceNo').onclick = e => { e.stopPropagation(); if (!ghostClick()) cancelPlace(); };
@@ -3778,7 +4000,9 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
   if (!TEST && G) {
-    if (G.started && !paused && !(G.over && !UI.looking)) { let s = dt * G.speed; while (s > 1e-4) { const d = Math.min(s, 1 / 30); tick(d); s -= d; } }
+    if (G.started && MP.role === 'client') mpClientStep(dt);
+    else if (G.started && (!paused || MP.role) && !(G.over && !UI.looking)) { let s = dt * G.speed; while (s > 1e-4) { const d = Math.min(s, 1 / 30); tick(d); s -= d; } }
+    if (G.started && MP.role === 'host') mpHostSend(now);
     else if (!G.started) { G.time += dt; cine += dt; cam.x += Math.cos(cine * .05) * 10 * dt; cam.y += Math.sin(cine * .07) * 6 * dt; clampCam(); }
   }
   if (!G) return;
