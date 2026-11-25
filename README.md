@@ -41,6 +41,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Cartastrophe | `cartastrophe/cartastrophe.html` | `http://127.0.0.1:8000/cartastrophe/cartastrophe.html` |
 | Math Tricks | `mathtricks/mathtricks.html` | `http://127.0.0.1:8000/mathtricks/mathtricks.html` |
 | Daily Brain | `dailybrain/dailybrain.html` | `http://127.0.0.1:8000/dailybrain/dailybrain.html` |
+| Bramble Bear | `bramblebear/bramblebear.html` | `http://127.0.0.1:8000/bramblebear/bramblebear.html` |
 | Turkey Escape | `turkey-escape/turkey-escape.html` | `http://127.0.0.1:8000/turkey-escape/turkey-escape.html` |
 | Doorbusters | `doorbusters/doorbusters.html` | `http://127.0.0.1:8000/doorbusters/doorbusters.html` |
 | Sleigh Run | `sleighrun/sleighrun.html` | `http://127.0.0.1:8000/sleighrun/sleighrun.html` |

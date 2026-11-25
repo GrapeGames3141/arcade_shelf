@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Bramble Bear</title>
+<meta name="description" content="Roam a forest valley as a bear: lope through the trees, swim the river, fish the waterfall and give the hikers a fright.">
+<style>
+:root { --ink: #fbf4e4; --soft: #d9ccb0; --gold: #f2c45a; --bark: #3a2616; --leaf: #6fae4a; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1b2418; color: var(--ink); font: 15px/1.4 "Trebuchet MS", "Segoe UI", system-ui, sans-serif; -webkit-user-select: none; user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent; }
+#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+.btn { font: 800 16px/1 "Trebuchet MS", sans-serif; letter-spacing: .04em; color: #2a1a0c; background: linear-gradient(#ffd98a, #f2b44a); border: 0; border-radius: 14px; padding: 13px 20px; box-shadow: 0 4px 0 #9a6a22, 0 10px 24px rgba(0, 0, 0, .35); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9a6a22; }
+.btn.big { font-size: 22px; padding: 16px 34px; border-radius: 18px; }
+.btn.ghost { background: rgba(255, 248, 230, .14); color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+.hidden { display: none !important; }
+/* title + pause */
+.screen { position: fixed; inset: 0; display: flex; align-items: center; justify-content: flex-start; padding: 24px 4vw calc(24px + env(safe-area-inset-bottom)); background: linear-gradient(90deg, rgba(14, 20, 10, .82), rgba(14, 20, 10, .35) 55%, rgba(14, 20, 10, 0)); z-index: 10; overflow: auto; }
+.screen.center { justify-content: center; background: rgba(10, 14, 8, .55); }
+.tcol { max-width: 470px; display: grid; gap: 14px; }
+.logo { font: 900 clamp(44px, 9vw, 76px)/.9 Georgia, "Times New Roman", serif; letter-spacing: -.01em; color: #fff3d6; text-shadow: 0 3px 0 #6b4220, 0 8px 30px rgba(0, 0, 0, .5); }
+.logo small { display: block; font: 700 13px/1 "Trebuchet MS", sans-serif; letter-spacing: .32em; color: var(--gold); margin-top: 12px; text-shadow: none; }
+.tag { color: var(--soft); font-size: 16px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.panel { background: rgba(20, 14, 8, .62); border: 1px solid rgba(255, 230, 180, .16); border-radius: 16px; padding: 14px 16px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; color: var(--soft); }
+.keys b { color: var(--ink); font-weight: 700; white-space: nowrap; }
+.seg { display: inline-flex; border-radius: 10px; overflow: hidden; border: 1px solid rgba(255, 230, 180, .25); }
+.seg button { border: 0; background: transparent; padding: 7px 11px; font-size: 13px; font-weight: 700; color: var(--soft); }
+.seg button.on { background: var(--gold); color: #2a1a0c; }
+.lbl { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--soft); min-width: 64px; }
+/* HUD */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+#journal { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); width: 250px; padding: 10px 12px; pointer-events: auto; cursor: pointer; }
+#journal h4 { margin: 0 0 6px; font: 800 12px/1 "Trebuchet MS", sans-serif; letter-spacing: .18em; color: var(--gold); display: flex; justify-content: space-between; }
+#journal ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+#journal li { display: flex; gap: 8px; align-items: baseline; color: var(--soft); }
+#journal li i { font-style: normal; width: 16px; text-align: center; }
+#journal li.done { color: #a8e07c; text-decoration: line-through; text-decoration-color: rgba(168, 224, 124, .5); }
+#journal li b { margin-left: auto; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+#journal.mini ul { display: none; }
+#topR { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); display: flex; gap: 8px; pointer-events: auto; }
+.ib { width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(255, 230, 180, .2); background: rgba(20, 14, 8, .55); font-size: 18px; display: grid; place-items: center; }
+#belly { position: absolute; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 7px 14px; font-size: 13px; font-weight: 700; }
+#belly .bar { width: 120px; height: 8px; border-radius: 8px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+#belly .bar i { display: block; height: 100%; width: 50%; background: linear-gradient(90deg, #f29a4a, #f2c45a); transition: width .4s; }
+#toast { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; font: 800 26px/1.15 Georgia, serif; color: #fff3d6; text-shadow: 0 2px 0 #4a2c12, 0 6px 22px rgba(0, 0, 0, .6); opacity: 0; transition: opacity .35s; white-space: nowrap; }
+#toast small { display: block; font: 700 14px/1.3 "Trebuchet MS", sans-serif; color: var(--soft); margin-top: 6px; white-space: normal; }
+#toast.on { opacity: 1; }
+#prompt { position: absolute; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); padding: 8px 14px; font-weight: 700; font-size: 14px; opacity: 0; transition: opacity .2s; white-space: nowrap; }
+#prompt.on { opacity: 1; }
+/* touch controls */
+#touch { position: fixed; inset: 0; z-index: 6; pointer-events: none; display: none; }
+body.touch #touch { display: block; }
+#joy { position: absolute; left: calc(26px + env(safe-area-inset-left)); bottom: calc(26px + env(safe-area-inset-bottom)); width: 132px; height: 132px; border-radius: 50%; background: rgba(255, 248, 230, .1); border: 2px solid rgba(255, 248, 230, .22); pointer-events: auto; }
+#joy i { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255, 248, 230, .35); }
+#tbtns { position: absolute; right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: 72px 72px; gap: 12px; pointer-events: auto; }
+.tb { width: 72px; height: 72px; border-radius: 50%; border: 2px solid rgba(255, 248, 230, .3); background: rgba(20, 14, 8, .45); color: var(--ink); font: 800 12px/1.1 "Trebuchet MS", sans-serif; display: grid; place-items: center; text-align: center; }
+.tb span { font-size: 24px; display: block; }
+.tb.on { background: rgba(242, 196, 90, .55); color: #2a1a0c; }
+.bub { position: absolute; left: 0; top: 0; background: #fff8e6; color: #2a1a0c; font: 800 14px/1.2 "Trebuchet MS", sans-serif; padding: 6px 11px; border-radius: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); transform-origin: 50% 100%; }
+.bub::after { content: ""; position: absolute; left: 50%; bottom: -6px; margin-left: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: #fff8e6; }
+#err { position: fixed; left: 12px; bottom: 12px; color: #ffb4a0; font-size: 13px; z-index: 20; }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: #1b2418; z-index: 30; font: 700 18px Georgia, serif; color: var(--soft); }
+@media (max-width: 640px) { #journal { width: 200px; font-size: 12px; } #belly .bar { width: 80px; } #toast { font-size: 20px; } .keys { font-size: 13px; } }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="loading">Growing the forest…</div>
+
+<div id="hud" class="hidden">
+  <div id="journal" class="panel"><h4><span>BEAR JOURNAL</span><span id="jCount">0/8</span></h4><ul id="jList"></ul></div>
+  <div id="belly" class="panel"><span>🍯 Belly</span><div class="bar"><i id="bellyFill"></i></div></div>
+  <div id="topR"><button class="ib" id="bSound" title="Sound (M)">🔊</button><button class="ib" id="bPause" title="Pause (Esc)">II</button></div>
+  <div id="toast"></div>
+  <div id="prompt" class="panel"></div>
+</div>
+<div id="touch">
+  <div id="joy"><i></i></div>
+  <div id="tbtns">
+    <button class="tb" id="tRoar"><div><span>🐻</span>ROAR</div></button>
+    <button class="tb" id="tSwipe"><div><span>🐾</span>SWIPE</div></button>
+    <button class="tb" id="tJump"><div><span>⤴</span>JUMP</div></button>
+    <button class="tb" id="tRun"><div><span>💨</span>RUN</div></button>
+  </div>
+</div>
+
+<div id="title" class="screen">
+  <div class="tcol">
+    <div class="logo">Bramble<br>Bear<small>A WALK IN THE WOODS · BEAR-SIZED</small></div>
+    <div class="tag">Lope through the pines, swim the river, catch salmon at the waterfall, and give the hikers a story to tell.</div>
+    <div class="row"><button class="btn big" id="bPlay">▶ Play</button><button class="btn ghost" id="bHow">How to play</button><a class="btn ghost" href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+    <div class="panel hidden" id="how"><div class="keys">
+      <b>WASD / arrows</b><span>Walk where the camera faces</span>
+      <b>Shift</b><span>Run (hold) · run at hikers to chase them</span>
+      <b>Mouse</b><span>Drag to look around, or click once to lock the mouse (then click swipes, Esc frees it)</span>
+      <b>E / click</b><span>Swipe: catch fish in the water, eat berries and snacks</span>
+      <b>R</b><span>Stand up and roar</span>
+      <b>Space</b><span>Jump</span>
+      <b>J</b><span>Show or hide the journal · <b>Esc</b> pause</span>
+      <b>Phone</b><span>Left stick walks (push far to run), drag the right side to look, buttons do the rest</span>
+    </div></div>
+    <div class="panel"><div class="row"><span class="lbl">Quality</span><div class="seg" id="segQ"><button data-v="0">Low</button><button data-v="1">Medium</button><button data-v="2">High</button></div></div>
+      <div class="row" style="margin-top:8px"><span class="lbl">Sound</span><div class="seg" id="segS"><button data-v="1">On</button><button data-v="0">Off</button></div></div></div>
+  </div>
+</div>
+<div id="pause" class="screen center hidden">
+  <div class="tcol" style="text-align:center;justify-items:center">
+    <div class="logo" style="font-size:54px">Napping</div>
+    <div class="tag" id="pauseStats"></div>
+    <div class="row" style="justify-content:center"><button class="btn big" id="bResume">Keep roaming</button></div>
+    <div class="row" style="justify-content:center"><button class="btn ghost" id="bNewDay">Start a new day</button><a class="btn ghost" href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
+  </div>
+</div>
+<div id="err"></div>

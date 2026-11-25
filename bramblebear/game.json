@@ -1,0 +1,7 @@
+{
+  "title": "Bramble Bear",
+  "description": "Roam a forest valley as a bear. Lope through the pines, swim the river and the lake, catch salmon leaping up the waterfall, raid picnic baskets and give the hikers a story to tell. A free roam with a journal of things to try.",
+  "category": "Explore",
+  "controls": "WASD move (camera-relative), Shift run, Space jump, E or click swipe (fish, berries, snacks), R stand and roar, J journal, mouse drag or click-to-lock to look, Esc pause. Touch: left stick walks (push far to run), drag to look, ROAR/SWIPE/JUMP/RUN buttons.",
+  "requirements": "WebGL2 browser"
+}

@@ -4,7 +4,7 @@ Start every session by reading this file, the root `AGENTS.md`, and the target g
 
 ## Repository layout
 
-The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `saltaquarium`, `woolrampage`, `kindred-crossing`, `popquiz`, `buzzwords`, `unicornmeadow`, `barncount`, `mathtricks`, and `dailybrain` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
+The root repository uses branch `main` and has origin `https://github.com/GrapeGames3141/HTML-Games`. It tracks every game as ordinary files, so GitHub `main` holds all source and a fresh clone works as a plain monorepo. On this machine only, `appalachian-eagle` and `prism-swarm` retain their old nested repositories on `master`; they are not submodules. `ashgrove`, `splat`, `dustdevil`, `merlin`, `spearfish`, `firstlight`, `tricktype`, `deckvolution`, `guildmaster`, `empire-rush`, `aquarium`, `saltaquarium`, `woolrampage`, `kindred-crossing`, `popquiz`, `buzzwords`, `unicornmeadow`, `barncount`, `mathtricks`, `dailybrain`, and `bramblebear` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one. Local commits are useful history, not an off-machine backup.
 
 | Source game | Source file | Drive release copy |
 | --- | --- | --- |
@@ -43,6 +43,7 @@ The root repository uses branch `main` and has origin `https://github.com/GrapeG
 | Cartastrophe | `cartastrophe\cartastrophe.html` | none yet |
 | Math Tricks | `mathtricks\mathtricks.html` | none yet |
 | Daily Brain | `dailybrain\dailybrain.html` | none yet |
+| Bramble Bear | `bramblebear\bramblebear.html` | none yet |
 | Turkey Escape | `turkey-escape\turkey-escape.html` | none yet |
 | Doorbusters | `doorbusters\doorbusters.html` | none yet |
 | Sleigh Run | `sleighrun\sleighrun.html` | none yet |
