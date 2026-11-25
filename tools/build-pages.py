@@ -110,10 +110,14 @@ def runtime_files(folder):
 # opens on hover or a first tap and only leaves on a click or a second tap; kids games need a press and hold.
 # It hides in full screen, so game kid locks keep working.
 HOME_TAB = """<style id="arcade-home-style">
-#arcade-home{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:2147483000;display:flex;align-items:center;gap:7px;height:42px;max-width:28px;padding:0 12px 0 7px;box-sizing:border-box;border-radius:0 21px 21px 0;background:rgba(16,16,28,.5);color:#fff;font:600 13px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-decoration:none;white-space:nowrap;overflow:hidden;opacity:.4;box-shadow:0 2px 10px rgba(0,0,0,.28);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:max-width .22s,opacity .22s,background .22s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#arcade-home{position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:2147483000;display:flex;align-items:center;gap:7px;height:46px;max-width:10px;padding:0 12px 0 0;box-sizing:border-box;border-radius:0 12px 12px 0;background:rgba(16,16,28,.45);color:#fff;font:600 13px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-decoration:none;white-space:nowrap;overflow:hidden;opacity:.5;box-shadow:0 2px 10px rgba(0,0,0,.25);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);transition:max-width .22s,opacity .22s,background .22s,padding .22s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#arcade-home::before{content:"";flex:none;width:3px;height:18px;margin-left:3px;border-radius:2px;background:rgba(255,255,255,.75)}
+#arcade-home b,#arcade-home span{opacity:0;transition:opacity .18s}
 #arcade-home b{flex:none;font-size:16px;line-height:1}
-#arcade-home.open,#arcade-home:focus-visible{max-width:230px;opacity:1;background:rgba(16,16,28,.9)}
-@media (hover:hover) and (pointer:fine){#arcade-home:hover{max-width:230px;opacity:1;background:rgba(16,16,28,.9)}}
+#arcade-home.open b,#arcade-home.open span,#arcade-home:focus-visible b,#arcade-home:focus-visible span{opacity:1}
+#arcade-home.open::before,#arcade-home:focus-visible::before{display:none}
+#arcade-home.open,#arcade-home:focus-visible{max-width:230px;padding:0 14px 0 10px;opacity:1;background:rgba(16,16,28,.9)}
+@media (hover:hover) and (pointer:fine){#arcade-home:hover{max-width:230px;padding:0 14px 0 10px;opacity:1;background:rgba(16,16,28,.9)}#arcade-home:hover b,#arcade-home:hover span{opacity:1}#arcade-home:hover::before{display:none}}
 #arcade-home.hold{background:linear-gradient(90deg,rgba(233,196,106,.85) var(--p,0%),rgba(16,16,28,.9) var(--p,0%))}
 #arcade-home.gone{display:none}
 @media print{#arcade-home{display:none}}
@@ -131,6 +135,7 @@ if(kids){
   ['pointerup','pointercancel','pointerleave'].forEach(function(n){a.addEventListener(n,end);});
   a.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();});
 }else a.addEventListener('click',function(e){e.stopPropagation();if(!fine&&!open){e.preventDefault();show();}});
+a.classList.add('open');t=setTimeout(close,2200);
 function fs(){a.classList.toggle('gone',!!(document.fullscreenElement||document.webkitFullscreenElement));}
 document.addEventListener('fullscreenchange',fs);document.addEventListener('webkitfullscreenchange',fs);
 })();</script>
