@@ -1,8 +1,9 @@
 // Arcade Shelf relay (proof of concept). Games open  wss://relay.thearcadeshelf.com/ws?game=<id>&room=<CODE>
 // and everything one player sends is passed to the other player in the same room. The game itself decides
-// who hosts. Rooms hold two players; a room is just a Durable Object named "<game>:<CODE>".
+// who hosts. Rooms hold two players (more for games listed in SEATS_BY_GAME); a room is just a Durable Object
+// named "<game>:<CODE>".
 const ORIGINS = [/^https:\/\/thearcadeshelf\.com$/, /^https:\/\/([a-z0-9-]+\.)?thearcadeshelf\.pages\.dev$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
-const SEATS = 2, MAX_MSG = 512 * 1024;
+const SEATS = 2, SEATS_BY_GAME = { blindfire: 6 }, MAX_MSG = 512 * 1024;
 
 export default {
   async fetch(request, env) {
@@ -21,13 +22,14 @@ export default {
 
 export class Room {
   constructor(ctx) { this.ctx = ctx; }
-  async fetch() {
+  async fetch(request) {
+    const game = new URL(request.url).searchParams.get('game') || '', seats = SEATS_BY_GAME[game] || SEATS;
     const socks = this.ctx.getWebSockets(), used = new Set(socks.map(ws => (ws.deserializeAttachment() || {}).seat));
     let seat = 0; while (used.has(seat)) seat++;
     const pair = new WebSocketPair(), [client, server] = Object.values(pair);
-    if (seat >= SEATS) { server.accept(); server.send(JSON.stringify({ k: 'full' })); server.close(4001, 'Room is full'); return new Response(null, { status: 101, webSocket: client }); }
+    if (seat >= seats) { server.accept(); server.send(JSON.stringify({ k: 'full' })); server.close(4001, 'Room is full'); return new Response(null, { status: 101, webSocket: client }); }
     this.ctx.acceptWebSocket(server); server.serializeAttachment({ seat });
-    server.send(JSON.stringify({ k: 'hello', seat, peers: socks.length }));
+    server.send(JSON.stringify({ k: 'hello', seat, peers: socks.length, seats: [...used].filter(s => s !== undefined) }));
     for (const ws of socks) this.send(ws, JSON.stringify({ k: 'peer', on: true, seat }));
     return new Response(null, { status: 101, webSocket: client });
   }

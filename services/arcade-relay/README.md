@@ -5,11 +5,13 @@ SQLite-backed Durable Object per room. It knows nothing about any game. Each pla
 
     wss://relay.thearcadeshelf.com/ws?game=<game-id>&room=<5-letter code>
 
-and gets `{"k":"hello","seat":0|1,"peers":n}`. Every text message is passed unchanged to the other player, and
-`{"k":"peer","on":true|false}` reports a player joining or leaving. A third player gets `{"k":"full"}`.
+and gets `{"k":"hello","seat":n,"peers":n,"seats":[…]}` (`seats` lists the seats already taken). Every text
+message is passed unchanged to everyone else in the room, and `{"k":"peer","on":true|false,"seat":n}` reports a player
+joining or leaving. Rooms hold two players, except games listed in `SEATS_BY_GAME` (Blindfire: 6); one more gets
+`{"k":"full"}`.
 Only pages served from thearcadeshelf.com, its pages.dev copies and localhost may connect.
 
-Empire Rush uses it for its "Play a friend" mode: the first player in a room hosts the real game and the
+Blindfire uses it for free-for-all rooms of up to six. Empire Rush uses it for its "Play a friend" mode: the first player in a room hosts the real game and the
 second sends orders and receives snapshots.
 
 ## Daily leaderboards
