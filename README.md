@@ -43,6 +43,8 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Turkey Escape | `turkey-escape/turkey-escape.html` | `http://127.0.0.1:8000/turkey-escape/turkey-escape.html` |
 | Doorbusters | `doorbusters/doorbusters.html` | `http://127.0.0.1:8000/doorbusters/doorbusters.html` |
 | Sleigh Run | `sleighrun/sleighrun.html` | `http://127.0.0.1:8000/sleighrun/sleighrun.html` |
+| Peregrine | `peregrine/peregrine.html` | `http://127.0.0.1:8000/peregrine/peregrine.html` |
+| Pigeon | `pigeon/pigeon.html` | `http://127.0.0.1:8000/pigeon/pigeon.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 
