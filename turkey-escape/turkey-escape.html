@@ -405,16 +405,39 @@ function buildTurkey(){
   for(let i=0;i<160;i++){const th=rr(-1.3,1.3),s=rr(0.02,0.28),dir=norm([Math.sin(th),Math.cos(th)*Math.cos(tilt),Math.cos(th)*Math.sin(tilt)]);
     sb.stroke(TB[0]+dir[0]*s,TB[1]+dir[1]*s,TB[2]+dir[2]*s+0.02,dir,0.04,0.03,0.01,lit(jit(R()<0.6?hx('#6b4423'):hx('#3d4a2c'),0.15),0,0.3,1),0.97,[0,0.12,1]);}
   out.tail=sb;
+  /* head and neck, in headPivot space (pivot sits at the neck base, the bird faces -z).
+     Short feathered neck that bows back then forward, bare red upper neck, blue-grey head wider than the neck,
+     eyes turned forward, orange beak, red snood and wattle. A feather ruff on the body hides the joint. */
   sb=new SB();
-  for(let k=0;k<12;k++){const t=k/11,cy=-0.05+0.41*t,cz=0.02-0.2*t*t,r=0.075-0.03*t;
-    for(let a=0;a<10;a++){const ang=a/10*TAU+k*0.3,nx=Math.cos(ang),nz=Math.sin(ang);let col=t<0.25?hx('#2a1b10'):mixc(hx('#b9564a'),hx('#d98a7a'),R());
-      sb.disc(nx*r,cy,cz+nz*r,norm([nx,0.1,nz]),0.03,0.03,0.008,lit(jit(col,0.12),nx,0.2,nz),0.95);}}
-  shell(sb,0,0.42,-0.21,0.062,0.06,0.085,150,(u,p,n)=>{const col=u[1]>0.2?hx('#e2e8f2'):u[1]>-0.3?hx('#8fa9d8'):hx('#c0453c');sb.disc(...p,n,0.022,0.022,0.006,lit(jit(col,0.08),...n),1);});
-  for(let i=0;i<28;i++){const t=R(),cz=0.02-0.2*t*t,r=0.075-0.03*t;sb.blob(rr(-0.04,0.04),-0.02+0.36*t,cz-r*0.9,0.02,0.022,0.02,lit(jit(hx('#b3262a'),0.15),0,0.2,-1),1);}
-  sb.blob(0,0.355,-0.25,0.02,0.04,0.025,lit(hx('#c02a2a'),0,0,-1),1);
-  sb.stroke(0,0.43,-0.305,norm([0,-1,-0.25]),0.03,0.013,0.01,lit(hx('#c52f2f'),0,0.3,-1),1);
-  for(const[t,s]of[[0,0.022],[0.5,0.016],[1,0.01]])sb.blob(0,0.415-0.01*t,-0.29-0.04*t,s,s*0.8,s,lit(hx('#cfb586'),0,0.5,-1),1);
-  for(const s of[-1,1]){sb.blob(s*0.054,0.44,-0.24,0.012,0.012,0.008,[0.06,0.04,0.03],1);sb.blob(s*0.059,0.447,-0.247,0.004,0.004,0.003,[1,1,1],0.9);}
+  const nk=t=>[-0.05+0.25*t,0.02+0.108*Math.sin(Math.PI*t)*(1-t)-0.19*t*t,0.118-0.105*Math.pow(t,0.7)+0.03*t*t];
+  const NFE=['#5b3a1e','#8a5a2c','#3e4a2c','#2a1b10','#6b4423','#b07a3c'].map(hx);
+  for(let k=0;k<14;k++){const t=k/13,[cy,cz,r]=nk(t);
+    sb.blob(0,cy,cz,r*0.7,0.03,r*0.7,lit(hx(t<0.7?'#22160d':'#33465e'),0,0.3,-0.5),1);
+    for(let a=0;a<12;a++){const ang=a/12*TAU+k*0.37,nx=Math.cos(ang),nz=Math.sin(ang);
+      if(t<0.7)sb.stroke(nx*r,cy,cz+nz*r,norm([nx*0.5,-1,nz*0.5]),0.046,0.027,0.008,lit(jit(NFE[R()*6|0],0.15),nx,0.25,nz),0.97,[nx,0.2,nz]);
+      else{const s=rr(0.015,0.023),red=R()<0.4;sb.blob(nx*r,cy+rr(-0.008,0.008),cz+nz*r,s,s,s,lit(jit(red?hx('#a3272c'):mixc(hx('#4f6c92'),hx('#6788b0'),R()),0.12),nx,0.25,nz),1);}}}
+  const HC=[0,0.262,-0.205],HR=[0.084,0.074,0.098];
+  sb.blob(...HC,HR[0]*0.75,HR[1]*0.75,HR[2]*0.75,lit(hx('#4d6a8c'),0,0.5,-0.5),1);
+  shell(sb,...HC,...HR,280,(u,p,n)=>{let col=mixc(hx('#6788b0'),hx('#84a6c8'),R());
+    if(u[1]>0.6)col=mixc(col,hx('#a3bfd8'),0.5);else if(u[1]<-0.45&&u[2]>-0.2)col=mixc(hx('#8e2026'),hx('#b02c30'),R());
+    sb.disc(...p,n,0.024,0.024,0.007,lit(jit(col,0.08),...n),1);});
+  for(const[t,s]of[[0,0.037],[0.3,0.031],[0.62,0.023],[1,0.013]])sb.blob(0,HC[1]-0.005-0.03*t,HC[2]-0.075-0.092*t,s,s*0.72,s*1.15,lit(mixc(hx('#e08a1c'),hx('#f4c446'),t),0,0.5,-1),1);
+  for(const[x,y,z,s]of[[0.006,0.039,-0.083,0.014],[0.017,0.029,-0.109,0.013],[0.03,0.008,-0.129,0.013],[0.039,-0.019,-0.137,0.012],[0.043,-0.047,-0.137,0.012],[0.044,-0.071,-0.135,0.015]])
+    sb.blob(x,HC[1]+y,HC[2]+z,s,s*1.15,s,lit(jit(hx('#d8262c'),0.08),0,0.4,-1),1);
+  for(const[lx,ly,lz,n,len]of[[-0.016,-0.058,-0.058,9,0.085],[0.014,-0.062,-0.05,8,0.065],[0,-0.07,-0.02,6,0.05]])for(let i=0;i<n;i++){const t=i/(n-1),s=0.02+0.008*Math.sin(t*Math.PI)-0.004*t;
+    sb.blob(lx*(1+t*0.6)+rr(-0.005,0.005),HC[1]+ly-len*t,HC[2]+lz+0.03*t+rr(-0.005,0.005),s,s*1.2,s,lit(jit(hx('#c8242a'),0.16),lx*8,0.25,-1),1);}
+  for(const s of[-1,1]){const en=norm([s*0.72,0.2,-0.66]),E=k=>[HC[0]+en[0]*(HR[0]+k),HC[1]+en[1]*(HR[1]+k)+0.012,HC[2]+en[2]*(HR[2]+k)];
+    sb.disc(...E(0.012),en,0.03,0.03,0.014,[0.97,0.95,0.9],1,0);
+    sb.disc(E(0.024)[0],E(0.024)[1]-0.002,E(0.024)[2]-0.006,en,0.0155,0.0155,0.008,[0.05,0.035,0.03],1,0);
+    sb.blob(E(0.033)[0],E(0.033)[1]+0.006,E(0.033)[2]-0.009,0.0045,0.0045,0.0045,[1,1,1],1);
+    sb.stroke(E(0.014)[0],E(0.014)[1]+0.036,E(0.014)[2],norm([s*0.66,-0.22,0.72]),0.03,0.008,0.007,lit(hx('#3f5a7c'),...en),1,en);}
+  for(let L=0;L<2;L++)for(let i=0;i<28;i++){const a=i/28*TAU+L*0.11,rad=L?0.158:0.108,x=Math.cos(a)*rad,z=-0.265+Math.sin(a)*rad;
+    const q=1-(x/BR[0])**2-((z-BC[2])/BR[2])**2;if(q<0.03)continue;const y=BC[1]+BR[1]*Math.sqrt(q);
+    const n=norm([x/BR[0]**2,(y-BC[1])/BR[1]**2,(z-BC[2])/BR[2]**2]),o=[Math.cos(a),0,Math.sin(a)],dn=o[0]*n[0]+o[2]*n[2];
+    const lift=L?0.3:0.75,d=norm([o[0]-n[0]*dn+n[0]*lift,-n[1]*dn+n[1]*lift,o[2]-n[2]*dn+n[2]*lift]),h=L?0.022:0.04;
+    const col=jit(mixc(hx('#7a4c24'),hx('#b98440'),R()),0.12),px=x+n[0]*h,py=y+n[1]*h,pz=z+n[2]*h;
+    out.body.stroke(px,py,pz,d,0.058,0.034,0.009,lit(col,...n),0.97,n);
+    out.body.stroke(px+d[0]*0.05,py+d[1]*0.05,pz+d[2]*0.05,d,0.016,0.03,0.009,lit(hx(L?'#1b120c':'#d9b77a'),...n),0.97,n);}
   out.head=sb;
   sb=new SB();
   shell(sb,0,-0.06,0,0.07,0.08,0.07,40,(u,p,n)=>sb.disc(...p,n,0.035,0.035,0.01,lit(jit(hx('#3a2615'),0.15),...n),1));
