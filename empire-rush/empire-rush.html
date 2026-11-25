@@ -50,7 +50,7 @@
   .multi { display:flex; flex-wrap:wrap; gap:3px; max-height:84px; overflow:hidden; }
   .mu { width:30px; height:34px; border-radius:4px; border:1px solid var(--edge); background:#2a221a; cursor:pointer; position:relative; }
   .mu img { width:100%; height:30px; display:block; } .mu i { position:absolute; left:2px; right:2px; bottom:2px; height:2px; background:#6c6; }
-  #cmds { margin-left:auto; pointer-events:auto; display:grid; grid-template-columns:repeat(4,54px); grid-auto-rows:54px; gap:4px; padding:6px; flex:none; }
+  #cmds { margin-left:auto; pointer-events:auto; display:grid; grid-template-columns:repeat(5,54px); grid-auto-rows:54px; gap:4px; padding:6px; flex:none; }
   #cmds:empty { visibility:hidden; }
   .btn { position:relative; border:1px solid rgba(255,224,165,.22); background:linear-gradient(#3b3127,#221b15); border-radius:7px; color:var(--ink); cursor:pointer; padding:0; overflow:hidden; }
   .btn:hover { border-color:rgba(255,224,165,.55); background:linear-gradient(#4a3d30,#2a211a); }
@@ -188,7 +188,7 @@
       <button class="choice" data-d="0">Easy</button><button class="choice on" data-d="1">Normal</button><button class="choice" data-d="2">Hard</button>
     </div>
     <div class="row"><button class="go" id="bStart">Light the hearth</button></div>
-    <div class="hint" id="ctlHint">Left-click or drag to select · Right-click to gather, build, attack or move · WASD/arrows or screen edges to pan · Wheel to zoom · . next idle worker · H Hearth Hall · B bell · Ctrl+1–9 groups · Command buttons have letter keys; change any key in the pause menu (Hotkeys)</div>
+    <div class="hint" id="ctlHint">Left-click or drag to select · Right-click to gather, build, attack or move · Arrow keys or screen edges to scroll · Wheel to zoom · Age of Empires keys: H Hearth Hall (then Q for a villager) · . idle villager · , idle soldier · Q–T, A–G, Z–B command grid · Ctrl+1–9 groups · F3 pause · change any key in the pause menu (Hotkeys)</div>
   </div>
 </div>
 <div id="pause" class="ov" hidden>
@@ -3431,6 +3431,11 @@ function addBuilder(b, quiet) {
   u.job = null; orderBuild(u, b); sfx('click'); G.uiDirty = true;
   return true;
 }
+function nextIdleMil() {
+  const idle = G.units.filter(u => u.team === 0 && UNIT[u.type].mil && !u.dead && (u.st === 'idle' || !u.st));
+  if (!idle.length) { alertMsg('No idle soldiers.'); return; }
+  const u = idle[(UI.idleMilIx = (UI.idleMilIx || 0) + 1) % idle.length]; setSel([u]); centerOn(u.x, u.y);
+}
 function nextIdle() {
   const idle = G.units.filter(u => u.team === 0 && u.type === 'villager' && u.st === 'idle');
   if (!idle.length) { alertMsg('No idle workers.'); return; }
@@ -3439,17 +3444,20 @@ function nextIdle() {
 
 // Hotkeys ---------------------------------------------------------------------------
 // Every action can be rebound (pause menu → Hotkeys). Command buttons are keyed by their slot in the panel.
-const SLOT_KEYS = ['KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyF', 'KeyG', 'KeyJ', 'KeyK', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyY', 'KeyU', 'KeyI', 'KeyO'];
+// Defaults follow Age of Empires II: Definitive Edition: the command panel is a grid that matches the
+// keyboard (Q W E R T / A S D F G / Z X C V B), H jumps to the Town Center (then Q trains a villager),
+// . and , find idle workers and soldiers, Ctrl+number makes a group, the arrow keys scroll, F3 pauses.
+const SLOT_KEYS = ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB'];
 const KEY_ACTIONS = [
-  ['Camera', [['up', 'Pan up', 'KeyW'], ['down', 'Pan down', 'KeyS'], ['left', 'Pan left', 'KeyA'], ['right', 'Pan right', 'KeyD'], ['zin', 'Zoom in', 'Equal'], ['zout', 'Zoom out', 'Minus'], ['alert', 'Jump to last alert', 'Space']]],
-  ['Village', [['idle', 'Next idle worker', 'Period'], ['home', 'Select Hearth Hall', 'KeyH'], ['bell', 'Ring the bell', 'KeyB'], ['del', 'Cancel building / dismiss unit', 'Delete'], ['pause', 'Pause', 'KeyP'], ['speed', 'Game speed', 'KeyL']]],
-  ['Command buttons (left to right, top to bottom)', SLOT_KEYS.map((k, i) => ['slot' + i, `Button ${i + 1}`, k])],
+  ['Camera (arrow keys always scroll)', [['up', 'Scroll up', ''], ['down', 'Scroll down', ''], ['left', 'Scroll left', ''], ['right', 'Scroll right', ''], ['zin', 'Zoom in', 'Equal'], ['zout', 'Zoom out', 'Minus'], ['alert', 'Go to last alert', 'Home']]],
+  ['Village', [['home', 'Go to Town Center', 'KeyH'], ['idle', 'Next idle villager', 'Period'], ['idlemil', 'Next idle soldier', 'Comma'], ['bell', 'Ring the town bell', ''], ['del', 'Delete / cancel building', 'Delete'], ['pause', 'Pause', 'F3'], ['faster', 'Game speed up', 'NumpadAdd'], ['slower', 'Game speed down', 'NumpadSubtract']]],
+  ['Command grid (same layout as the buttons)', SLOT_KEYS.map((k, i) => ['slot' + i, `Row ${Math.floor(i / 5) + 1}, button ${i % 5 + 1}`, k])],
 ];
 const KEY_DEF = Object.fromEntries(KEY_ACTIONS.flatMap(([, list]) => list.map(([id, , k]) => [id, k])));
 let KEYMAP = { ...KEY_DEF };
 try { Object.assign(KEYMAP, JSON.parse(localStorage.getItem('empire-rush.keys') || '{}')); } catch (err) { /* storage unavailable */ }
 const saveKeys = () => { try { localStorage.setItem('empire-rush.keys', JSON.stringify(KEYMAP)); } catch (err) { /* ignore */ } };
-const keyLabel = c => !c ? '—' : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : c.startsWith('Numpad') ? 'Num ' + c.slice(6) :
+const keyLabel = c => !c ? '—' : c.startsWith('Key') ? c.slice(3) : c.startsWith('Digit') ? c.slice(5) : c === 'NumpadAdd' ? 'Num +' : c === 'NumpadSubtract' ? 'Num −' : c.startsWith('Numpad') ? 'Num ' + c.slice(6) :
   ({ Period: '.', Comma: ',', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']', Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', Space: 'Space', Delete: 'Del', Backspace: 'Bksp', Tab: 'Tab', Enter: 'Enter', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Insert: 'Ins', Home: 'Home', End: 'End', PageUp: 'PgUp', PageDown: 'PgDn' })[c] || c;
 const actionFor = code => Object.keys(KEYMAP).find(id => KEYMAP[id] === code);
 let rebinding = null;
@@ -3474,6 +3482,9 @@ function runAction(id, e) {
   if (/^slot\d+$/.test(id)) { const el = $('cmds').children[+id.slice(4)]; if (el) el.click(); return true; }
   switch (id) {
     case 'idle': nextIdle(); return true;
+    case 'idlemil': nextIdleMil(); return true;
+    case 'faster': if (G.speed < 2) { G.speed = G.speed === 1 ? 1.5 : 2; $('bSpeed').textContent = G.speed + '×'; } return true;
+    case 'slower': if (G.speed > 1) { G.speed = G.speed === 2 ? 1.5 : 1; $('bSpeed').textContent = G.speed + '×'; } return true;
     case 'home': { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } return true; }
     case 'bell': if (G.teams[0].tc) ringBell(0, !G.bell[0]); return true;
     case 'alert': e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); return true;
@@ -3481,7 +3492,6 @@ function runAction(id, e) {
     case 'zin': cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX); clampCam(); return true;
     case 'zout': cam.z = clamp(cam.z / 1.15, ZMIN, ZMAX); clampCam(); return true;
     case 'pause': $('bMenu').click(); return true;
-    case 'speed': $('bSpeed').click(); return true;
   }
   return false;   // pan keys are read every frame
 }
@@ -3615,7 +3625,7 @@ window.addEventListener('keydown', e => {
   if (rebinding) { rebindKey(e); return; }
   keys[e.code] = true;
   if (!G.started || G.over) return;
-  if (paused) { if (e.code === KEYMAP.pause || e.key === 'Escape') { if (!$('keysBox').hidden && e.key === 'Escape') return; $('bResume').click(); } return; }
+  if (paused) { if (e.code === KEYMAP.pause) e.preventDefault(); if (e.code === KEYMAP.pause || e.key === 'Escape') { if (!$('keysBox').hidden && e.key === 'Escape') return; $('bResume').click(); } return; }
   const k = e.key;
   if (k === 'Escape') { if (UI.place || UI.amove) { UI.place = null; UI.amove = false; UI.wallLine = null; G.uiDirty = true; } else setSel([]); return; }
   if (/^[1-9]$/.test(k)) {
@@ -3625,7 +3635,7 @@ window.addEventListener('keydown', e => {
   }
   if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
   const id = actionFor(e.code);
-  if (id) runAction(id, e);
+  if (id) { if (/^F\d+$/.test(e.code) || e.code === 'Home') e.preventDefault(); runAction(id, e); }
   else if (k === '+' ) { cam.z = clamp(cam.z * 1.15, ZMIN, ZMAX); clampCam(); }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
