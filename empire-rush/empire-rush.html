@@ -99,6 +99,10 @@
   #mpStatus { margin-top:6px; min-height:18px; }
   #mpStatus b { color:#ffe6a8; letter-spacing:.12em; }
   .mp [hidden] { display:none !important; }
+  #mpHold { position:fixed; left:50%; top:64px; transform:translateX(-50%); z-index:40; max-width:min(92vw,520px); text-align:center; padding:10px 16px; border-radius:10px;
+    background:rgba(24,18,12,.92); border:1px solid rgba(255,224,165,.45); color:var(--ink); font:600 14px/1.45 system-ui; box-shadow:0 6px 30px rgba(0,0,0,.5); pointer-events:none; }
+  #mpHold b { color:#ffe6a8; letter-spacing:.06em; }
+  #mpHold[hidden] { display:none; }
   .mpg { margin:8px 0 2px; } .mph { font:700 10px/1 system-ui; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
   .mpcode { font:700 20px/1 ui-monospace,monospace; letter-spacing:.22em; color:#ffe6a8; padding:0 6px; align-self:center; }
   .mplist { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; font-weight:700; }
@@ -204,7 +208,7 @@
     </div>
     <div class="row"><button class="go" id="bStart">Light the hearth</button></div>
     <div class="mp" id="mpBox">
-      <div class="mpt">Play a friend online <span>beta</span></div>
+      <div class="mpt">Play friends online · 2 to 4 <span>beta</span></div>
       <div id="mpRejoin" class="row" hidden><button class="go sm" id="bMpRejoin">↩ Rejoin match</button></div>
       <div id="mpJoinRow" class="row"><button class="choice" id="bMpNew">Create a room</button><input id="mpCode" maxlength="5" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code"><button class="choice" id="bMpJoin">Join</button></div>
       <div id="mpLobby" hidden>
@@ -228,6 +232,7 @@
     <div id="keysBox" hidden></div>
   </div>
 </div>
+<div id="mpHold" hidden></div>
 <div id="end" class="ov" hidden>
   <div class="card pn">
     <h2 id="endT">Victory</h2>
@@ -1663,6 +1668,7 @@ function newGame(seed, diff, nc = 2) {
     teams: [0, 1, 2, 3, 4].map(newTeam), nc, out: [], time: 0, clock: 0, day: 1, dayT: .1, season: 0, winter: false, bloodNight: false, dark: 0, snow: 0,
     diff, seed, over: false, tick: 0, bell: [false, false, false, false, false], ais: [null, null, null, null, null], groups: {}, uiDirty: true, miniDirty: true, resPulse: {}, started: false, speed: 1 };
   genWorld(seed);
+  G.genRes = G.res.map(r => r.id); G.genSet = new Set(G.genRes);
   for (let t = 0; t < nc; t++) {
     const b = BASES[t], tc = placeBuilding('tc', t, b.x - 2, b.y - 2, true);
     for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU + .4; spawnUnit('villager', t, tc.x + Math.cos(a) * 2.9 * T, tc.y + Math.sin(a) * 2.9 * T + 8); }
@@ -3799,24 +3805,42 @@ function endGame(win) {
   G.over = true; updVision(); updFog(); setSel([]);
   const tm = G.teams[0], s = tm.stats, mins = Math.floor(G.clock / 60);
   $('endT').textContent = win ? 'Victory' : 'Defeat';
-  $('endS').textContent = win ? (G.nc > 2 ? `Every rival hall has burned. Your hearth stands after ${G.day} days.` : `The rival hall burns. Your hearth stands after ${G.day} days.`)
+  const left = win && G.out && [...Array(G.nc).keys()].every(t => !t || (G.out[t] && G.out[t].why === 'left'));
+  $('endS').textContent = left ? (G.nc > 2 ? 'Every rival left the match. Your hearth stands.' : 'Your rival left the match. Your hearth stands.') : win ? (G.nc > 2 ? `Every rival hall has burned. Your hearth stands after ${G.day} days.` : `The rival hall burns. Your hearth stands after ${G.day} days.`)
     : G.nc > 2 && G.winner > 0 ? `${TEAM_COL[G.winner].name} clan wins on day ${G.day}.` : `Your Hearth Hall has fallen on day ${G.day}.`;
   $('endStats').innerHTML = [['Days', G.day], ['Time', `${mins}m ${Math.floor(G.clock % 60)}s`], ['Era', ERA_NAMES[tm.era]], ['Difficulty', DIFF[G.diff].name], ['Trained', s.trained], ['Built', s.built], ['Enemies slain', s.kills], ['People lost', s.lost], ['Gathered', fmt(s.gathered)], ['Rival era', ERA_NAMES[G.teams[1].era]]].map(([a, b]) => `<div>${a} <b>${b}</b></div>`).join('');
   $('end').hidden = false; sfx(win ? 'win' : 'lose');
 }
 // Online play -----------------------------------------------------------------------
+// Two to four players. The host runs the real game and sends snapshots; everyone else sends orders.
+// Players are known by a persistent id (pid). If anyone drops out, the match pauses for up to HOLD_S seconds and
+// nobody can skip the wait; whoever has not come back by then is out. The host keeps a save of the match on its own
+// device (so it can come back after closing the page) and sends everyone a backup every few seconds, so that if the
+// host never returns the next player takes over and the match goes on.
 const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://relay.thearcadeshelf.com');
-const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', HOLD_S = 90, REC_KEY = 'empire-rush.rejoin';
-// Players are known by a persistent id, so a dropped connection (a phone switching apps to send the link, a wifi blip)
-// reconnects to the same room by itself. Before the match the lowest seat in the room is the host and starts it.
+const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', HOLD_S = +Q.get('hold') || 90, MAXP = 4, REC_KEY = 'empire-rush.rejoin', SAVE_KEY = 'empire-rush.save';
 try { MP.pid = localStorage.getItem('empire-rush.pid') || ''; } catch (err) { /* private mode */ }
 if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('empire-rush.pid', MP.pid); } catch (err) { /* private mode */ } }
-MP.present = new Set(); MP.pidOf = new Map(); MP.want = false;
+Object.assign(MP, { present: new Set(), pidOf: new Map(), on: new Set(), want: false, roster: [], cols: [0, 1, 2, 3], me: 0, ep: 0, hostPid: '', bk: null, hold: {}, hostGone: 0, lostAt: 0 });
 const mpStatus = html => { $('mpStatus').innerHTML = html; };
-function mpSend(o) { if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
-function mpClose() { clearTimeout(MP.retryT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (err) { /* closed */ } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); }
-function mpLeave() { MP.want = false; mpClose(); mpRec(false); clearTimeout(MP.waitT); MP.role = null; MP.started = false; MP.guestOn = false; if (G) G.mp = null; clearInterval(MP.bg); mpLobby(); }
-const mpIsHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+function mpSend(o) { if (o.k === 'c') o.from = MP.me; if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
+function mpClose() { clearTimeout(MP.retryT); clearTimeout(MP.claimT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (err) { /* closed */ } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); MP.on.clear(); }
+function mpLeave() {
+  if (MP.started) mpSend({ k: 'bye', pid: MP.pid });
+  MP.want = false; mpClose(); mpRec(false); mpSaveClear();
+  Object.assign(MP, { role: null, started: false, roster: [], hold: {}, hostGone: 0, lostAt: 0, bk: null, ep: 0, hostPid: '' });
+  if (G) G.mp = null; clearInterval(MP.bg); mpPersp(0, [0, 1, 2, 3]); mpLobby(); mpHoldUI();
+}
+const mpLobbyHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+// this screen sees its own clan as team 0; swT turns the host's team numbers into this screen's (it is its own inverse)
+const swT = t => t === 0 ? MP.me : t === MP.me ? 0 : t;
+function mpPersp(me, cols) {
+  const was = TEAM_COL.map(c => c.name).join();
+  MP.me = me; if (cols) MP.cols = cols.slice();
+  TEAM_COL = CLAN_COL.map((c, t) => t < WILD ? CLAN_COL[MP.cols[swT(t)]] : c);
+  if (TEAM_COL.map(c => c.name).join() !== was) SPR.clear();   // team-coloured sprites are cached by team number
+}
+const clanName = canon => CLAN_COL[MP.cols[canon]].name;
 function mpConnect(code) {
   mpClose(); MP.code = code; MP.want = true;
   let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=empire-rush&room=' + code); } catch (err) { mpStatus('Could not reach the game server.'); return; }
@@ -3824,97 +3848,259 @@ function mpConnect(code) {
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (err) { return; } mpMsg(m); };
   ws.onerror = () => { if (!MP.started) mpStatus('Could not reach the game server. Trying again…'); };
   ws.onclose = () => {
-    MP.ws = null; MP.seat = -1; MP.present.clear(); MP.guestOn = false; mpLobby();
+    MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); MP.on.clear(); mpLobby();
     if (!MP.want) return;
-    if (MP.started && G && !G.over) {
-      if (MP.role === 'host') { if (!G.ais[1]) { alertMsg('Connection lost. The rival AI plays your friend\'s clan while we reconnect.', 'bad'); aiInit(1); } }
-      else mpWait('Connection lost. Reconnecting…');
-    } else if (!MP.started) mpStatus(`Reconnecting to room <b>${MP.code}</b>…`);
+    if (MP.started && G && !G.over) { MP.lostAt = MP.lostAt || performance.now(); if (MP.role === 'host') MP.full = true; mpHoldUI(); }
+    else if (!MP.started) mpStatus(`Reconnecting to room <b>${MP.code}</b>…`);
     clearTimeout(MP.retryT); MP.retryT = setTimeout(() => { if (MP.want && !MP.ws) mpConnect(MP.code); }, document.hidden ? 4000 : 1500);
   };
 }
 // coming back to the page (after sending the link from another app): reconnect at once
 document.addEventListener('visibilitychange', () => { if (!document.hidden && MP.want && !MP.ws && MP.code) mpConnect(MP.code); });
-// the guest waits for a host that dropped out; after HOLD_S seconds the match is over
-function mpWait(text) {
-  if (MP.waitT) return;
-  alertMsg(text, 'bad'); MP.waitUntil = performance.now() + HOLD_S * 1000;
-  MP.waitT = setTimeout(() => { MP.waitT = null; if (MP.started && MP.role === 'client' && G && !G.over) { MP.want = false; mpClose(); mpLost('The host did not come back.'); } }, HOLD_S * 1000);
-}
-function mpWaitEnd() { if (MP.waitT) { clearTimeout(MP.waitT); MP.waitT = null; alertMsg('Reconnected.', 'good'); } }
+
+// ---------- what to keep across an accidental exit
 function mpRec(on) { try { if (on) localStorage.setItem(REC_KEY, JSON.stringify({ room: MP.code, ts: Date.now() })); else localStorage.removeItem(REC_KEY); } catch (err) { /* private mode */ } }
-function mpLoadRec() { try { const r = JSON.parse(localStorage.getItem(REC_KEY) || 'null'); return r && Date.now() - r.ts < 20 * 60e3 ? r : null; } catch (err) { return null; } }
+function mpLoadRec() { try { const r = JSON.parse(localStorage.getItem(REC_KEY) || 'null'); return r && Date.now() - r.ts < 30 * 60e3 ? r : null; } catch (err) { return null; } }
+function mpSave() {
+  if (MP.role !== 'host' || !MP.started || !G || G.over) return;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ room: MP.code, ep: MP.ep, roster: MP.roster, cols: MP.cols, pid: MP.pid, ts: Date.now(), st: saveState() })); mpRec(true); } catch (err) { /* storage full or private mode */ }
+}
+function mpLoadSave() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return s && s.pid === MP.pid && Date.now() - s.ts < 30 * 60e3 ? s : null; } catch (err) { return null; } }
+function mpSaveClear() { try { localStorage.removeItem(SAVE_KEY); } catch (err) { /* private mode */ } }
+addEventListener('pagehide', mpSave);
+addEventListener('beforeunload', mpSave);
+
+// ---------- the whole match as plain data (entities refer to each other by id)
+const SAVE_SKIP = new Set(['sel']);
+function plainOf(e, skip) { const o = {}; for (const k in e) { if (skip && skip.has(k)) continue; const v = e[k]; if (v !== null && typeof v === 'object' && v.ent) continue; o[k] = v; } return o; }
+function saveState() {
+  const alive = new Set(); for (const r of G.res) if (!r.dead) alive.add(r.id);
+  const g = {}; for (const k of ['time', 'clock', 'day', 'dayT', 'season', 'winter', 'bloodNight', 'dark', 'snow', 'tick', 'bell', 'out', 'housedAt']) g[k] = G[k];
+  return {
+    v: 1, seed: G.seed, diff: G.diff, nc: G.nc, nextId: G.nextId, g,
+    units: G.units.filter(u => !u.dead).map(u => plainOf(u, SAVE_SKIP)), blds: G.blds.filter(b => !b.dead).map(b => plainOf(b)),
+    resGone: G.genRes.filter(id => !alive.has(id)),
+    resAmt: G.res.filter(r => !r.dead && G.genSet.has(r.id) && r.amt !== r.max).map(r => [r.id, Math.round(r.amt * 100) / 100]),
+    resNew: G.res.filter(r => !r.dead && !G.genSet.has(r.id)).map(r => plainOf(r)),
+    teams: G.teams.map(t => Object.assign(plainOf(t), { tc: t.tc ? t.tc.id : 0 })),
+    ais: G.ais.map(a => a && Object.assign({}, a, { atk: [...a.atk] })),
+  };
+}
+// renumber the clans in a saved match so that clan k becomes clan 0
+function permState(st, k) {
+  if (!k) return st;
+  const sw = t => t === 0 ? k : t === k ? 0 : t, x = a => { if (a) { const v = a[0]; a[0] = a[k]; a[k] = v; } };
+  for (const u of st.units) u.team = sw(u.team);
+  for (const b of st.blds) b.team = sw(b.team);
+  x(st.teams); st.teams[0].id = 0; st.teams[k].id = k;
+  x(st.ais); x(st.g.bell); st.g.out = st.g.out || []; while (st.g.out.length <= k) st.g.out.push(null); x(st.g.out);
+  return st;
+}
+function loadState(st) {
+  const keep = G && G.seed === st.seed && G.nc === st.nc && expl ? expl.slice() : null;
+  if (!G || G.seed !== st.seed || G.nc !== st.nc) chunks.fill(null);
+  newGame(st.seed, st.diff, st.nc);
+  MP.baseR = new Map(); mpDiff(G.res, MP.baseR, []);   // snapshots describe resources relative to the freshly generated map
+  for (const b of G.blds) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
+  G.units = []; G.blds = []; G.unitById.clear(); G.bldById.clear();
+  for (const id of st.resGone) removeRes(G.resById.get(id), true);
+  G.res = G.res.filter(r => !r.dead);
+  for (const [id, amt] of st.resAmt) { const r = G.resById.get(id); if (r) r.amt = amt; }
+  for (const d of st.resNew) { const r = Object.assign({}, d); G.res.push(r); G.resById.set(r.id, r); if (RES_KIND[r.kind].block) { const i = tid(r.tx, r.ty); resAt[i] = r.id; blk[i] = 1; } }
+  for (const d of st.blds) { const b = Object.assign({}, d); G.blds.push(b); G.bldById.set(b.id, b); for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); occ[i] = b.id; recalcBlk(i); } }
+  for (const d of st.units) { const u = Object.assign({}, d, { sel: false }); G.units.push(u); G.unitById.set(u.id, u); }
+  st.teams.forEach((d, i) => Object.assign(G.teams[i], d, { tc: d.tc ? G.bldById.get(d.tc) || null : null }));
+  G.ais = st.ais.map(a => a && Object.assign({}, a, { atk: new Set(a.atk) })); G.ai = G.ais[1];
+  Object.assign(G, st.g); G.out = (st.g.out || []).map(o => o || undefined); G.nextId = st.nextId;
+  if (keep) expl.set(keep);
+  updLights(); updVision(); rebuildGrid(); G.miniDirty = true; G.uiDirty = true;
+}
+async function packState(st) {
+  const txt = JSON.stringify(st);
+  if (typeof CompressionStream !== 'function') return { z: 0, d: txt };
+  const buf = await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  let bin = ''; const a = new Uint8Array(buf); for (let i = 0; i < a.length; i += 0x8000) bin += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000));
+  return { z: 1, d: btoa(bin) };
+}
+async function unpackState(p) {
+  if (!p.z) return JSON.parse(p.d);
+  const bin = atob(p.d), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return JSON.parse(await new Response(new Blob([a]).stream().pipeThrough(new DecompressionStream('gzip'))).text());
+}
+async function mpBackup() {
+  if (MP.role !== 'host' || !MP.started || !G || G.over || !MP.ws || MP.present.size < 2) return;
+  const p = await packState(saveState());
+  mpSend({ k: 'bk', ep: MP.ep, roster: MP.roster, cols: MP.cols, z: p.z, d: p.d });
+}
+
+// ---------- pausing for players who dropped out
+const mpPaused = () => MP.role === 'host' && MP.started && G && !G.over && (!MP.ws || Object.keys(MP.hold).length > 0);
+function mpTick(dt) {
+  if (!MP.started || !G) return;
+  const now = performance.now();
+  if (MP.role === 'host' && !G.over) {
+    if (MP.ws) for (const k of Object.keys(MP.hold)) {
+      MP.hold[k] -= dt;
+      if (MP.hold[k] <= 0) { delete MP.hold[k]; const idx = +k; MP.on.delete(MP.roster[idx]); clanOut(idx, 'left'); checkEnd(); }
+    }
+    if (now - (MP.saveT || 0) > 5000) { MP.saveT = now; mpSave(); }
+    if (now - (MP.bkT || 0) > 8000) { MP.bkT = now; mpBackup(); }
+  }
+  if (MP.role === 'client' && MP.hostGone > 0 && MP.ws && !G.over) { MP.hostGone -= dt; if (MP.hostGone <= 0) { MP.hostGone = 0; mpTakeOver(); } }
+  if (now - (MP.uiT || 0) > 250) { MP.uiT = now; mpHoldUI(); }
+}
+function mpHoldUI() {
+  const box = $('mpHold'), lines = [];
+  if (MP.started && G && !G.over) {
+    if (!MP.ws) lines.push('Connection lost · reconnecting…');
+    else if (MP.role === 'client' && MP.hostGone > 0) lines.push(MP.waitNew ? 'Handing the match to another player…' : `${clanName(0)} clan (the host) lost connection · waiting ${Math.ceil(MP.hostGone)} s for them to come back`);
+    else { const h = MP.role === 'host' ? MP.hold : (MP.snapHold || {}); for (const k in h) lines.push(`${clanName(+k)} clan lost connection · back in ${Math.ceil(h[k])} s or they are out`); }
+  }
+  box.hidden = !lines.length; if (lines.length) box.innerHTML = '<b>⏸ Paused</b><br>' + lines.join('<br>');
+}
+// the host never came back: the lowest-numbered player still here carries on from the last backup
+async function mpTakeOver() {
+  if (MP.role !== 'client' || !G || G.over) return;
+  const here = new Set([MP.pid, ...MP.pidOf.values()]);
+  const next = MP.roster.findIndex((p, i) => i > 0 && here.has(p) && !G.out[swT(i)]);
+  if (next !== MP.me) { MP.waitNew = true; MP.hostGone = 25; mpHoldUI(); if (next < 0) mpLost('The host did not come back.'); return; }
+  if (!MP.bk) { mpLost('The host did not come back.'); return; }
+  let st; try { st = await unpackState(MP.bk); } catch (err) { mpLost('The host did not come back.'); return; }
+  const k = MP.me, roster = MP.roster.slice(), cols = MP.cols.slice();
+  [roster[0], roster[k]] = [roster[k], roster[0]]; [cols[0], cols[k]] = [cols[k], cols[0]];
+  MP.roster = roster; MP.ep++; MP.hostPid = MP.pid; MP.waitNew = false;
+  mpBecomeHost(permState(st, k), cols);
+  delete MP.hold[k]; clanOut(k, 'left'); checkEnd();   // the old host's clan now has the number k
+  alertMsg('The host did not come back, so you are running the match now.', 'good');
+}
+function mpBecomeHost(st, cols) {
+  MP.role = 'host'; MP.started = true; MP.hostGone = 0; MP.hold = {};
+  mpPersp(0, cols);
+  audioInit(); loadState(st); G.mp = 'host'; MP.full = true; MP.sendT = 0; mpHostBg();
+  MP.on = new Set(MP.roster.filter((p, i) => i > 0 && [...MP.pidOf.values()].includes(p)));
+  MP.roster.forEach((p, i) => { if (i > 0 && !MP.on.has(p) && !G.out[i]) MP.hold[i] = HOLD_S; });
+  showGameUI(); mpRec(true); mpSave();
+  mpSend({ k: 'start', seed: G.seed, roster: MP.roster, cols: MP.cols, ep: MP.ep, rejoin: 1 });
+}
+// a host that closed the page by accident comes back to its saved match
+function mpClaimHost() {
+  const sv = mpLoadSave(); if (!sv || sv.room !== MP.code || MP.started || !MP.ws) return;
+  MP.roster = sv.roster; MP.ep = sv.ep; MP.hostPid = MP.pid;
+  mpBecomeHost(sv.st, sv.cols || [0, 1, 2, 3]);
+  alertMsg('Back in the match.', 'good');
+}
+
+// ---------- lobby
 function mpLobby() {
   const on = MP.seat >= 0 && !MP.started, rec = !MP.want && mpLoadRec();
   $('mpLobby').hidden = !on; $('mpJoinRow').hidden = on || MP.want;
   $('mpRejoin').hidden = !rec; if (rec) $('bMpRejoin').textContent = `↩ Rejoin match · ${rec.room}`;
   if (!on) return;
-  const seats = [...MP.present].sort((x, y) => x - y), host = mpIsHost();
+  const seats = [...MP.present].sort((x, y) => x - y).slice(0, MAXP), host = mpLobbyHost();
   $('mpRoom').textContent = MP.code; $('bMpShare').hidden = !navigator.share;
-  $('mpList').innerHTML = seats.map((st, k) => `<span style="color:${k ? '#ff8a6a' : '#7cc4ff'}">${st === MP.seat ? 'You' : 'Your friend'}${k === 0 ? ' · host' : ''}</span>`).join('');
+  $('mpList').innerHTML = seats.map((st, k) => `<span style="color:${CLAN_COL[k].lite}">${st === MP.seat ? 'You' : 'Player ' + (k + 1)}${k === 0 ? ' · host' : ''}</span>`).join('');
   $('bMpStart').hidden = !host; $('bMpStart').disabled = seats.length < 2;
-  $('bMpStart').textContent = seats.length < 2 ? 'Waiting for your friend…' : 'Start the match';
-  if (host && seats.length > 1 && MP.shown !== MP.code) { MP.shown = MP.code; $('bMpStart').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }   // the friend is in: bring Start into view
-  mpStatus(host ? (seats.length < 2 ? 'Send your friend the link or code. It is fine to switch apps to send it.' : 'Your friend is here. Start when you are ready.') : 'Waiting for the host to start…');
+  $('bMpStart').textContent = seats.length < 2 ? 'Waiting for players…' : `Start · ${seats.length} players`;
+  if (host && seats.length > 1 && MP.shown !== MP.code + seats.length) { MP.shown = MP.code + seats.length; $('bMpStart').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  mpStatus(host ? (seats.length < 2 ? 'Send friends the link or code (up to 4 players). It is fine to switch apps to send it.' : seats.length < MAXP ? 'Start now, or wait for more players.' : 'The room is full. Start when ready.') : 'Waiting for the host to start…');
 }
 function mpHostStart() {
-  if (!mpIsHost() || MP.present.size < 2) return;
-  const other = [...MP.present].find(st => st !== MP.seat), seed = (Math.random() * 1e6) | 0;
-  MP.guestPid = MP.pidOf.get(other) || ''; MP.guestOn = true;
-  MP.started = true; MP.role = 'host'; mpSend({ k: 'start', seed, guest: MP.guestPid }); mpRec(false); mpLobby();
-  startGame({ role: 'host', seed }); alertMsg('Your friend is in. You are the blue clan in the south-west.', 'good');
+  if (!mpLobbyHost() || MP.present.size < 2) return;
+  const roster = [...MP.present].sort((x, y) => x - y).slice(0, MAXP).map(st => st === MP.seat ? MP.pid : MP.pidOf.get(st) || 's' + st), seed = (Math.random() * 1e6) | 0;
+  Object.assign(MP, { roster, ep: 1, hostPid: MP.pid, on: new Set(roster.slice(1)), hold: {}, started: true, role: 'host' });
+  mpPersp(0, [0, 1, 2, 3]); mpLobby();
+  mpSend({ k: 'start', seed, roster, cols: MP.cols, ep: MP.ep });
+  startGame({ role: 'host', seed, nc: roster.length });
+  alertMsg(`Everyone is in. You are the ${clanName(0)} clan.`, 'good'); mpSave();
 }
+// after the host's own connection comes back: anyone who has not said hello since then is treated as dropped
+function mpCheckMissing() {
+  if (MP.role !== 'host' || !MP.started || !G || G.over || !MP.ws) return;
+  MP.roster.forEach((p, i) => { if (i > 0 && !MP.on.has(p) && !G.out[i] && !(i in MP.hold)) MP.hold[i] = HOLD_S; });
+  mpHoldUI();
+}
+function mpHere(re) { mpSend({ k: 'here', pid: MP.pid, seat: MP.seat, re: re ? 1 : 0, host: MP.role === 'host' && MP.started ? 1 : 0, ep: MP.ep }); }
 function mpMsg(m) {
-  if (m.k === 'full') { MP.want = false; mpStatus('That room already has two players.'); mpLobby(); return; }
+  if (m.k === 'full') { MP.want = false; mpStatus('That room is full (4 players).'); mpLobby(); return; }
   if (m.k === 'hello') {
-    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]);
-    mpSend({ k: 'here', pid: MP.pid, seat: m.seat }); mpLobby();
-    if (!MP.started && mpLoadRec() && mpLoadRec().room === MP.code) mpStatus(`Rejoining room <b>${MP.code}</b>…`);
+    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); MP.lostAt = 0;
+    mpHere(false); mpLobby(); mpHoldUI();
+    if (MP.role === 'host' && MP.started) { MP.full = true; MP.on.clear(); clearTimeout(MP.chkT); MP.chkT = setTimeout(mpCheckMissing, 3000); }   // everyone gets a full picture again
+    if (!MP.started) {
+      const sv = mpLoadSave();
+      if (sv && sv.room === MP.code) { mpStatus(`Rejoining room <b>${MP.code}</b>…`); clearTimeout(MP.claimT); MP.claimT = setTimeout(mpClaimHost, 1500); }
+      else if (mpLoadRec() && mpLoadRec().room === MP.code) mpStatus(`Rejoining room <b>${MP.code}</b>…`);
+    }
     return;
   }
   if (m.k === 'here') {
     const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
-    if (isNew || !m.re) mpSend({ k: 'here', pid: MP.pid, seat: MP.seat, re: 1 });   // answer newcomers so both sides know each other's id
-    // the guest of a running match is back: send the world again
-    if (MP.started && MP.role === 'host' && G && !G.over && m.pid && m.pid === MP.guestPid && !MP.guestOn) {
-      MP.guestOn = true; MP.full = true; G.ais[1] = null; mpSend({ k: 'start', seed: G.seed, guest: MP.guestPid, rejoin: 1 }); alertMsg('Your friend is back.', 'good');
+    if (isNew || !m.re) mpHere(true);   // answer newcomers so everyone knows everyone's id
+    if (m.host && m.pid !== MP.pid) {
+      clearTimeout(MP.claimT);   // someone else is running the match: wait for them to send it
+      if (MP.role === 'host' && m.ep > MP.ep) { MP.role = 'client'; MP.started = false; MP.ep = m.ep; clearInterval(MP.bg); if (G) G.mp = null; mpSaveClear(); }
     }
-    if (MP.started && MP.role === 'client' && m.pid && m.pid === MP.hostPid) mpWaitEnd();
+    if (MP.role === 'host' && MP.started && G && !G.over && m.pid) {
+      const idx = MP.roster.indexOf(m.pid);
+      if (idx > 0 && !MP.on.has(m.pid)) {
+        MP.on.add(m.pid); const was = idx in MP.hold; delete MP.hold[idx]; MP.full = true;
+        mpSend({ k: 'start', seed: G.seed, roster: MP.roster, cols: MP.cols, ep: MP.ep, rejoin: 1, to: m.pid });
+        if (was) alertMsg(`${clanName(idx)} clan is back.`, 'good');
+      }
+    }
     mpLobby(); return;
   }
   if (m.k === 'peer') {
     if (m.on) MP.present.add(m.seat);
     else {
-      const pid = MP.pidOf.get(m.seat); MP.present.delete(m.seat); MP.pidOf.delete(m.seat);
-      if (MP.started && G && !G.over) {
-        if (MP.role === 'host' && pid === MP.guestPid) { MP.guestOn = false; alertMsg('Your friend lost connection. The rival AI plays for them until they come back.', 'bad'); aiInit(1); }
-        else if (MP.role === 'client' && pid === MP.hostPid) mpWait(`The host lost connection. Waiting up to ${HOLD_S} s for them…`);
+      const pid = MP.pidOf.get(m.seat); MP.present.delete(m.seat); MP.pidOf.delete(m.seat); MP.on.delete(pid);
+      if (MP.started && G && !G.over && pid) {
+        const idx = MP.roster.indexOf(pid);
+        if (MP.role === 'host' && idx > 0 && !G.out[idx] && !(idx in MP.hold)) { MP.hold[idx] = HOLD_S; sfx('bad'); MP.bkT = 0; }
+        else if (MP.role === 'client' && pid === MP.hostPid && !MP.hostGone) { MP.hostGone = HOLD_S; MP.waitNew = false; sfx('bad'); }
       }
     }
-    mpLobby(); return;
+    mpLobby(); mpHoldUI(); return;
   }
-  if (m.k === 'start' && MP.role !== 'host') {
-    if (m.guest && m.guest !== MP.pid) return;
-    MP.hostPid = [...MP.pidOf.entries()].find(([st]) => st !== MP.seat)?.[1] || MP.hostPid;
-    clearTimeout(MP.waitT); MP.waitT = null; MP.started = true; MP.role = 'client'; mpRec(true); mpLobby(); startGame({ role: 'client', seed: m.seed });
+  if (m.k === 'bye') {
+    if (!MP.started || !G || G.over) return;
+    const idx = MP.roster.indexOf(m.pid);
+    if (MP.role === 'host' && idx > 0) { delete MP.hold[idx]; MP.on.delete(m.pid); if (!G.out[idx]) { clanOut(idx, 'left'); checkEnd(); } }
+    else if (MP.role === 'client' && m.pid === MP.hostPid) { MP.hostGone = 0.01; }   // the host quit on purpose: take over now
+    return;
+  }
+  if (m.k === 'start') {
+    if ((m.ep || 0) < MP.ep || (m.to && m.to !== MP.pid)) return;
+    if (MP.role === 'host' && MP.started && m.ep === MP.ep) return;
+    clearTimeout(MP.claimT);
+    const me = (m.roster || []).indexOf(MP.pid);
+    if (me < 0) { mpStatus('A match is already under way in this room. Wait here for the next one, or make a new room.'); return; }
+    Object.assign(MP, { roster: m.roster, ep: m.ep || 1, hostPid: m.roster[0], hostGone: 0, waitNew: false, started: true, role: 'client' });
+    mpPersp(me, m.cols || [0, 1, 2, 3]); mpRec(true); mpSaveClear(); mpLobby();
+    startGame({ role: 'client', seed: m.seed, nc: m.roster.length });
     if (m.rejoin) alertMsg('Back in the match.', 'good');
     return;
   }
-  if (m.k === 's' && MP.role === 'client' && G && G.mp === 'client') { if (MP.waitT && !MP.hostPid) mpWaitEnd(); mpApply(m); return; }
-  if (m.k === 'c' && MP.role === 'host' && G && G.mp === 'host') { G.ais[1] = null; mpCommand(m); }
+  if (m.k === 'bk') { if (MP.role === 'client' && (m.ep || 0) >= MP.ep) MP.bk = m; return; }
+  if (m.k === 's' && MP.role === 'client' && G && G.mp === 'client') { if ((m.ep || 0) < MP.ep) return; if (MP.hostGone) { MP.hostGone = 0; MP.waitNew = false; } mpApply(m); return; }
+  if (m.k === 'c' && MP.role === 'host' && G && G.mp === 'host') mpCommand(m);
 }
-function mpLost(text) { G.over = true; $('endT').textContent = 'Disconnected'; $('endS').textContent = text; $('endStats').innerHTML = ''; $('end').hidden = false; }
+function mpLost(text) { G.over = true; MP.hostGone = 0; mpRec(false); mpHoldUI(); $('endT').textContent = 'Disconnected'; $('endS').textContent = text; $('endStats').innerHTML = ''; $('end').hidden = false; }
+function mpHostBg() {
+  // keep the match running while the host's page is in the background (timers still fire, just slowly)
+  clearInterval(MP.bg); MP.bg = setInterval(() => { if (document.hidden && G && G.mp === 'host' && G.started && !G.over && !mpPaused()) { const now = performance.now(), d = Math.min(1, (now - (MP.bgT || now)) / 1000); MP.bgT = now; for (let s = d; s > 1e-4; s -= 1 / 30) tick(Math.min(s, 1 / 30)); mpHostSend(now, true); } else MP.bgT = performance.now(); }, 250);
+}
 function mpSetup(role) {
-  G.mp = role; G.ais[1] = null; MP.full = true; MP.sendT = 0;
+  G.mp = role; G.ais.fill(null); G.ai = null; MP.full = true; MP.sendT = 0; MP.saveT = performance.now(); MP.bkT = performance.now() - 5000; MP.bk = null;
   MP.baseR = new Map(); mpDiff(G.res, MP.baseR, []);
   if (role === 'host') {
-    G.teams[1].res = { ...G.teams[0].res };   // no head start for a human rival
+    for (let t = 1; t < G.nc; t++) G.teams[t].res = { ...G.teams[0].res };   // no head start for anyone
     for (const u of G.units) if (u.team === 0 && u.type === 'villager') { const r = findRes(0, 'berry', u.x, u.y, 20 * T); if (r) orderGather(u, r); }
-    clearInterval(MP.bg); MP.bg = setInterval(() => { if (document.hidden && G && G.mp === 'host' && G.started && !G.over) { const now = performance.now(), d = Math.min(1, (now - (MP.bgT || now)) / 1000); MP.bgT = now; for (let s = d; s > 1e-4; s -= 1 / 30) tick(Math.min(s, 1 / 30)); mpHostSend(now, true); } else MP.bgT = performance.now(); }, 250);
+    mpHostBg();
   } else {
     // the client draws whatever the host sends; its own clan arrives as team 0 in the first snapshot
     for (const b of G.blds) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
-    G.units = []; G.blds = []; G.unitById.clear(); G.bldById.clear(); G.teams[0].tc = G.teams[1].tc = null; MP.first = true;
+    G.units = []; G.blds = []; G.unitById.clear(); G.bldById.clear(); for (const t of G.teams) t.tc = null; MP.first = true;
   }
 }
 // Host -> client snapshots: only fields that changed since the last one
@@ -3941,16 +4127,16 @@ function mpDiff(list, map, out) {
 function mpHostSend(now, force) {
   if (!MP.ws || MP.ws.readyState !== 1 || (!force && now - MP.sendT < 110)) return;
   MP.sendT = now;
-  const s = { k: 's', u: [], b: [], r: [] };
-  // both sides build the same map from the seed, so resources start from that shared baseline
+  const s = { k: 's', ep: MP.ep, u: [], b: [], r: [] };
+  // everyone builds the same map from the seed, so resources start from that shared baseline
   if (MP.full) { s.full = 1; MP.last = { u: new Map(), b: new Map(), r: new Map([...MP.baseR].map(([k, v]) => [k, { ...v }])) }; MP.full = false; }
   s.ug = mpDiff(G.units, MP.last.u, s.u); s.bg = mpDiff(G.blds, MP.last.b, s.b); s.rg = mpDiff(G.res, MP.last.r, s.r);
-  s.g = { time: G.time, clock: G.clock, day: G.day, dayT: G.dayT, season: G.season, winter: G.winter, bloodNight: G.bloodNight, dark: G.dark, snow: G.snow, bell: G.bell, over: G.over, win: G.over ? !!G.teams[0].tc : null };
-  s.tm = [0, 1].map(i => { const t = G.teams[i]; return { res: t.res, era: t.era, pop: t.pop, cap: t.cap, techs: t.techs, busy: t.busy, atkB: t.atkB, armB: t.armB, upkeepMul: t.upkeepMul, gm: t.gm, stats: t.stats }; });
+  s.g = { time: G.time, clock: G.clock, day: G.day, dayT: G.dayT, season: G.season, winter: G.winter, bloodNight: G.bloodNight, dark: G.dark, snow: G.snow, bell: G.bell,
+    over: G.over, winner: G.over ? G.winner ?? (G.teams[0].tc ? 0 : 1) : null, out: G.out.map(o => o || null), hold: MP.hold };
+  s.tm = [...Array(G.nc).keys()].map(i => { const t = G.teams[i]; return { res: t.res, era: t.era, pop: t.pop, cap: t.cap, techs: t.techs, busy: t.busy, atkB: t.atkB, armB: t.armB, upkeepMul: t.upkeepMul, gm: t.gm, stats: t.stats }; });
   s.p = G.proj.map(p => ({ x: mpVal(p.x), y: mpVal(p.y), sx: p.sx, sy: p.sy, tx: p.tx, ty: p.ty, t: p.t, dur: p.dur, kind: p.kind, ang: p.ang, team: p.team }));
   mpSend(s);
 }
-const swT = t => t === 0 ? 1 : t === 1 ? 0 : t;
 function mpApply(s) {
   for (const d of s.r) {
     const r = G.resById.get(d.id);
@@ -3958,6 +4144,13 @@ function mpApply(s) {
     else if (d.kind) { const nr = Object.assign({ ent: 'res' }, d); G.res.push(nr); G.resById.set(nr.id, nr); if (RES_KIND[nr.kind].block) { const i = tid(nr.tx, nr.ty); resAt[i] = nr.id; blk[i] = 1; } }
   }
   for (const id of s.rg) { const r = G.resById.get(id); if (r) removeRes(r); }
+  // a full snapshot lists everything there is: anything else here is stale
+  if (s.full) {
+    const bu = new Set(s.b.map(d => d.id)), uu = new Set(s.u.map(d => d.id));
+    for (const b of G.blds) if (!bu.has(b.id)) s.bg.push(b.id);
+    for (const u of G.units) if (!uu.has(u.id)) { u.dead = true; G.unitById.delete(u.id); }
+    G.units = G.units.filter(u => !u.dead);
+  }
   for (const d of s.b) {
     if ('team' in d) d.team = swT(d.team);
     let b = G.bldById.get(d.id);
@@ -3971,7 +4164,7 @@ function mpApply(s) {
     const b = G.bldById.get(id); if (!b) continue;
     b.dead = true; G.bldById.delete(id); G.blds = G.blds.filter(o => o !== b);
     for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
-    if (b.done) { G.decals.push({ k: 'rubble', x: b.x, y: b.y, w: b.type === 'wall' ? 1 : b.w, h: b.type === 'wall' ? 1 : b.h, v: b.v, t: 0 }); for (let i = 0; i < 14 * b.w; i++) puff(b.x + rr(-1, 1) * b.w * T / 2, b.y + rr(-1, 1) * b.h * T / 2, i % 3 ? 'dust' : 'debris'); sfx('collapse', b.x, b.y); }
+    if (b.done && !s.full) { G.decals.push({ k: 'rubble', x: b.x, y: b.y, w: b.type === 'wall' ? 1 : b.w, h: b.type === 'wall' ? 1 : b.h, v: b.v, t: 0 }); for (let i = 0; i < 14 * b.w; i++) puff(b.x + rr(-1, 1) * b.w * T / 2, b.y + rr(-1, 1) * b.h * T / 2, i % 3 ? 'dust' : 'debris'); sfx('collapse', b.x, b.y); }
   }
   for (const d of s.u) {
     if ('team' in d) d.team = swT(d.team);
@@ -3991,17 +4184,20 @@ function mpApply(s) {
   }
   if (s.ug.length) G.units = G.units.filter(u => !u.dead);
   const oldEra = G.teams[0].era, oldDay = G.day;
-  for (let i = 0; i < 2; i++) { const tm = G.teams[swT(i)]; Object.assign(tm, s.tm[i]); tm.id = swT(i); tm.tc = G.blds.find(b => b.type === 'tc' && b.team === tm.id && b.done && !b.dead) || null; }
+  for (let i = 0; i < s.tm.length; i++) { const tm = G.teams[swT(i)]; Object.assign(tm, s.tm[i]); tm.id = swT(i); tm.tc = G.blds.find(b => b.type === 'tc' && b.team === tm.id && b.done && !b.dead) || null; }
   if (G.teams[0].era > oldEra && !s.full) { banner(ERA_NAMES[G.teams[0].era], 'Your clan advances'); sfx('era'); }
   const g = s.g;
   Object.assign(G, { clock: g.clock, day: g.day, dayT: g.dayT, season: g.season, winter: g.winter, bloodNight: g.bloodNight, dark: g.dark, snow: g.snow });
-  G.bell = [g.bell[1], g.bell[0]];
+  G.bell = g.bell.map((v, i) => g.bell[swT(i)]);
+  const out = []; (g.out || []).forEach((o, i) => { if (o) out[swT(i)] = o; });
+  const wasOut = !!G.out[0]; G.out = out; MP.snapHold = g.hold || {};
   if (Math.abs(G.time - g.time) > 1) G.time = g.time;
   if (G.day > oldDay && !s.full) banner(`Day ${G.day}`, G.winter ? 'Winter · fields grow slowly' : SEASONS[G.season]);
   G.proj = s.p.map(p => ({ ...p, team: swT(p.team) }));
   if (s.b.length || s.bg.length || s.r.length || s.rg.length) G.miniDirty = true;
   if (MP.first && G.teams[0].tc) { MP.first = false; updLights(); updVision(); updFog(); resetView(); }
-  if (g.over && !G.over) endGame(!g.win);
+  if (G.out[0] && !wasOut && !g.over) showOut(G.out[0].why);
+  if (g.over && !G.over) { G.winner = g.winner >= 0 && g.winner !== null ? swT(g.winner) : -1; mpRec(false); endGame(G.winner === 0); }
 }
 function mpClientStep(dt) {
   G.time += dt; G.tick++;
@@ -4030,9 +4226,13 @@ function mpOrder(wx, wy, amove) {
   UI.marks.push({ x: t ? t.x : wx, y: t ? t.y : wy, t: G.time, c: hostileT || amove ? 'rgba(255,110,90,A)' : t ? 'rgba(255,230,150,A)' : 'rgba(150,255,140,A)' });
   sfx(hostileT ? 'order2' : 'order'); UI.amove = false; G.uiDirty = true;
 }
-// The host runs a remote order as if team 1 were the local player: swap the teams, run the normal code, swap back.
-function mpAsRemote(sel, fn) {
-  const flip = () => { for (const u of G.units) u.team = swT(u.team); for (const b of G.blds) b.team = swT(b.team); const t = G.teams; [t[0], t[1]] = [t[1], t[0]]; t[0].id = 0; t[1].id = 1; G.bell.reverse(); };
+// The host runs a remote order as if that clan were the local player: swap it with clan 0, run the normal code, swap back.
+function mpAsRemote(team, sel, fn) {
+  const flip = () => {
+    const sw = t => t === 0 ? team : t === team ? 0 : t;
+    for (const u of G.units) u.team = sw(u.team); for (const b of G.blds) b.team = sw(b.team);
+    const t = G.teams; [t[0], t[team]] = [t[team], t[0]]; t[0].id = 0; t[team].id = team; [G.bell[0], G.bell[team]] = [G.bell[team], G.bell[0]];
+  };
   const keep = { SEL, cmdPage: UI.cmdPage, place: UI.place, help: UI.help, amove: UI.amove, wallLine: UI.wallLine, marks: UI.marks.length, muted, expl, vis };
   MP.quiet = true; muted = true; expl = new Uint8Array(N * N).fill(1); vis = new Uint8Array(N * N).fill(1);
   flip(); SEL = sel; UI.place = null; UI.help = false; UI.amove = false;
@@ -4045,9 +4245,10 @@ function mpAsRemote(sel, fn) {
   }
 }
 function mpCommand(m) {
-  if (G.over) return;
-  const sel = (m.sel || []).map(id => getE(id)).filter(e => e && !e.dead && e.team === 1);
-  mpAsRemote(sel, () => {
+  const team = m.from | 0;
+  if (G.over || team < 1 || team >= G.nc || G.out[team]) return;
+  const sel = (m.sel || []).map(id => getE(id)).filter(e => e && !e.dead && e.team === team);
+  mpAsRemote(team, sel, () => {
     switch (m.c) {
       case 'order': { const units = myUnits(); const t = m.t ? getE(m.t) : null; if (units.length) commandUnits(units, m.x, m.y, t && !t.dead ? t : null, m.am); break; }
       case 'rally': { const b = sel[0]; if (b && b.ent === 'b' && BLD[b.type].trains) b.rally = { x: m.x, y: m.y, id: m.t || 0 }; break; }
@@ -4060,11 +4261,11 @@ function mpCommand(m) {
     }
   });
 }
-$('bMpNew').onclick = () => { audioInit(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('mpCode').value = c; mpRec(false); mpConnect(c); mpLobby(); };
+$('bMpNew').onclick = () => { audioInit(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('mpCode').value = c; mpRec(false); mpSaveClear(); mpConnect(c); mpLobby(); };
 $('bMpJoin').onclick = () => { audioInit(); const c = $('mpCode').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes have 5 letters and numbers.'); return; } mpConnect(c); mpLobby(); };
 $('bMpRejoin').onclick = () => { const r = mpLoadRec(); if (!r) { mpLobby(); return; } audioInit(); $('mpCode').value = r.room; mpConnect(r.room); mpLobby(); };
 $('bMpStart').onclick = () => { audioInit(); mpHostStart(); };
-$('bMpLeave').onclick = () => { mpLeave(); mpStatus('One of you creates a room and shares the link; the other opens it.'); };
+$('bMpLeave').onclick = () => { mpLeave(); mpStatus('One of you creates a room and shares the link; the others open it.'); };
 $('mpCode').addEventListener('keydown', e => { if (e.key === 'Enter') $('bMpJoin').click(); });
 // copy the invite: Clipboard API, with a fallback for older or non-secure pages
 const mpLink = () => `${location.origin}${location.pathname}?room=${MP.code}`;
@@ -4088,16 +4289,21 @@ function startGame(mp) {
   audioInit();
   mp = mp && mp.role ? mp : null;
   const seed = mp ? mp.seed : TEST ? +(Q.get('seed') || 7) : (Math.random() * 1e6) | 0;
-  if (!G || G.seed !== seed) chunks.fill(null);
-  newGame(seed, mp ? 1 : diff);
+  const nc = mp ? mp.nc || 2 : 2;
+  if (!G || G.seed !== seed || G.nc !== nc) chunks.fill(null);
+  if (!mp) { MP.role = null; mpPersp(0, [0, 1, 2, 3]); }
+  newGame(seed, mp ? 1 : diff, nc);
   if (mp) mpSetup(mp.role);
+  showGameUI();
+  if (!TEST) setTimeout(() => banner('Day 1', 'Spring · gather before the first night'), 400);
+}
+function showGameUI() {
   bakeSnowMask(); bakeMini(); updFog();
   RES.forEach(k => { const c = $('r-' + k).querySelector('canvas'); resIcon(c, k); RES_ICON_URL[k] = c.toDataURL(); });
   resIcon($('r-pop').querySelector('canvas'), 'pop');
   G.started = true; paused = false;
   $('menu').hidden = true; $('end').hidden = true; $('pause').hidden = true; UI.looking = false; document.body.classList.remove('inmenu');
   setSel([]); G.uiDirty = true; UI.cmdKey = ''; UI.infoKey = '';
-  if (!TEST) setTimeout(() => banner('Day 1', 'Spring · gather before the first night'), 400);
 }
 function menuWorld() {
   document.body.classList.add('inmenu');
@@ -4137,8 +4343,9 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.1, (now - lastT) / 1000); lastT = now;
   if (!TEST && G) {
+    if (G.started) mpTick(dt);
     if (G.started && MP.role === 'client') mpClientStep(dt);
-    else if (G.started && (!paused || MP.role) && !(G.over && !UI.looking)) { let s = dt * G.speed; while (s > 1e-4) { const d = Math.min(s, 1 / 30); tick(d); s -= d; } }
+    else if (G.started && (!paused || MP.role) && !(G.over && !UI.looking) && !mpPaused()) { let s = dt * G.speed; while (s > 1e-4) { const d = Math.min(s, 1 / 30); tick(d); s -= d; } }
     if (G.started && MP.role === 'host') mpHostSend(now);
     else if (!G.started) { G.time += dt; cine += dt; cam.x += Math.cos(cine * .05) * 10 * dt; cam.y += Math.sin(cine * .07) * 6 * dt; clampCam(); }
   }

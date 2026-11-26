@@ -3,7 +3,7 @@
 // who hosts. Rooms hold two players (more for games listed in SEATS_BY_GAME); a room is just a Durable Object
 // named "<game>:<CODE>".
 const ORIGINS = [/^https:\/\/thearcadeshelf\.com$/, /^https:\/\/([a-z0-9-]+\.)?thearcadeshelf\.pages\.dev$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/];
-const SEATS = 2, SEATS_BY_GAME = { blindfire: 6 }, MAX_MSG = 512 * 1024;
+const SEATS = 2, SEATS_BY_GAME = { blindfire: 6, 'empire-rush': 4 }, MAX_MSG = 512 * 1024;
 
 export default {
   async fetch(request, env) {
