@@ -362,8 +362,9 @@ const INCOME = 7;
 let G = null;
 // every rival gets a colour; you are always drawn in cyan
 const COLS = ['#5fd4ff', '#ff7a4a', '#ff5ab4', '#f2d24a', '#9be14a', '#b48cff', '#4ae0c0'], CNAMES = ['Blue', 'Orange', 'Pink', 'Yellow', 'Lime', 'Violet', 'Teal'];
-const pcol = p => p.i === G.me ? COLS[0] : COLS[1 + (p.i - (p.i > G.me ? 1 : 0)) % 6];
-const pname = p => p.i === G.me ? 'You' : CNAMES[1 + (p.i - (p.i > G.me ? 1 : 0)) % 6];
+const MARK_S = 6, MAP_FLASH_S = 7;   // seconds your shot markers and rivals' launch rings stay on the map
+const pcol = p => COLS[p.i % COLS.length];   // each launcher keeps its colour on every screen
+const pname = p => p.i === G.me ? 'You' : CNAMES[p.i % CNAMES.length];
 function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
 function spawnPt(i) {
   const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 2000 : 520;
@@ -379,6 +380,7 @@ function newMatch(opts) {
   if (G.mode === 'cpu') for (let i = 1; i < n; i++) G.ais.push(aiInit(i));
   for (const id of ['title', 'pause', 'end']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden'); document.body.classList.add('playing');
+  document.documentElement.style.setProperty('--you', pcol(ME())); $('hp').firstElementChild.textContent = 'YOU · ' + CNAMES[G.me % CNAMES.length].toUpperCase();
   renderRivals(); renderShop(); AUD.init(); lastMoney = -1;
   ME().tank = true; GL.hd = ME().hd; $('shop').classList.add('hidden');
   layout(); centerOn(ME().x, ME().y, true); miniBase = null; setView('drive');
@@ -614,8 +616,8 @@ function step(dt) {
   for (let i = G.fx.length - 1; i >= 0; i--) { const f = G.fx[i]; f.t += dt; if (f.k === 'smoke') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= 1 - dt * 2.5; f.vy *= 1 - dt * 2.5; if (f.t > f.life) G.fx.splice(i, 1); } else if (f.t > 1.2) G.fx.splice(i, 1); }
   for (let i = G.subs.length - 1; i >= 0; i--) { const b = G.subs[i]; b.t += dt; if (b.t >= 0) { G.subs.splice(i, 1); subImpact(b); } }
   for (let i = G.spots.length - 1; i >= 0; i--) { G.spots[i].t += dt; if (G.spots[i].t > 6) G.spots.splice(i, 1); }
-  for (let i = G.flashes.length - 1; i >= 0; i--) { G.flashes[i].t += dt; if (G.flashes[i].t > G.flashes[i].life) G.flashes.splice(i, 1); }
-  for (let i = G.marks.length - 1; i >= 0; i--) { G.marks[i].t += dt; if (G.marks[i].t > 40) G.marks.splice(i, 1); }
+  for (let i = G.flashes.length - 1; i >= 0; i--) { G.flashes[i].t += dt; if (G.flashes[i].t > MAP_FLASH_S) G.flashes.splice(i, 1); }
+  for (let i = G.marks.length - 1; i >= 0; i--) { G.marks[i].t += dt; if (G.marks[i].t > MARK_S) G.marks.splice(i, 1); }
   for (let i = G.floats.length - 1; i >= 0; i--) { G.floats[i].t += dt; if (G.floats[i].t > 2) G.floats.splice(i, 1); }
   G.shake = Math.max(0, G.shake - dt * 4);
   if (G.msgT > 0) { G.msgT -= dt; if (G.msgT <= 0) $('msg').classList.remove('on'); }
@@ -634,10 +636,22 @@ function layout() {
   CAM.z = clamp(CAM.zUser || zHome(), zFit(), 3.2); clampCam();
 }
 addEventListener('resize', layout);
+// the HUD covers the top and bottom of the screen, so the map may be dragged that far past its edges:
+// any spot can be pulled out from under the bars to aim at it
+const HUDPAD = { t: 70, b: 70, x: 40, at: 0 };
+function hudPads() {
+  const vis = id => { const e = $(id); return e && e.offsetParent !== null ? e.getBoundingClientRect() : null; };
+  let t = 0, b = 0;
+  for (const id of ['money', 'hp', 'topR']) { const r = vis(id); if (r && r.top < V.h / 2) t = Math.max(t, r.bottom); }
+  for (const id of ['status', 'miniw', 'stick']) { const r = vis(id); if (r && r.bottom > V.h / 2) b = Math.max(b, V.h - r.top); }
+  HUDPAD.t = t + 24; HUDPAD.b = b + 24; HUDPAD.at = performance.now();
+}
 function clampCam() {
-  const hw = V.w / 2 / CAM.z, hh = V.h / 2 / CAM.z, pad = 40;
-  CAM.x = hw * 2 > MW + pad * 2 ? MW / 2 : clamp(CAM.x, hw - pad, MW - hw + pad);
-  CAM.y = hh * 2 > MH + pad * 2 ? MH / 2 : clamp(CAM.y, hh - pad - 50 / CAM.z, MH - hh + pad);
+  if (performance.now() - HUDPAD.at > 1000) hudPads();
+  const z = CAM.z, hw = V.w / 2 / z, hh = V.h / 2 / z, px = HUDPAD.x / z, pt = HUDPAD.t / z, pb = HUDPAD.b / z;
+  const x0 = hw - px, x1 = MW - hw + px, y0 = hh - pt, y1 = MH - hh + pb;
+  CAM.x = clamp(CAM.x, Math.min(x0, x1), Math.max(x0, x1));
+  CAM.y = clamp(CAM.y, Math.min(y0, y1), Math.max(y0, y1));
   V.s = CAM.z;
 }
 const w2s = (x, y) => [(x - CAM.x) * CAM.z + V.w / 2, (y - CAM.y) * CAM.z + V.h / 2];
@@ -674,7 +688,7 @@ function drawMini(dt) {
   if (!miniBase || (MAP.miniDirty && miniT <= 0)) { miniBase = miniBase || document.createElement('canvas'); miniBase.width = W; miniBase.height = H; const b = miniBase.getContext('2d'); b.imageSmoothingQuality = 'high'; b.drawImage(terrainCv, 0, 0, W, H); MAP.miniDirty = false; miniT = 0.5; }
   mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.drawImage(miniBase, 0, 0); mctx.drawImage(scorchCv, 0, 0, W, H);
   const me = ME(), spectate = !me.alive || G.over;
-  for (const k of G.marks) { mctx.fillStyle = k.band.col; mctx.globalAlpha = clamp(1 - k.t / 40, 0.2, 1); mctx.beginPath(); mctx.arc(k.x * sx, k.y * sy, 2.2, 0, TAU); mctx.fill(); }
+  for (const k of G.marks) { mctx.fillStyle = k.band.col; mctx.globalAlpha = clamp(1 - k.t / MARK_S, 0, 1); mctx.beginPath(); mctx.arc(k.x * sx, k.y * sy, 2.2, 0, TAU); mctx.fill(); }
   mctx.globalAlpha = 1;
   for (const sp of G.spots) { const p = G.players[sp.i]; mctx.fillStyle = pcol(p); mctx.globalAlpha = clamp(1 - sp.t / 6, 0, 1); mctx.fillRect(sp.x * sx - 3, sp.y * sy - 3, 6, 6); }
   mctx.globalAlpha = 1;
@@ -682,7 +696,7 @@ function drawMini(dt) {
   mctx.globalAlpha = 1;
   for (const p of G.players) { if (p === me || !(spectate || hyp(p.x - me.x, p.y - me.y) < RADAR.view[me.lv.radar])) continue; if (G.mode === 'online' && !p.known) continue; mctx.fillStyle = pcol(p); mctx.globalAlpha = p.alive ? 1 : 0.4; mctx.fillRect(p.x * sx - 2.5, p.y * sy - 2.5, 5, 5); }
   mctx.globalAlpha = 1;
-  mctx.fillStyle = COLS[0]; mctx.strokeStyle = '#06100a'; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(me.x * sx, me.y * sy, 3.5, 0, TAU); mctx.fill(); mctx.stroke();
+  mctx.fillStyle = pcol(me); mctx.strokeStyle = '#06100a'; mctx.lineWidth = 1.5; mctx.beginPath(); mctx.arc(me.x * sx, me.y * sy, 3.5, 0, TAU); mctx.fill(); mctx.stroke();
   const [ax, ay] = s2w(0, 0), [bx, by] = s2w(V.w, V.h);
   mctx.strokeStyle = 'rgba(255,255,255,.85)'; mctx.lineWidth = 1; mctx.strokeRect(ax * sx, ay * sy, (bx - ax) * sx, (by - ay) * sy);
 }
@@ -990,13 +1004,13 @@ function draw() {
   fg.globalCompositeOperation = 'source-over';
   // heat marks from your shots
   for (const k of G.marks) {
-    const a = clamp(1 - k.t / 40, 0, 1) * 0.9;
+    const a = clamp(1 - k.t / MARK_S, 0, 1) * 0.9;
     ctx.globalAlpha = a * 0.5; ctx.strokeStyle = k.band.col; ctx.lineWidth = 1.5 / V.s; ctx.setLineDash([6 / V.s, 5 / V.s]); ctx.beginPath(); ctx.arc(k.x, k.y, k.r, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = a; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(k.x, k.y, 7 / V.s, 0, TAU); ctx.fill(); ctx.fillStyle = k.band.col; ctx.beginPath(); ctx.arc(k.x, k.y, 5 / V.s, 0, TAU); ctx.fill();
   }
   ctx.globalAlpha = 1;
   // you, and any rival inside your sight (everyone, once you're out)
-  drawLauncher(me, COLS[0], me.alive ? 1 : 0.35);
+  drawLauncher(me, pcol(me), me.alive ? 1 : 0.35);
   let spotted = false;
   for (const p of G.players) {
     if (p === me || (G.mode === 'online' && !p.known && p.alive)) continue;
@@ -1031,7 +1045,7 @@ function draw() {
   // fog on top of the ground, then clues on top of the fog
   screenXf(); ctx.drawImage(fogCv, 0, 0, V.w, V.h); worldXf(shx, shy);
   for (const f of G.flashes) {
-    const a = Math.pow(clamp(1 - f.t / f.life, 0, 1), 1.6), pulse = 1 + 0.25 * (1 - f.t / f.life);
+    const a = Math.pow(clamp(1 - f.t / MAP_FLASH_S, 0, 1), 0.8), pulse = 1 + 0.25 * clamp(1 - f.t / f.life, 0, 1);
     const c = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a';
     ctx.globalAlpha = a * (G.n > 2 ? 0.6 : 0.85); ctx.strokeStyle = c; ctx.lineWidth = (G.n > 2 ? 1.4 : 2) / V.s; ctx.setLineDash([8 / V.s, 6 / V.s]); ctx.beginPath(); ctx.arc(f.x, f.y, f.r * pulse, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = a * (G.n > 2 ? 0.03 : 0.07); ctx.fillStyle = c; ctx.fill(); ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(f.x, f.y, 4 / V.s, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
@@ -1054,7 +1068,18 @@ function draw() {
   // screen-space labels
   screenXf();
   ctx.font = '800 12px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.7)';
-  for (const k of G.marks) if (k.t < 40) { const [x, y] = w2s(k.x, k.y); ctx.globalAlpha = clamp(1 - k.t / 40, 0, 1); ctx.strokeText(k.band.nm, x, y - 14); ctx.fillStyle = k.band.col; ctx.fillText(k.band.nm, x, y - 14); }
+  // rivals' launch rings that are off screen (or under the HUD): an arrow at the edge points the way
+  for (const f of G.flashes) {
+    const [fx, fy] = w2s(f.x, f.y), L = HUDPAD.x, T = HUDPAD.t, Rr = V.w - HUDPAD.x, B = V.h - HUDPAD.b;
+    if (fx >= L && fx <= Rr && fy >= T && fy <= B) continue;
+    const cx = V.w / 2, cy = (T + B) / 2, dx = fx - cx, dy = fy - cy, k = Math.min((dx > 0 ? Rr - 16 - cx : cx - L - 16) / Math.abs(dx || 1e-6), (dy > 0 ? B - 16 - cy : cy - T - 16) / Math.abs(dy || 1e-6));
+    const ax = cx + dx * k, ay = cy + dy * k, ang = Math.atan2(dy, dx);
+    ctx.save(); ctx.globalAlpha = Math.pow(clamp(1 - f.t / MAP_FLASH_S, 0, 1), 0.8); ctx.translate(ax, ay); ctx.rotate(ang);
+    ctx.fillStyle = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a'; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  for (const k of G.marks) if (k.t < MARK_S) { const [x, y] = w2s(k.x, k.y); ctx.globalAlpha = clamp(1 - k.t / MARK_S, 0, 1); ctx.strokeText(k.band.nm, x, y - 14); ctx.fillStyle = k.band.col; ctx.fillText(k.band.nm, x, y - 14); }
   ctx.globalAlpha = 1;
   ctx.font = '800 15px ui-rounded, system-ui, sans-serif';
   for (const f of G.floats) { const [x, y] = w2s(f.x, f.y); ctx.globalAlpha = clamp(2 - f.t, 0, 1); ctx.fillStyle = '#000'; ctx.fillText(f.txt, x + 1, y - 26 - f.t * 18 + 1); ctx.fillStyle = f.col; ctx.fillText(f.txt, x, y - 26 - f.t * 18); }
@@ -1326,7 +1351,7 @@ function renderLobby() {
   $('lobby').classList.toggle('hidden', !on); $('joinRows').classList.toggle('hidden', on);
   if (!on) return;
   const seats = [...MP.present].sort((a, b) => a - b);
-  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${k === 0 ? COLS[0] : COLS[k % 7]}">${s === MP.seat ? 'You' : 'Player ' + (k + 1)}${k === 0 ? ' · host' : ''}</span>`).join('');
+  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${COLS[k % 7]}">${s === MP.seat ? 'You (' + CNAMES[k % 7] + ')' : CNAMES[k % 7]}${k === 0 ? ' · host' : ''}</span>`).join('');
   const host = isHost();
   $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
   $('bStart').textContent = seats.length < 2 ? 'Waiting for players…' : `▶ Start · ${seats.length} players`;
@@ -1448,6 +1473,7 @@ function driveOverlay() {
       else { ctx.fillStyle = 'rgba(238,243,234,.45)'; ctx.fillRect(x - 0.5, cy - 4, 1, 8); }
     }
     for (const f of G.flashes) {
+      if (f.t > f.life) continue;
       const fb = ((Math.atan2(f.y - me.y, f.x - me.x) + Math.PI / 2) * 180 / Math.PI % 360 + 360) % 360;
       let dd = fb - bearing; dd = ((dd + 540) % 360) - 180; const x = V.w / 2 + clamp(dd, -72, 72) * ppd;
       ctx.globalAlpha = Math.pow(clamp(1 - f.t / f.life, 0, 1), 1.2); ctx.fillStyle = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a'; ctx.fillRect(x - 3, cy - 14, 6, 28); ctx.globalAlpha = 1;
@@ -1457,6 +1483,7 @@ function driveOverlay() {
   }
   // launch flashes: an arrow at the edge of the screen pointing the way
   for (const f of G.flashes) {
+    if (f.t > f.life) continue;
     const a = clamp(1 - f.t / f.life, 0, 1), ang = Math.atan2(f.y - me.y, f.x - me.x) - GL.hd, d = hyp(f.x - me.x, f.y - me.y);
     const sx = V.w / 2 + Math.sin(ang) * Math.min(V.w, V.h) * 0.38, sy = V.h / 2 - Math.cos(ang) * Math.min(V.w, V.h) * 0.3;
     ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang); ctx.globalAlpha = a; ctx.fillStyle = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a';
