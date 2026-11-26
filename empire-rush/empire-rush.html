@@ -30,6 +30,11 @@
   #bIdle .cnt:empty { display:none; } #bIdle.zero .cnt { background:#4a4036; color:#cbbfa8; }
   .ib { pointer-events:auto; width:38px; height:38px; display:grid; place-items:center; cursor:pointer; color:var(--ink); font:600 13px/1 system-ui; padding:0; }
   .ib:hover { border-color:rgba(255,224,165,.4); }
+  /* buttons with names: icon and word side by side on wide screens, word under the icon on narrow and touch screens */
+  .ib.lb { width:auto; display:flex; align-items:center; gap:6px; padding:0 11px 0 9px; position:relative; }
+  .ib.lb i { font-style:normal; font-size:15px; line-height:1; } .ib.lb span { font:600 12.5px/1 system-ui; white-space:nowrap; }
+  body.touch .ib.lb, #touchbar .ib.lb { flex-direction:column; justify-content:center; gap:2px; width:52px; height:40px; padding:2px; }
+  body.touch .ib.lb i, #touchbar .ib.lb i { font-size:13px; } body.touch .ib.lb span, #touchbar .ib.lb span { font-size:9px; }
   #bottom { left:8px; right:8px; bottom:8px; display:flex; align-items:flex-end; gap:8px; }
   #miniw { pointer-events:auto; padding:4px; flex:none; }
   #mini { display:block; width:176px; height:176px; border-radius:5px; cursor:crosshair; touch-action:none; }
@@ -53,17 +58,21 @@
   .multi { display:flex; flex-wrap:wrap; gap:3px; max-height:84px; overflow:hidden; }
   .mu { width:30px; height:34px; border-radius:4px; border:1px solid var(--edge); background:#2a221a; cursor:pointer; position:relative; }
   .mu img { width:100%; height:30px; display:block; } .mu i { position:absolute; left:2px; right:2px; bottom:2px; height:2px; background:#6c6; }
-  #cmds { margin-left:auto; pointer-events:auto; display:grid; grid-template-columns:repeat(5,54px); grid-auto-rows:54px; gap:4px; padding:6px; flex:none; }
+  #cmds { margin-left:auto; pointer-events:auto; display:grid; grid-template-columns:repeat(5,62px); grid-auto-rows:62px; gap:4px; padding:6px; flex:none; }
   #cmds:empty { visibility:hidden; }
   .btn { position:relative; border:1px solid rgba(255,224,165,.22); background:linear-gradient(#3b3127,#221b15); border-radius:7px; color:var(--ink); cursor:pointer; padding:0; overflow:hidden; }
   .btn:hover { border-color:rgba(255,224,165,.55); background:linear-gradient(#4a3d30,#2a211a); }
   .btn img { width:100%; height:100%; display:block; pointer-events:none; }
   .btn.poor img { filter:saturate(.35) brightness(.7); } .btn.poor { border-color:rgba(255,120,90,.35); }
   .btn.lock img { filter:grayscale(1) brightness(.4); }
-  .btn.lock::after { content:attr(data-era); position:absolute; left:0; right:0; bottom:0; font:700 8px/12px system-ui; text-align:center; background:rgba(0,0,0,.6); color:var(--gold); letter-spacing:.06em; }
+  .btn .nm { position:absolute; left:0; right:0; bottom:0; padding:6px 2px 2px; font:600 9.5px/10.5px system-ui; text-align:center; color:#f4ead6; text-shadow:0 1px 2px #000;
+    background:linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.78) 40%); pointer-events:none; max-height:38px; overflow:hidden; }
+  .btn.lock .nm { white-space:nowrap; text-overflow:ellipsis; }
+  .btn .nm em { display:block; font-style:normal; color:var(--gold); font-size:8.5px; white-space:nowrap; letter-spacing:-.01em; }
+  .btn.lock .nm { color:#b8ab94; }
   .btn.on { border-color:var(--gold); box-shadow:inset 0 0 0 1px var(--gold); }
   .btn .ql { position:absolute; right:3px; top:2px; font:700 11px/1 ui-monospace,monospace; color:#fff; text-shadow:0 1px 2px #000; }
-  .btn .bar { position:absolute; left:0; bottom:0; height:3px; background:var(--gold); }
+  .btn .bar { position:absolute; left:0; bottom:0; height:3px; background:var(--gold); z-index:1; }
   .btn .hk { position:absolute; left:3px; top:2px; font:700 10px/1 ui-monospace,monospace; color:#ffe6a8; background:rgba(0,0,0,.55); border-radius:3px; padding:2px 3px; pointer-events:none; }
   body.touch .btn .hk { display:none; }
   #keysBox { text-align:left; margin-top:10px; }
@@ -132,7 +141,7 @@
   body.touch #touchbar { display:flex; }
   @media (max-width:820px), (max-height:560px) {
     #mini { width:118px; height:118px; }
-    #cmds { grid-template-columns:repeat(4,44px); grid-auto-rows:44px; gap:3px; padding:4px; }
+    #cmds { grid-template-columns:repeat(4,52px); grid-auto-rows:52px; gap:3px; padding:4px; } .btn .nm { font-size:8.5px; line-height:9.5px; }
     #info { min-height:70px; padding:6px 8px; gap:8px; } #portrait { width:44px; height:44px; }
     .res { min-width:60px; font-size:12px; padding:3px 7px 3px 4px; } .res canvas { width:16px; height:16px; } .res small { display:none; }
     #clock canvas { width:24px; height:24px; } #era span, #clock span { font-size:9.5px; }
@@ -144,18 +153,20 @@
   }
   /* small phones: keep the map visible */
   @media (max-width:480px) {
-    #top { right:50px; gap:4px; left:6px; top:6px; }
+    #top { right:60px; gap:4px; left:6px; top:6px; }
     .res { min-width:0; padding:2px 6px 2px 3px; font-size:11.5px; gap:3px; } .res canvas { width:14px; height:14px; }
     #clock { padding:2px 7px 2px 2px; gap:4px; } #clock canvas { width:20px; height:20px; } #clock b { font-size:11px; } #clock span { font-size:9px; }
     #era { padding:2px 7px; } #era b { font-size:11px; } #era span { display:none; }
     #topR { flex-direction:column; top:6px; right:6px; gap:4px; } .ib { width:36px; height:36px; }
-    #touchbar { top:132px; right:6px; gap:4px; }
+    .ib.lb, body.touch .ib.lb, #touchbar .ib.lb { flex-direction:column; justify-content:center; gap:1px; width:50px; height:36px; padding:2px; } .ib.lb i, body.touch .ib.lb i { font-size:12px; } .ib.lb span, body.touch .ib.lb span, #touchbar .ib.lb span { font-size:8.5px; }
+    #topR, #touchbar { gap:3px; }
+    #touchbar { right:6px; gap:4px; }
     #bottom { left:6px; right:6px; bottom:6px; gap:5px; }
     #info { min-height:0; padding:5px 34px 5px 7px; gap:7px; } #portrait { width:34px; height:34px; }
     #idesc h3 { font-size:12px; margin:0; } .hpb { height:4px; margin:2px 0 3px; } .stats { font-size:10px; gap:2px 8px; } .task { font-size:10.5px; margin-top:1px; }
     .queue { margin-top:3px; } .qi { width:24px; height:24px; } .multi { max-height:52px; } .mu { width:24px; height:28px; } .mu img { height:24px; }
     #miniw { padding:3px; } #mini { width:92px; height:92px; }
-    #cmds { grid-template-columns:repeat(4,42px); grid-auto-rows:42px; gap:3px; padding:3px; }
+    #cmds { grid-template-columns:repeat(4,50px); grid-auto-rows:50px; gap:3px; padding:3px; }
     #infoX { top:2px; right:2px; }
   }
 </style>
@@ -172,15 +183,15 @@
   <div class="pn" id="era" data-tip="era"><b id="eral">Ember Age</b><span id="eras">Rival: Ember Age</span></div>
 </div>
 <div id="topR">
-  <button class="pn ib" id="bFull" title="Full screen (F11)">⛶</button>
-  <button class="pn ib" id="bSpeed" title="Game speed">1×</button>
-  <button class="pn ib" id="bSound" title="Sound">♪</button>
-  <button class="pn ib" id="bMenu" title="Menu">☰</button>
+  <button class="pn ib lb" id="bFull" title="Full screen (F11)"><i>⛶</i><span>Full screen</span></button>
+  <button class="pn ib lb" id="bSpeed" title="Game speed"><i>1×</i><span>Speed</span></button>
+  <button class="pn ib lb" id="bSound" title="Sound"><i>♪</i><span>Sound on</span></button>
+  <button class="pn ib lb" id="bMenu" title="Menu"><i>☰</i><span>Menu</span></button>
 </div>
 <div id="touchbar" class="hud">
-  <button class="pn ib" id="bBox" title="Drag to box-select">▢</button>
-  <button class="pn ib" id="bIdle" title="Next idle worker (.)">💤<b class="cnt" id="idleN"></b></button>
-  <button class="pn ib" id="bHome" title="Hearth Hall">⌂</button>
+  <button class="pn ib lb" id="bBox" title="Drag to box-select"><i>▢</i><span>Box select</span></button>
+  <button class="pn ib lb" id="bIdle" title="Next idle worker (.)"><i>💤</i><span>Idle</span><b class="cnt" id="idleN"></b></button>
+  <button class="pn ib lb" id="bHome" title="Hearth Hall"><i>⌂</i><span>Home</span></button>
 </div>
 <div id="alerts" class="hud"></div>
 <div id="banner" class="hud"><b id="bannerT"></b><span id="bannerS"></span></div>
@@ -1764,6 +1775,8 @@ function resize() {
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
   lightC.width = Math.ceil(VW / 2); lightC.height = Math.ceil(VH / 2);
   clampCam();
+  const tr = $('topR').getBoundingClientRect(), col = getComputedStyle($('topR')).flexDirection === 'column';
+  $('touchbar').style.top = Math.round(tr.bottom + 8) + 'px'; void col;
 }
 // The HUD covers the top and bottom of the screen, so the camera may go that much past the map edge:
 // the last row of the map can always be pulled up above the info panel and buttons.
@@ -3132,7 +3145,7 @@ function drawCmdIcon(g, k) {
     else if (k === 'help') { for (const [x, c] of [[-14, '#8a6a46'], [14, '#2f6fd6']]) { g.fillStyle = '#e3b78f'; g.beginPath(); g.arc(x, -24, 8, 0, TAU); g.fill(); g.fillStyle = c; g.beginPath(); g.moveTo(x - 11, 8); g.lineTo(x + 11, 8); g.lineTo(x + 8, -14); g.lineTo(x - 8, -14); g.closePath(); g.fill(); } g.strokeStyle = '#e3b78f'; g.lineWidth = 5; g.beginPath(); g.moveTo(-6, -6); g.lineTo(6, -6); g.stroke(); }
     else if (k === 'build') { g.strokeStyle = '#8a6440'; g.lineWidth = 7; g.beginPath(); g.moveTo(-18, 14); g.lineTo(12, -16); g.stroke(); g.fillStyle = '#9aa0a8'; g.save(); g.translate(14, -18); g.rotate(-.8); g.fillRect(-16, -7, 30, 14); g.restore(); }
     else { g.strokeStyle = '#e8d6ae'; g.lineWidth = 8; g.beginPath(); g.moveTo(18, -12); g.lineTo(-14, -12); g.moveTo(-2, -26); g.lineTo(-16, -12); g.lineTo(-2, 2); g.stroke(); }
-    g.fillStyle = '#f4ead6'; g.font = '800 17px system-ui, sans-serif'; g.textAlign = 'center'; g.fillText(lab, 0, 38);
+    void lab;
   }
   else if (k === 'idle') { g.fillStyle = '#e8d6ae'; g.font = '700 30px Georgia'; g.textAlign = 'center'; g.fillText('Zz', 0, 10); }
   g.restore();
@@ -3193,14 +3206,14 @@ function cmdList() {
     const out = [];
     if (units.some(u => u.type === 'villager')) {
       if (UI.cmdPage === 'build') {
-        for (const k of BUILD_MENU) { const d = BLD[k]; out.push({ id: 'b:' + k, icon: iconURL('b', k), lock: d.era && tm.era < d.era ? ERA_NAMES[d.era].split(' ')[0].toUpperCase() : '', poor: !afford(tm, d.cost), on: UI.place === k, tip: { h: k === 'wall' ? BLD.wall.names[tm.era] : d.name, cost: d.cost, p: d.desc }, act: () => startPlace(k) }); }
+        for (const k of BUILD_MENU) { const d = BLD[k]; out.push({ id: 'b:' + k, icon: iconURL('b', k), lock: d.era && tm.era < d.era ? ERA_NAMES[d.era] : '', poor: !afford(tm, d.cost), on: UI.place === k, tip: { h: k === 'wall' ? BLD.wall.names[tm.era] : d.name, cost: d.cost, p: d.desc }, act: () => startPlace(k) }); }
         out.push({ id: 'back', icon: iconURL('x', 'back'), tip: { h: 'Back to jobs', p: 'Food, wood, stone, gold, auto and help.' }, act: () => { UI.cmdPage = 'jobs'; UI.place = null; G.uiDirty = true; sfx('click'); } });
       } else {
         const vs = units.filter(u => u.type === 'villager'), same = j => vs.every(v => v.job === j);
         const JT = { food: 'Fields, fresh game, deer or berries — whichever is quickest to bring home.', wood: 'The closest good trees to a stockpile.', stone: 'The quarry with the shortest round trip.', gold: 'The gold seam with the shortest round trip.' };
         for (const k of RES) out.push({ id: 'j:' + k, icon: iconURL('x', 'j' + k), on: same(k), tip: { h: `${JOBS[k]} job`, p: `${JT[k]} Picks the most efficient spot, avoids crowds and dark places at night, and moves on by itself when it runs out.` }, act: () => giveJob(units, k) });
-        out.push({ id: 'j:auto', icon: iconURL('x', 'auto'), on: same('auto'), tip: { h: 'Auto job', p: 'Works on whatever the village is shortest on, like food before dawn or winter, and rebalances by itself.' }, act: () => giveJob(units, 'auto') });
-        out.push({ id: 'help', icon: iconURL('x', 'help'), on: UI.help, tip: { h: 'Help a worker', p: 'Then click or tap another worker to join what they are doing. Right-clicking a busy worker does the same.' }, act: () => { UI.help = !UI.help; UI.amove = false; G.uiDirty = true; sfx('click'); if (UI.help) alertMsg('Now click or tap the worker to help.'); } });
+        out.push({ id: 'j:auto', icon: iconURL('x', 'auto'), on: same('auto'), tip: { h: 'Work where needed', p: 'Works on whatever the village is shortest on, like food before dawn or winter, and rebalances by itself.' }, act: () => giveJob(units, 'auto') });
+        out.push({ id: 'help', icon: iconURL('x', 'help'), on: UI.help, tip: { h: 'Join a worker', p: 'Then click or tap another worker to join what they are doing. Right-clicking a busy worker does the same.' }, act: () => { UI.help = !UI.help; UI.amove = false; G.uiDirty = true; sfx('click'); if (UI.help) alertMsg('Now click or tap the worker to help.'); } });
         out.push({ id: 'build', icon: iconURL('x', 'build'), on: false, tip: { h: 'Build', p: 'Houses, drop-offs, fields, defences and more.' }, act: () => { UI.cmdPage = 'build'; UI.help = false; G.uiDirty = true; sfx('click'); } });
         out.push({ id: 'vstop', icon: iconURL('x', 'stop'), tip: { h: 'Stop', p: 'Stop and clear the job.' }, act: () => { for (const u of units) { stopUnit(u); u.job = null; } G.uiDirty = true; } });
       }
@@ -3229,7 +3242,7 @@ function cmdList() {
       const t = TECH[k]; if (tm.techs[k]) continue;
       if (t.up && tm.era !== t.up - 1) continue;
       const busy = tm.busy[k], q = b.queue.find(x => x.k === k);
-      out.push({ id: 't:' + k, icon: iconURL('t', k), lock: tm.era < t.era ? ERA_NAMES[t.era].split(' ')[0].toUpperCase() : t.req && !tm.techs[t.req] ? 'NEEDS ' + TECH[t.req].name.split(' ')[0].toUpperCase() : '', poor: !afford(tm, t.cost) && !busy, on: !!busy, bar: q && b.queue[0] === q ? q.t / t.time : 0,
+      out.push({ id: 't:' + k, icon: iconURL('t', k), lock: tm.era < t.era ? ERA_NAMES[t.era] : t.req && !tm.techs[t.req] ? 'Needs ' + TECH[t.req].name : '', poor: !afford(tm, t.cost) && !busy, on: !!busy, bar: q && b.queue[0] === q ? q.t / t.time : 0,
         tip: { h: t.name, cost: t.cost, p: t.desc }, act: () => { if (!techAvailable(tm, k)) { sfx('bad'); return; } if (queueTech(b, k)) { sfx('click'); G.uiDirty = true; } } });
     }
     return out;
@@ -3244,7 +3257,8 @@ function buildCmds(force) {
     for (const c of list) {
       const el = document.createElement('button'); el.className = 'btn'; el.dataset.id = c.id;
       const hk = KEYMAP['slot' + box.children.length];
-      el.innerHTML = `<img src="${c.icon}" alt=""><span class="ql"></span><i class="bar" style="width:0"></i>${hk ? `<b class="hk">${keyLabel(hk)}</b>` : ''}`;
+      el.innerHTML = `<img src="${c.icon}" alt=""><span class="ql"></span><i class="bar" style="width:0"></i>${hk ? `<b class="hk">${keyLabel(hk)}</b>` : ''}<span class="nm"></span>`;
+      el.setAttribute('aria-label', c.tip ? c.tip.h : c.id);
       el.addEventListener('click', e => { e.stopPropagation(); if (ghostClick()) return; const cur = cmdList().find(x => x.id === c.id); if (!cur) return; if (cur.lock) { sfx('bad'); return; } if (MP.role === 'client' && !/^(build|back|help|amove|b:)/.test(cur.id)) { if (cur.poor) { noRes(cur.tip.cost || {}); return; } mpSend({ k: 'c', c: 'btn', id: cur.id, page: UI.cmdPage, sel: SEL.map(x => x.id) }); sfx('click'); return; } cur.act(); updCmdState(); });
       el.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') showTip(el, c.id); });
       el.addEventListener('pointerleave', hideTip);
@@ -3254,11 +3268,22 @@ function buildCmds(force) {
   }
   updCmdState(list);
 }
+// the short name printed on each command button (the tooltip has the full story)
+const CMD_NAMES = { 'j:food': 'Gather food', 'j:wood': 'Chop wood', 'j:stone': 'Mine stone', 'j:gold': 'Mine gold', 'j:auto': 'Where needed', help: 'Join worker',
+  build: 'Build', back: 'Back', vstop: 'Stop', stop: 'Stop', amove: 'Attack-move', addb: 'Add builder', addb3: '+3 builders', bcancel: 'Cancel build' };
+function cmdName(c) {
+  if (CMD_NAMES[c.id]) return CMD_NAMES[c.id];
+  if (c.id === 'bell') return G.bell[0] ? 'All clear' : 'Ring bell';
+  if (/^t:(bronze|iron)$/.test(c.id)) return 'To ' + (c.tip ? c.tip.h : 'next age');
+  return c.tip ? c.tip.h : c.id;
+}
 function updCmdState(list = cmdList()) {
   const box = $('cmds');
   for (const c of list) {
     const el = box.querySelector(`[data-id="${c.id}"]`); if (!el) continue;
-    el.classList.toggle('lock', !!c.lock); if (c.lock) el.dataset.era = c.lock;
+    el.classList.toggle('lock', !!c.lock);
+    const nm = cmdName(c), lk = c.lock ? `<em>🔒 ${c.lock}</em>` : '';
+    const nmEl = el.querySelector('.nm'); if (nmEl.dataset.v !== nm + lk) { nmEl.dataset.v = nm + lk; nmEl.innerHTML = nm + lk; }
     el.classList.toggle('poor', !c.lock && !!c.poor); el.classList.toggle('on', !!c.on);
     el.querySelector('.ql').textContent = c.ql || ''; el.querySelector('.bar').style.width = `${(c.bar || 0) * 100}%`;
   }
@@ -3580,8 +3605,8 @@ function runAction(id, e) {
   switch (id) {
     case 'idle': nextIdle(); return true;
     case 'idlemil': nextIdleMil(); return true;
-    case 'faster': if (G.speed < 2) { G.speed = G.speed === 1 ? 1.5 : 2; $('bSpeed').textContent = G.speed + '×'; } return true;
-    case 'slower': if (G.speed > 1) { G.speed = G.speed === 2 ? 1.5 : 1; $('bSpeed').textContent = G.speed + '×'; } return true;
+    case 'faster': if (G.speed < 2) { G.speed = G.speed === 1 ? 1.5 : 2; $('bSpeed').firstChild.textContent = G.speed + '×'; } return true;
+    case 'slower': if (G.speed > 1) { G.speed = G.speed === 2 ? 1.5 : 1; $('bSpeed').firstChild.textContent = G.speed + '×'; } return true;
     case 'home': { const tc = G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } return true; }
     case 'bell': if (MP.role === 'client') mpSend({ k: 'c', c: 'bell' }); else if (G.teams[0].tc) ringBell(0, !G.bell[0]); return true;
     case 'alert': e.preventDefault(); if (UI.lastAlert) centerOn(UI.lastAlert.x, UI.lastAlert.y); return true;
@@ -4376,7 +4401,7 @@ function toggleFull() {
   } catch (err) { fullTip(); }
 }
 function fullTip() { alertMsg('Full screen is not available here. On iPhone: Share, then Add to Home Screen, and open it from there.'); }
-const fullSync = () => { $('bFull').textContent = document.fullscreenElement || document.webkitFullscreenElement ? '🗗' : '⛶'; resize(); };
+const fullSync = () => { const on = document.fullscreenElement || document.webkitFullscreenElement; $('bFull').innerHTML = on ? '<i>🗗</i><span>Exit full screen</span>' : '<i>⛶</i><span>Full screen</span>'; resize(); };
 document.addEventListener('fullscreenchange', fullSync); document.addEventListener('webkitfullscreenchange', fullSync);
 $('bFull').onclick = e => { e.stopPropagation(); toggleFull(); };
 $('bLook').onclick = () => { $('end').hidden = true; UI.looking = true; };
@@ -4393,9 +4418,10 @@ $('bResume').onclick = () => { paused = false; $('pause').hidden = true; rebindi
 $('bRestart').onclick = () => { mpLeave(); $('pause').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; paused = false; };
 $('bKeys').onclick = () => { const b = $('keysBox'); b.hidden = !b.hidden; rebinding = null; if (!b.hidden) { $('helpText').hidden = true; renderKeys(); } };
 $('bHelp').onclick = () => { const h = $('helpText'); h.hidden = !h.hidden; h.innerHTML = $('menu').querySelector('ul').outerHTML + '<p>' + $('ctlHint').textContent + '</p>'; };
-$('bSpeed').onclick = () => { if (!G || MP.role) return; G.speed = G.speed === 1 ? 1.5 : G.speed === 1.5 ? 2 : 1; $('bSpeed').textContent = G.speed + '×'; };
-$('bSound').onclick = () => { muted = !muted; $('bSound').style.opacity = muted ? .45 : 1; try { localStorage.setItem('empire-rush.mute', muted ? '1' : '0'); } catch (err) { /* ignore */ } };
-$('bSound').style.opacity = muted ? .45 : 1;
+$('bSpeed').onclick = () => { if (!G || MP.role) return; G.speed = G.speed === 1 ? 1.5 : G.speed === 1.5 ? 2 : 1; $('bSpeed').firstChild.textContent = G.speed + '×'; };
+const soundLabel = () => { $('bSound').style.opacity = muted ? .6 : 1; $('bSound').lastChild.textContent = muted ? 'Sound off' : 'Sound on'; };
+$('bSound').onclick = () => { muted = !muted; soundLabel(); try { localStorage.setItem('empire-rush.mute', muted ? '1' : '0'); } catch (err) { /* ignore */ } };
+soundLabel();
 $('bBox').onclick = () => { UI.boxMode = !UI.boxMode; $('bBox').classList.toggle('on', UI.boxMode); $('bBox').style.borderColor = UI.boxMode ? 'var(--gold)' : ''; };
 $('bIdle').onclick = () => G.started && nextIdle();
 $('bHome').onclick = () => { const tc = G.started && G.teams[0].tc; if (tc) { setSel([tc]); centerOn(tc.x, tc.y); } };
