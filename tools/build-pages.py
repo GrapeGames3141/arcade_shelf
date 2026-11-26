@@ -21,12 +21,16 @@ SOURCE_ONLY_DIRS = {
     "quilthill": {"parts", "test"},
     "alleyknights": {"parts", "test"},
 }
+BYTE_EXACT_EXPERIMENTS = (
+    Path("experiments/rain-dragon-express/fable.html"),
+)
+# Intentional direct launchers must be explicit: experiments are otherwise not Pages content.
+# Byte-exact entries are copied without modification, including no Arcade Shelf home tab.
 PROMOTED_EXPERIMENTS = (
     Path("experiments/Astra-demo/Astra-demo.html"),
     Path("experiments/demo/demo.html"),
     Path("experiments/procedural-demo/procedural-demo.html"),
-)
-# Intentional direct launchers must be explicit: experiments are otherwise not Pages content.
+) + BYTE_EXACT_EXPERIMENTS
 EXTERNAL_LOBBY_URLS = frozenset({"https://multiplayer.thearcadeshelf.com/"})
 
 class PageParser(HTMLParser):
@@ -221,7 +225,7 @@ def build(root=ROOT):
     (out / "index.html").write_text(source, encoding="utf-8")
     if (root / "ads.txt").is_file():
         shutil.copyfile(root / "ads.txt", out / "ads.txt")
-    for name in ("arcade.css", "arcade.js", ".nojekyll", "privacy.html"):
+    for name in ("arcade.css", "arcade.js", ".nojekyll", "privacy.html", "_headers"):
         shutil.copyfile(root / name, out / name)
     # site icons and the app manifest live at the root, where browsers and search engines look for them
     for name in ("favicon.ico", "favicon.svg", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "site.webmanifest"):
@@ -251,9 +255,12 @@ def build(root=ROOT):
         if game.name in ("prism-swarm", "appalachian-eagle", "splat", "ashgrove", "castle-defense"):
             target = quote(entry_name(game), safe="")
             (out / game.name / "index.html").write_text(f'<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url={target}"><title>Moved</title><p>This game moved to <a href="{target}">{escape(entry_name(game))}</a>.</p>', encoding="utf-8")
-    # every game page gets the quiet way home; kids games (from the lobby card or game.json) need a press and hold
+    # Every packaged game page gets the quiet way home, except byte-exact experiments.
+    # Kids games (from the lobby card or game.json) need a press and hold.
     kid_paths = set(re.findall(r'data-category="kids"[^>]*>\s*<a[^>]*href="([^"]+)"', (out / "index.html").read_text(encoding="utf-8")))
     for rel in [Path(game.name) / entry_name(game) for game in games] + list(PROMOTED_EXPERIMENTS):
+        if rel in BYTE_EXACT_EXPERIMENTS:
+            continue
         game_dir = (root / rel).parent
         kids = rel.as_posix() in kid_paths or (game_dir / "game.json").is_file() and metadata(game_dir)["category"].lower() == "kids"
         add_home_tab(out / rel, len(rel.parts) - 1, kids)

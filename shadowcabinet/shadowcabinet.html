@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Shadow Cabinet</title>
+<style>
+  :root{--ink:#20180f;--paper:#ead8b4;--pale:#f5e9d0;--brass:#d49d3a;--brass2:#f3cc70;--wood:#5e3521;--wood2:#8b5330;--coral:#d85d43;--sage:#55795e;--shade:#312215;--line:rgba(71,42,20,.22)}
+  *{box-sizing:border-box} body{margin:0;min-height:100vh;color:var(--ink);background:#1c1713;font-family:Segoe UI,Arial,sans-serif;overflow-x:hidden}
+  button{font:inherit;color:inherit;cursor:pointer} .app{min-height:100vh;background:radial-gradient(ellipse at 50% -20%,#f8e6bb 0,#d8bd8d 43%,#a77750 100%);padding:clamp(10px,2vw,26px)}
+  header{max-width:1260px;margin:auto;display:flex;justify-content:space-between;align-items:center;padding:0 3px 15px}.brand{display:flex;align-items:center;gap:11px}.seal{width:36px;height:36px;border-radius:50%;border:2px solid var(--brass);display:grid;place-items:center;background:#392113;color:var(--brass2);box-shadow:inset 0 0 0 3px #28150e;font-family:Georgia,serif;font-size:23px}.brand h1{font:400 clamp(24px,3vw,35px)/.9 Georgia,serif;letter-spacing:-.04em;margin:0}.brand p,.header-right{font:600 10px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;margin:3px 0 0;color:#60442e}.header-right{display:flex;gap:12px;align-items:center}.seed{border:1px solid #8b623d;background:#f6e7c6;border-radius:20px;padding:7px 10px;display:flex;gap:6px;align-items:center}.seed input{font:inherit;width:82px;border:0;background:transparent;outline:0;color:#382315}.seed button{border:0;background:var(--brass);border-radius:12px;padding:3px 7px;font-weight:800}
+  main{max-width:1260px;margin:auto;border:1px solid rgba(50,25,10,.52);border-radius:22px;background:linear-gradient(145deg,#704126,#482719);box-shadow:0 22px 60px #2d170d99,inset 0 1px #bd8256;overflow:hidden;padding:clamp(12px,2vw,22px)}
+  .topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;color:#f8dfae;margin:0 4px 15px}.puzzle-title{font:400 26px/1 Georgia,serif;letter-spacing:-.03em}.sub{font:600 10px/1.4 ui-monospace,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;opacity:.8}.level{justify-self:center;display:flex;align-items:center;gap:8px;font:700 11px ui-monospace,Consolas,monospace;letter-spacing:.09em}.level i{display:block;width:8px;height:8px;border-radius:50%;background:#cc8040;box-shadow:0 0 8px #f8d687}.level i.on{background:#f2d169}.status{justify-self:end;text-align:right;font:600 10px/1.4 ui-monospace,Consolas,monospace;letter-spacing:.08em;color:#f6dea8;max-width:270px}
+  .board{position:relative;min-height:514px;border:10px solid #2e190f;border-radius:13px;background:linear-gradient(130deg,#d4a36c,#f0d1a0 45%,#b77948);box-shadow:inset 0 0 0 2px #9a5c37,inset 0 0 58px #42200e88,0 4px 1px #d3a676;overflow:hidden}.board:before{content:"";position:absolute;inset:0;opacity:.18;background:repeating-linear-gradient(8deg,transparent 0 14px,#633718 15px 16px);pointer-events:none}
+  .wall{position:absolute;background:linear-gradient(135deg,#f5e6bd,#d9b67d);border:2px solid #815133;box-shadow:inset 0 0 26px #663a2355}.wall.front{left:5%;top:5%;width:38%;height:40%}.wall.side{right:5%;top:5%;width:38%;height:40%}.wall-label{position:absolute;top:8px;left:11px;font:700 10px ui-monospace,Consolas,monospace;letter-spacing:.1em;color:#704725;text-transform:uppercase}.screen{position:absolute;inset:27px 9px 8px;display:block;border-radius:4px;background:#f5e9c9;border:2px solid #9b6c43;overflow:hidden;box-shadow:inset 0 0 16px #8d5d3d44}.screen canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;aspect-ratio:auto;display:block;image-rendering:pixelated}.screen .view-status{position:absolute;bottom:5px;left:7px;right:7px;display:flex;justify-content:space-between;font:700 9px ui-monospace,Consolas,monospace;letter-spacing:.04em;color:#583821;text-transform:uppercase}.view-dot{width:7px;height:7px;border-radius:100%;background:#b45337;display:inline-block;margin-right:3px}.view-dot.good{background:#5b8a62}
+  .board.lesson-one .wall.front{left:27%;width:46%;height:40%}
+  .cabinet-table{position:absolute;left:8%;right:8%;top:48%;bottom:7%;height:auto;background:linear-gradient(145deg,#714020,#a96b3d 48%,#55301d);border:3px solid #422314;box-shadow:0 -8px 17px #f5cb8b55,inset 0 0 38px #3b1d0c88}.cabinet-table:after{content:"";position:absolute;inset:8%;border:1px solid #dc9b56aa;box-shadow:inset 0 0 2px #f5c77a}
+  .lamp{position:absolute;width:64px;height:44px;border-radius:50% 50% 32% 32%;background:linear-gradient(150deg,#312116,#88612e);border:2px solid #2c1a0d;box-shadow:0 8px 8px #26130888}.lamp:after{content:"";position:absolute;inset:9px 13px;border-radius:50%;background:#fff3ac;box-shadow:0 0 28px 12px #ffe291aa}.lamp.frontlamp{left:18%;bottom:7%}.lamp.sidelamp{right:18%;bottom:7%}.lamp b{position:absolute;top:45px;left:29px;width:4px;height:48px;background:#4e2b16;z-index:-1}
+  .peg-field{position:absolute;left:25%;right:25%;top:52%;bottom:12%;z-index:3;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:7px}.peg{border:0;background:transparent;position:relative;min-width:0;touch-action:none}.peg:before{content:"";position:absolute;left:50%;top:64%;width:44px;height:17px;border-radius:50%;background:#452714;transform:translate(-50%,-50%);box-shadow:0 2px #d29452,inset 0 2px #211207}.peg:after{content:"";position:absolute;left:50%;top:calc(64% - 15px);width:10px;height:26px;border-radius:7px;background:linear-gradient(90deg,#7c4e27,#e1a65a,#57331a);transform:translateX(-50%);box-shadow:0 1px 2px #241106}.peg .mini{position:absolute;left:50%;top:calc(64% - 66px);transform:translateX(-50%);width:84px;height:75px;filter:drop-shadow(2px 5px 2px #2d150888)}.peg .mini svg{display:block;width:84px;height:75px;overflow:visible}.peg.selected:before{width:53px;height:25px;background:#d59742;box-shadow:0 0 15px 6px #f7d87a88}.peg.valid:before{outline:2px solid #f5d56c;outline-offset:5px}.peg.empty:hover:before{background:#926137}.peg.dragover:before{background:#f0c15e;transform:translate(-50%,-50%) scale(1.25)}
+  .object-tray{width:clamp(225px,25vw,285px);padding:10px;background:linear-gradient(160deg,#3d2417ee,#21140deb);border:1px solid #925f36;border-radius:10px;box-shadow:0 4px 16px #28130766}.tray-title{color:#eac989;font:700 10px ui-monospace,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;margin:2px 6px 8px}.pieces{display:flex;gap:6px}.piece{flex:1;min-height:78px;border:1px solid #93633e;border-radius:8px;background:#5e3823;color:#f3dfae;padding:5px 3px;display:grid;place-items:center;position:relative;touch-action:none}.piece svg{height:42px;width:48px;filter:drop-shadow(1px 2px #1d0e08)}.piece span{font:700 9px ui-monospace,Consolas,monospace;letter-spacing:.04em;text-transform:uppercase}.piece.active{background:#9a5d2d;border-color:#f3d071;box-shadow:0 0 0 2px #eab75077}.piece.placed{opacity:.78}.rotate-row{display:flex;gap:6px;margin-top:9px}.round{flex:1;border:1px solid #a97942;background:#e4b35b;border-radius:6px;padding:8px;color:#38220f;font-weight:800;font-size:18px;line-height:1}.round:active,.action:active{transform:translateY(1px)}
+  .legend{position:absolute;right:12px;bottom:11px;z-index:6;background:#2f1b10dd;border:1px solid #8e5d35;border-radius:9px;color:#f2daab;padding:8px 10px;font:600 10px/1.5 ui-monospace,Consolas,monospace;letter-spacing:.03em;max-width:230px}.legend b{color:#f5d06c}.key{font-weight:800}.gold{color:#efc363}.green{color:#9bc89d}.red{color:#ee9b82}
+  .under{margin:14px 4px 0;display:grid;grid-template-columns:minmax(210px,1fr) auto auto;gap:12px;align-items:center}.hint{color:#f5ddab;font:600 12px/1.45 ui-monospace,Consolas,monospace;max-width:660px}.hint strong{color:#f4c969}.actions{display:flex;gap:7px;flex-wrap:wrap;max-width:145px}.action{border:1px solid #91613a;border-radius:6px;padding:9px 12px;background:#3d2315;color:#f3d9a5;font:700 10px ui-monospace,Consolas,monospace;letter-spacing:.04em}.action.primary{background:linear-gradient(#edc565,#c8892d);border-color:#ffdc7f;color:#32200e}.action[disabled]{opacity:.42;cursor:default}
+  .toast{display:none;position:fixed;z-index:30;left:50%;top:25px;transform:translate(-50%,-130%);background:#f4e1b8;color:#38210f;border:2px solid #b77337;border-radius:14px;padding:12px 18px;box-shadow:0 9px 30px #25130777;font:700 13px ui-monospace,Consolas,monospace;transition:transform .32s}.toast.show{display:block;transform:translate(-50%,0)}
+  .complete{position:absolute;inset:0;z-index:20;display:none;place-items:center;background:#2c160dbb;backdrop-filter:blur(2px)}.complete.show{display:grid}.complete-card{max-width:410px;margin:18px;padding:26px;text-align:center;border-radius:15px;border:2px solid #e8ba5e;background:#f6e5bd;box-shadow:0 14px 45px #17090299}.complete h2{font:400 40px/1 'DM Serif Display';margin:0 0 8px}.complete p{font:500 13px/1.5 'DM Mono';margin:0 0 18px;color:#684129}.complete .action{background:#4b2c1b;color:#fee8b3}
+  .test{display:none}.test.show{display:block;position:fixed;right:8px;top:8px;z-index:40;width:300px;max-height:46vh;overflow:auto;white-space:pre-wrap;background:#111d;color:#bdffbd;border:1px solid #77c477;border-radius:5px;padding:8px;font:10px/1.3 monospace}
+  @media(max-width:760px){.app{padding:7px}header{padding-bottom:9px}.header-right{display:flex;gap:0}.header-right>span{display:none}.seed{padding:6px 8px}.seed input{width:68px}main{padding:9px;border-radius:14px}.topbar{grid-template-columns:1fr auto;gap:4px;margin-bottom:10px}.status{grid-column:1/-1;justify-self:start;text-align:left}.board{min-height:470px}.wall.front,.wall.side{top:3%;width:47%;height:31%}.wall.front{left:1%}.wall.side{right:1%}.board.lesson-one .wall.front{left:14%;width:72%;height:37%}.wall-label{font-size:8px}.screen{inset:22px 4px 5px}.screen .view-status{font-size:7px}.cabinet-table{left:1%;right:1%;top:43%;bottom:8%;height:auto}.peg-field{left:9%;right:9%;top:50%;bottom:16%;gap:2px}.peg .mini{transform:translateX(-50%) scale(.98)}.object-tray{width:100%;border-radius:8px;padding:7px}.piece{min-height:66px}.piece svg{height:35px}.legend{display:none}.under{grid-template-columns:1fr}.actions{justify-content:stretch;max-width:none}.action{flex:1;padding:10px 6px}.hint{font-size:11px}.lamp.frontlamp{left:5%;bottom:8%}.lamp.sidelamp{right:5%;bottom:8%}}
+  /* Single-angle comparison layout */
+  .wall.front,.wall.side{top:5%;width:39%;height:39%;transform:none}.wall.front{left:6%}.wall.side{right:6%}.front .screen,.side .screen{transform:none}.lamp.sidelamp{display:none}.legend{font-size:10px}.complete{display:none!important}.actions #nextQuick{display:none}.actions #nextQuick:not([hidden]){display:block}
+  .wall .screen{top:29px;bottom:auto;left:50%;width:min(78%,calc(100% - 26px));height:auto;aspect-ratio:1/1;transform:translateX(-50%)}.front .wall-label{display:none}.front .screen{background:#f3efe4;border:0;overflow:visible;box-shadow:5px 8px 13px #25150980;transform:translateX(-50%) rotate(-1deg)}.front .screen canvas{z-index:1}.front .screen .view-status{display:none}.front .screen:after{content:"";position:absolute;z-index:2;pointer-events:none;inset:-10px;border:10px solid #f5f1e6;border-bottom-width:34px;box-shadow:inset 0 0 0 1px #d7cfc0,0 2px 4px #3b251633}.front .screen:before{content:"GOAL";position:absolute;z-index:3;left:0;right:0;bottom:-28px;text-align:center;color:#34281e;font:700 10px/1 ui-monospace,Consolas,monospace;letter-spacing:.18em}
+  .wall .screen{width:min(72%,132px);height:min(72%,132px);aspect-ratio:1/1}.front .screen:before{bottom:-27px}
+  .front .screen:after{z-index:0;inset:-8px -8px -34px;border:0;background:#f5f1e6;box-shadow:inset 0 0 0 1px #d7cfc0,5px 8px 13px #25150980}.front .screen:before{bottom:-23px}.front .screen canvas{z-index:1}.side .screen{border:0;box-shadow:inset 0 0 0 2px #9b6c43,inset 0 0 16px #8d5d3d44}
+  @media(max-width:760px){.board{min-height:470px}.wall.front,.wall.side{top:3%;width:46%;height:34%}.wall.front{left:2%}.wall.side{right:2%}.board.lesson-one .wall.front{left:2%;width:46%;height:34%}.cabinet-table{top:43%}.peg-field{top:51%;bottom:15%}.legend{display:none}}
+  @media(max-width:760px){.wall .screen{top:26px;width:74%}.front .screen:after{inset:-7px;border-width:7px;border-bottom-width:26px}.front .screen:before{bottom:-22px;font-size:8px}}
+  @media(max-width:760px){.wall .screen{width:min(72%,108px);height:min(72%,108px)}.front .screen:before{bottom:-20px}}
+  @media(max-width:760px){.front .screen:after{inset:-6px -6px -27px}.front .screen:before{bottom:-18px}}
+  /* Refinement pass: readable columns, tap-to-turn, swap, compare and a solved state */
+  .peg.occupied{cursor:grab}.peg .col{position:absolute;left:50%;top:calc(64% + 15px);transform:translateX(-50%);font:700 10px ui-monospace,Consolas,monospace;color:#f3cc70;opacity:.8;letter-spacing:.08em;pointer-events:none}
+  .peg.selected .mini{filter:drop-shadow(0 0 6px #ffe08a) drop-shadow(2px 5px 2px #2d150888);animation:lift .8s ease-in-out infinite alternate}@keyframes lift{to{margin-top:-5px}}
+  .peg.dragover .mini{opacity:.45}
+  .wall.side{transition:box-shadow .3s,border-color .3s}.wall.side.matched{border-color:#4f8a5a;box-shadow:0 0 0 3px #7fb886aa,0 0 28px #b6eab6aa,inset 0 0 26px #663a2355}
+  .stamp{position:absolute;z-index:4;right:7px;top:5px;transform-origin:right top;transform:rotate(5deg) scale(1.6);opacity:0;border:2px solid #3f7a4a;color:#2f6a3b;background:#f4e7c3e6;border-radius:5px;padding:3px 7px;font:800 11px ui-monospace,Consolas,monospace;letter-spacing:.14em;transition:.28s;pointer-events:none}.wall.side.matched .stamp{opacity:1;transform:rotate(5deg)}
+  @media(min-width:761px) and (min-height:901px){.wall .screen{width:min(76%,150px);height:min(76%,150px)}}
+  .meter{position:absolute;left:14%;right:14%;bottom:8px;height:7px;border-radius:5px;background:#7a513333;overflow:hidden;box-shadow:inset 0 0 0 1px #81513366}.meter i{display:block;height:100%;width:0;background:#c98a3a;transition:width .25s,background .25s}.meter i.full{background:#4f8a5a}
+  .round.cmp{flex:1.5;font:800 10px/1.1 ui-monospace,Consolas,monospace;letter-spacing:.05em}.round.cmp[aria-pressed="false"]{background:#5e3823;color:#f3dfae}
+  .key-row{color:#e8cf9c;font:600 10px/1.5 ui-monospace,Consolas,monospace;margin:7px 4px 0;opacity:.85}.swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 3px 0 6px;vertical-align:-1px;border:1px solid #2c1a0d}
+  .action.primary#nextQuick{animation:nextpulse 1.1s ease-in-out infinite}@keyframes nextpulse{50%{box-shadow:0 0 0 4px #ffdc7f55,0 0 16px #ffdc7f}}
+  @media(min-width:761px) and (max-height:900px){header{padding-bottom:9px}main{padding:12px 16px}.topbar{margin-bottom:9px}.board{min-height:440px}.wall .screen{width:min(72%,124px);height:min(72%,124px)}.meter{bottom:5px;height:6px}.under{margin-top:9px}.piece{min-height:62px}.piece svg{height:34px}}
+  @media(max-width:760px){.stamp{font-size:9px;top:4px;right:4px}.key-row{display:none}.meter{bottom:5px;height:6px}}
+  /* Desktop: both pictures grow together. Same single angle, same scale; the screens take the canvas's own 190:150 shape instead of a letterboxed square. */
+  @media(min-width:761px) and (max-height:900px){.app{padding-top:10px;padding-bottom:10px}}
+  @media(min-width:761px){.status{max-width:430px}.board{min-height:clamp(440px,calc(100vh - 336px),640px)}.wall.front,.wall.side{height:50%}.wall .screen{height:calc(100% - 55px);width:auto;aspect-ratio:190/150}.cabinet-table{top:57%;bottom:4%}.peg-field{top:60%;bottom:8%}.lamp.frontlamp{bottom:4%}}
+  @media(min-width:761px) and (min-height:901px){.board{min-height:clamp(440px,calc(100vh - 424px),640px)}}
+  .brand-home{display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none}.brand-home:before{content:"⌂";display:grid;place-items:center;width:22px;height:22px;border:1px solid #8b623d;border-radius:50%;color:#704725;font:700 14px/1 system-ui}.brand-home:hover h1,.brand-home:focus-visible h1{color:#8b4c2d}.brand-home:focus-visible{outline:3px solid var(--brass);outline-offset:4px;border-radius:4px}
+  @media(prefers-reduced-motion:reduce){.peg.selected .mini,.action.primary#nextQuick{animation:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand"><div class="seal">S</div><a class="brand-home" href="../index.html" data-arcade-home aria-label="Back to The Arcade Shelf" title="Back to The Arcade Shelf" onclick="return confirm('Return to The Arcade Shelf? Your current puzzle will be lost.')"><div><h1>Shadow Cabinet</h1><p>an optical peg cabinet · The Arcade Shelf</p></div></a></div><div class="header-right"><label class="seed">SEED <input id="seedInput" aria-label="Puzzle seed" maxlength="10"><button id="seedGo">GO</button></label></div></header>
+<main>
+ <div class="topbar"><div><div class="puzzle-title" id="puzzleTitle">Warm-up: one wall</div><div class="sub" id="puzzleSub">The front lamp sees only this wall</div></div><div class="level" id="levelDots"><i class="on"></i><i></i><i></i></div><div class="status" id="statusText">Front wall is measuring</div></div>
+ <section class="board" id="board" aria-label="Shadow puzzle cabinet">
+  <div class="wall front"><div class="wall-label">Goal</div><div class="screen"><canvas id="frontCanvas" width="190" height="150"></canvas><div class="view-status"><span>STATIC GOAL</span><span>FRONT LAMP</span></div></div></div>
+  <div class="wall side" id="sideWall"><div class="wall-label">Your shadow</div><div class="screen"><canvas id="sideCanvas" width="190" height="150"></canvas><div class="view-status"><span id="frontScore">0% match</span><span id="sideRole">LIVE</span></div></div><div class="stamp">MATCHED</div><div class="meter" aria-hidden="true"><i id="meterFill"></i></div></div>
+  <div class="cabinet-table"></div><div class="lamp frontlamp"><b></b></div><div class="peg-field" id="pegField"></div>
+  <div class="legend"><b>How to play</b><br>Tap a piece to pick it up. Tap it again to turn it. Drop it on another piece to swap. Columns A, B, C line up with the shadow; front or back row makes no difference.</div>
+ </section>
+ <div class="under"><div class="hint" id="hintText">Choose a piece, place it on a brass peg, then turn it until the <strong>front shadow</strong> matches the goal.</div><div class="object-tray"><div class="tray-title">Cabinet pieces</div><div class="pieces" id="pieces"></div><div class="rotate-row"><button class="round" id="turnLeft" aria-label="Turn selected object left">↶</button><button class="round" id="turnRight" aria-label="Turn selected object right">↷</button><button class="round cmp" id="compareBtn" aria-pressed="true">COMPARE ON</button></div><div class="key-row" id="keyRow"><i class="swatch" style="background:#d85d43"></i>extra shadow<i class="swatch" style="background:#efbfa8"></i>missing shadow</div></div><div class="actions"><button class="action" id="undoBtn">UNDO</button><button class="action" id="restartBtn">RESET</button><button class="action primary" id="newBtn">NEW SEED</button><button class="action primary" id="nextQuick" hidden>NEXT →</button></div></div>
+</main></div><div class="toast" id="toast"></div><pre class="test" id="testPanel"></pre>
+<script>
+(() => {
+    'use strict';
+    const W = 95, H = 72, qs = s => document.querySelector(s), el = (t, c) => { const n = document.createElement(t); if (c)
+        n.className = c; return n; };
+    const pieces = [{ id: 'boot', name: 'Boot', color: '#a75235', path: 'M8 34 L15 10 L29 10 L31 28 L46 34 Q50 38 46 42 L12 42 Q5 40 8 34', solids: [[-8, 0, -18, 18, 10, 29], [-6, 9, 2, 14, 22, 12], [-7, 27, 3, 16, 8, 10]] }, { id: 'teapot', name: 'Teapot', color: '#3a7780', path: 'M11 31 Q10 17 25 17 Q39 17 39 31 Q37 42 25 42 Q13 42 11 31 M39 23 Q51 20 49 31 Q47 37 39 35 M20 17 L24 9 L30 17 M15 14 Q25 6 35 14', solids: [[-12, 8, -12, 24, 18, 24], [9, 13, -4, 20, 8, 10], [-17, 12, -5, 7, 15, 11], [-4, 26, -4, 8, 8, 8]] }, { id: 'chair', name: 'Chair', color: '#c39235', path: 'M12 10 L19 10 L19 27 L38 27 L38 34 L17 34 L15 44 L10 44 M35 33 L39 44 M16 11 L35 11 L35 26 L16 26 Z', solids: [[-13, 17, -11, 26, 8, 22], [-13, 25, 7, 26, 25, 7], [-12, 0, -10, 6, 18, 6], [7, 0, -10, 6, 18, 6], [-12, 0, 7, 6, 18, 6], [7, 0, 7, 6, 18, 6]] }];
+    const P = Object.fromEntries(pieces.map(p => [p.id, p])), pegs = [[-18, 18], [0, 18], [18, 18], [-18, -18], [0, -18], [18, -18]], fc = qs('#frontCanvas').getContext('2d'), sc = qs('#sideCanvas').getContext('2d');
+    let level = 0, seed = readSeed(), puzzle, state, moves = [], selected = null, dragging = null, suppressClick = false, compareOn = true, moveCount = 0, wasSolved = false;
+    const seeded = Boolean(new URL(location.href).searchParams.get('seed'));
+    function hash(v) { let h = 2166136261; for (const c of String(v))
+        h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+    function parseSeed(v) { return /^\d+$/.test(v) ? Number(v) >>> 0 : hash(v); }
+    function readSeed() { const v = new URL(location.href).searchParams.get('seed'); return v ? parseSeed(v) : 2127; }
+    function rng(a) { return () => { let t = a += 0x6D2B79F5; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+    function clone(v) { return JSON.parse(JSON.stringify(v)); }
+    function shuffle(a, r) { return a.slice().sort(() => r() - .5); }
+    function arrangement(a) { return pieces.map((p, i) => ({ id: p.id, peg: a[i][0], rot: a[i][1] })); }
+    function turn(s, r) { let [x, y, z, dx, dy, dz] = s; if (r === 1)
+        return [-z - dz, y, x, dz, dy, dx]; if (r === 2)
+        return [-x - dx, y, -z - dz, dx, dy, dz]; if (r === 3)
+        return [z, y, -x - dx, dz, dy, dx]; return s; }
+    function mask(a) { const o = new Uint8Array(W * H); for (const q of a) {
+        for (const s of P[q.id].solids) {
+            let [x, y, z, dx, dy, dz] = turn(s, q.rot % 4);
+            x += pegs[q.peg][0];
+            const l = Math.round(W / 2 + x * .94), rr = Math.round(l + dx * .94), t = Math.round(H - 5 - (y + dy) * 1.1), b = Math.round(H - 5 - y * 1.1);
+            for (let yy = Math.max(0, t); yy < Math.min(H, b); yy++)
+                for (let xx = Math.max(0, l); xx < Math.min(W, rr); xx++)
+                    o[yy * W + xx] = 1;
+        }
+    } return o; }
+    function score(a, b) { let i = 0, u = 0; for (let n = 0; n < a.length; n++) {
+        i += a[n] & b[n];
+        u += a[n] | b[n];
+    } return u ? i / u : 1; }
+    function same(a, b) { return a.every((v, i) => v === b[i]); }
+    function make(seedValue) { const r = rng(seedValue); for (let n = 0; n < 80; n++) {
+        const sol = arrangement(shuffle([0, 1, 2, 3, 4, 5], r).slice(0, 3).map(p => [p, Math.floor(r() * 4)])), goal = mask(sol);
+        for (let k = 0; k < 48; k++) {
+            const layout = shuffle([0, 1, 2, 3, 4, 5], r).slice(0, 3), start = sol.map((o, i) => ({ ...o, peg: layout[i], rot: (o.rot + 1 + Math.floor(r() * 3)) % 4 }));
+            if (!same(mask(start), goal))
+                return { solution: sol, start, front: goal, seed: seedValue };
+        }
+    } throw Error('seed'); }
+    function lessons() { const a = arrangement([[0, 1], [2, 0], [5, 3]]), b = arrangement([[1, 2], [2, 0], [5, 3]]), c = arrangement([[0, 1], [3, 0], [5, 3]]), d = arrangement([[1, 2], [4, 1], [2, 2]]); return [{ solution: a, start: b, front: mask(a), seed }, { solution: c, start: d, front: mask(c), seed }]; }
+    function paint(ctx, a, o = {}) {
+        const m = mask(a), cw = ctx.canvas.width, ch = ctx.canvas.height, x = cw / W, y = ch / H, floor = Math.round((H - 5) * y) + .5;
+        ctx.fillStyle = '#f4e7c3'; ctx.fillRect(0, 0, cw, ch);
+        // Shared column guides: A, B and C sit over the three peg columns in both pictures.
+        ctx.save(); ctx.lineWidth = 1; ctx.font = '700 9px ui-monospace,Consolas,monospace'; ctx.textAlign = 'center';
+        [-18, 0, 18].forEach((px, i) => { const gx = Math.round((W / 2 + px * .94) * x) + .5; ctx.strokeStyle = 'rgba(120,80,45,.3)'; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(gx, 13); ctx.lineTo(gx, floor); ctx.stroke(); ctx.fillStyle = 'rgba(96,62,34,.8)'; ctx.fillText('ABC'[i], gx, 9); });
+        ctx.setLineDash([]); ctx.strokeStyle = 'rgba(96,62,34,.55)'; ctx.beginPath(); ctx.moveTo(0, floor); ctx.lineTo(cw, floor); ctx.stroke(); ctx.restore();
+        const cells = (test, style) => { ctx.fillStyle = style; for (let j = 0; j < H; j++)
+            for (let i = 0; i < W; i++)
+                if (test(j * W + i))
+                    ctx.fillRect(i * x, j * y, x + 1, y + 1); };
+        cells(n => m[n], '#281b12');
+        if (o.sel) { const own = mask([o.sel]); cells(n => own[n], shade(P[o.sel.id].color, .62)); }
+        if (o.goal) { cells(n => o.goal[n] && !m[n], '#efbfa8'); cells(n => m[n] && !o.goal[n], '#d85d43'); }
+    }
+    function updateLive(a, preview) { const sel = selected && a.find(q => q.id === selected && q.peg !== null); paint(sc, a, { sel, goal: compareOn ? puzzle.front : null }); const v = score(mask(a), puzzle.front), p = v === 1 ? 100 : Math.min(99, Math.round(v * 100)); qs('#frontScore').textContent = (preview ? 'PREVIEW · ' : '') + p + '% match'; qs('#sideRole').textContent = preview ? 'IF DROPPED' : 'LIVE'; const fill = qs('#meterFill'); fill.style.width = p + '%'; fill.classList.toggle('full', v === 1); return v; }
+    function showToast(text) { const t = qs('#toast'); t.textContent = text; t.classList.add('show'); clearTimeout(showToast.t); showToast.t = setTimeout(() => t.classList.remove('show'), 2200); }
+    function arrangeWith(id, peg) { const a = clone(state), q = a.find(x => x.id === id), o = a.find(x => x.peg === peg); if (o && o !== q)
+        o.peg = q.peg; q.peg = peg; return a; }
+    function svg(p) { return `<svg viewBox="0 0 56 52"><path d="${p.path}" fill="${p.color}" stroke="#28160e" stroke-width="2"/></svg>`; }
+    function shade(hex, f) { const n = parseInt(hex.slice(1), 16); return `rgb(${Math.round((n >> 16) * f)},${Math.round(((n >> 8) & 255) * f)},${Math.round((n & 255) * f)})`; }
+    function isoSvg(piece, rotation) { const pt = (x, y, z) => [40 + (x - z) * .66, 58 + (x + z) * .3 - y * .74].map(n => n.toFixed(1)).join(','); return `<svg viewBox="0 0 80 70">${piece.solids.slice().sort((a, b) => a[0] + a[2] - b[0] - b[2]).map(s => { const [x, y, z, dx, dy, dz] = turn(s, rotation), a = pt(x, y, z), b = pt(x + dx, y, z), c = pt(x + dx, y, z + dz), d = pt(x, y, z + dz), e = pt(x, y + dy, z), f = pt(x + dx, y + dy, z), g = pt(x + dx, y + dy, z + dz), k = pt(x, y + dy, z + dz); return `<polygon points="${b} ${c} ${g} ${f}" fill="${shade(piece.color, .68)}"/><polygon points="${d} ${c} ${g} ${k}" fill="${shade(piece.color, .82)}"/><polygon points="${e} ${f} ${g} ${k}" fill="${piece.color}" stroke="#27140b" stroke-width=".7"/>`; }).join('')}</svg>`; }
+    function piecesUI() { const b = qs('#pieces'); b.innerHTML = ''; for (const p of pieces) {
+        const q = state.find(x => x.id === p.id), n = el('button', 'piece' + (selected === p.id ? ' active' : '') + (q.peg !== null ? ' placed' : ''));
+        n.dataset.id = p.id;
+        n.innerHTML = svg(p) + `<span>${p.name}</span>`;
+        n.onpointerdown = e => grab(e, p.id);
+        n.onclick = () => { if (suppressClick) {
+            suppressClick = false;
+            return;
+        } selected = selected === p.id ? null : p.id; render(); };
+        b.append(n);
+    } }
+    function pegsUI() { const b = qs('#pegField'); b.innerHTML = ''; for (let i = 0; i < 6; i++) {
+        const q = state.find(x => x.peg === i), n = el('button', 'peg ' + (q ? 'occupied' : 'empty') + (q && q.id === selected ? ' selected' : ''));
+        n.dataset.peg = i;
+        n.setAttribute('aria-label', q ? `${P[q.id].name} on peg ${i + 1}` : `Empty peg ${i + 1}`);
+        if (q) {
+            const m = el('div', 'mini');
+            m.innerHTML = isoSvg(P[q.id], q.rot);
+            n.append(m);
+        }
+        const c = el('span', 'col');
+        c.textContent = 'ABC'[i % 3];
+        n.append(c);
+        if (q)
+            n.onpointerdown = e => grab(e, q.id, i);
+        n.onclick = e => { if (q && e.detail !== 0)
+            return; place(i); };
+        b.append(n);
+    } }
+    function render() { piecesUI(); pegsUI(); paint(fc, puzzle.solution); const v = updateLive(state, false), solved = v === 1, plural = moveCount === 1 ? ' move' : ' moves'; qs('#undoBtn').disabled = !moves.length; qs('#nextQuick').hidden = !solved; qs('#sideWall').classList.toggle('matched', solved); [...qs('#levelDots').children].forEach((d, i) => d.classList.toggle('on', i <= Math.min(level, 2))); qs('#compareBtn').setAttribute('aria-pressed', String(compareOn)); qs('#compareBtn').textContent = compareOn ? 'COMPARE ON' : 'COMPARE OFF'; qs('#keyRow').style.visibility = compareOn ? 'visible' : 'hidden'; qs('#puzzleTitle').textContent = level === 0 ? 'Warm-up: move and turn' : level === 1 ? 'Overlap lesson: one angle' : 'Procedural cabinet'; qs('#puzzleSub').textContent = level === 1 ? 'Depth can overlap without changing the front view' : 'One lamp, one silhouette'; qs('#statusText').textContent = solved ? 'Shadow matched in ' + moveCount + plural + '.' : (selected ? P[selected].name + ' picked up · tap it again to turn' : 'Tap a cabinet piece') + ' · ' + moveCount + plural; qs('#hintText').innerHTML = solved ? '<strong>Matched.</strong> Press NEXT for the next cabinet.' : level === 0 ? 'Tap the <strong>boot</strong> to pick it up, tap an empty peg under column <strong>A</strong> to move it, then tap the boot again to turn it until the shadows match.' : level === 1 ? 'Some pieces overlap from the front. Drop one piece on another to <strong>swap</strong> them. Only the front silhouette matters.' : 'Arrange and turn the pieces until <strong>Your shadow</strong> exactly matches Goal. Compare marks what is extra or missing.'; if (solved && !wasSolved)
+        showToast('Shadow matched in ' + moveCount + plural); wasSolved = solved; test(); }
+    function snapshot() { moves.push(clone(state)); moveCount++; if (moves.length > 30)
+        moves.shift(); }
+    function place(n) { const o = state.find(x => x.peg === n); if (!selected) {
+        if (o) {
+            selected = o.id;
+            render();
+        }
+        return;
+    } const q = state.find(x => x.id === selected); if (q.peg === n)
+        return rotate(1); snapshot(); state = arrangeWith(selected, n); render(); }
+    function rotate(d) { if (!selected)
+        return; const q = state.find(x => x.id === selected); if (q.peg === null)
+        return; snapshot(); q.rot = (q.rot + d + 4) % 4; render(); }
+    // Pick up from the tray or straight off a peg. A tap on the piece you already hold turns it; a drop on another piece swaps.
+    function grab(e, id, fromPeg = null) { e.preventDefault(); suppressClick = true; const wasSelected = selected === id, sx = e.clientX, sy = e.clientY; let moved = false; selected = id; dragging = id; render(); const pegAt = v => document.elementFromPoint(v.clientX, v.clientY)?.closest('.peg'); const mark = n => { document.querySelectorAll('.peg.dragover').forEach(p => p.classList.remove('dragover')); if (n)
+        n.classList.add('dragover'); }; const move = v => { if (Math.hypot(v.clientX - sx, v.clientY - sy) > 8)
+        moved = true; const n = pegAt(v), q = state.find(x => x.id === id); if (!n || +n.dataset.peg === q.peg) {
+        mark(null);
+        return updateLive(state, false);
+    } mark(n); updateLive(arrangeWith(id, +n.dataset.peg), true); }; const done = v => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', done); window.removeEventListener('pointercancel', done); dragging = null; const n = v.type === 'pointerup' && pegAt(v), q = state.find(x => x.id === id); if (n && +n.dataset.peg !== q.peg) {
+        snapshot();
+        state = arrangeWith(id, +n.dataset.peg);
+    }
+    else if (n && fromPeg !== null && wasSelected && !moved)
+        return rotate(1); render(); }; window.addEventListener('pointermove', move); window.addEventListener('pointerup', done); window.addEventListener('pointercancel', done); }
+    function init(n) { level = n; puzzle = n < 2 ? lessons()[n] : make(seed); state = clone(puzzle.start); moves = []; moveCount = 0; wasSolved = false; compareOn = n < 2; selected = null; qs('#seedInput').value = seed; render(); }
+    function next() { if (level === 0)
+        init(1);
+    else if (level === 1) {
+        history.replaceState(null, '', '?seed=' + seed);
+        init(2);
+    }
+    else {
+        seed = (seed + 1) >>> 0;
+        history.replaceState(null, '', '?seed=' + seed);
+        init(2);
+    } }
+    function test() { if (!location.search.includes('test'))
+        return; qs('#testPanel').classList.add('show'); qs('#testPanel').textContent = JSON.stringify({ semantics: 'single front silhouette', level, seed, frontMatch: score(mask(state), puzzle.front), solution: puzzle.solution, player: state }, null, 1); }
+    qs('#turnLeft').onclick = () => rotate(-1);
+    qs('#turnRight').onclick = () => rotate(1);
+    qs('#undoBtn').onclick = () => { if (moves.length) {
+        state = moves.pop();
+        moveCount = Math.max(0, moveCount - 1);
+        selected = null;
+        render();
+    } };
+    qs('#compareBtn').onclick = () => { compareOn = !compareOn; render(); };
+    qs('#restartBtn').onclick = () => init(level);
+    qs('#newBtn').onclick = () => { seed = (seed + 1) >>> 0; history.replaceState(null, '', '?seed=' + seed); init(2); };
+    qs('#nextQuick').onclick = next;
+    qs('#seedGo').onclick = () => { const v = qs('#seedInput').value.trim(); if (v) {
+        seed = parseSeed(v);
+        history.replaceState(null, '', '?seed=' + seed);
+        init(2);
+    } };
+    qs('#seedInput').onkeydown = e => { if (e.key === 'Enter')
+        qs('#seedGo').click(); };
+    window.addEventListener('keydown', e => { if (e.target.closest?.('input,textarea'))
+        return; if (e.key === 'ArrowLeft')
+        rotate(-1); if (e.key === 'ArrowRight')
+        rotate(1); if ('123'.includes(e.key) && e.key) {
+        selected = pieces[+e.key - 1].id;
+        render();
+    } if (e.key.toLowerCase() === 'c' && !e.ctrlKey && !e.metaKey)
+        qs('#compareBtn').click(); if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        qs('#undoBtn').click();
+    } });
+    window.shadowCabinet = { getState: () => ({ level, seed, puzzle, state, scores: { front: score(mask(state), puzzle.front), solved: same(mask(state), puzzle.front) } }), setArrangement: a => { state = clone(a); render(); }, next, validateSeed: n => { const p = make(n); return { singleFront: true, startUnsolved: !same(mask(p.start), p.front) }; } };
+    init(seeded ? 2 : 0);
+})();
+</script></body></html>
