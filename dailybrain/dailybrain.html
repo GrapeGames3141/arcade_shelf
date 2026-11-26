@@ -544,7 +544,7 @@ const PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 
 function patMake(level, R) {
   const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
   const fams = [
-    ['add', 'mul'], ['add2', 'sq', 'tri'], ['alt', 'sq', 'tri', 'dbl1'], ['fib', 'dbl1', 'inter', 'cube', 'prime'], ['fib', 'inter', 'diff2', 'prime', 'cube'],
+    ['add', 'mul'], ['add2', 'sq', 'tri'], ['alt', 'sq', 'tri', 'dbl1'], ['fib', 'dbl1', 'cube', 'prime'], ['fib', 'diff2', 'prime', 'cube'],
   ][level];
   const f = fams[Math.floor(R() * fams.length)]; let seq, why;
   switch (f) {
@@ -553,10 +553,9 @@ function patMake(level, R) {
     case 'add2': { const a = ri(50, 120), d = ri(4, 12); seq = Array.from({ length: 6 }, (_, i) => a - d * i); why = `Subtract ${d} each time.`; break; }
     case 'sq': { const k = ri(1, 6); seq = Array.from({ length: 6 }, (_, i) => (k + i) ** 2); why = `Square numbers: ${k}², ${k + 1}², ${k + 2}²… Or: the gaps grow by 2 each time.`; break; }
     case 'tri': { const a = ri(1, 10), s = ri(1, 4); seq = [a]; for (let i = 0; i < 5; i++) seq.push(seq[i] + s + i); why = `The gaps grow by 1: +${s}, +${s + 1}, +${s + 2}…`; break; }
-    case 'alt': { const a = ri(5, 20), u = ri(4, 9), d = ri(1, 3); seq = [a]; for (let i = 0; i < 5; i++) seq.push(seq[i] + (i % 2 ? -d : u)); why = `Two steps that repeat: +${u}, then −${d}. Or: every other number goes up by ${u - d}.`; break; }
+    case 'alt': { const a = ri(5, 20), u = ri(4, 9), d = ri(1, 3); seq = [a]; for (let i = 0; i < 5; i++) seq.push(seq[i] + (i % 2 ? -d : u)); why = `Two steps that repeat: +${u}, then −${d}.`; break; }
     case 'dbl1': { const a = ri(1, 4), c = ri(1, 2); seq = [a]; for (let i = 0; i < 5; i++) seq.push(seq[i] * 2 + c); why = `Double it, then add ${c}. Same thing another way: the gaps double (+${seq[1] - seq[0]}, +${seq[2] - seq[1]}, +${seq[3] - seq[2]}…).`; break; }
     case 'fib': { const a = ri(1, 4), b = ri(2, 6); seq = [a, b]; for (let i = 0; i < 4; i++) seq.push(seq[i] + seq[i + 1]); why = 'Each number is the sum of the two before it.'; break; }
-    case 'inter': { const a = ri(1, 9), d = ri(2, 5), b = ri(20, 40), e = ri(2, 6); seq = []; for (let i = 0; i < 6; i++) seq.push(i % 2 ? b - e * ((i - 1) / 2) : a + d * (i / 2)); why = `Two sequences take turns: ${a}, ${a + d}, ${a + 2 * d}… (+${d}) and ${b}, ${b - e}… (−${e}).`; break; }
     case 'cube': { const k = ri(1, 3); seq = Array.from({ length: 6 }, (_, i) => (k + i) ** 3); why = `Cubes: ${k}³, ${k + 1}³, ${k + 2}³…`; break; }
     case 'prime': { const s = ri(0, 18); seq = PRIMES.slice(s, s + 6); why = 'Prime numbers: each can only be divided by 1 and itself.'; break; }
     case 'diff2': { const a = ri(1, 9); seq = [a]; for (let i = 0; i < 5; i++) seq.push(seq[i] + 2 ** i); why = 'The gaps double: +1, +2, +4, +8, +16.'; break; }
@@ -593,7 +592,7 @@ function patAlternatives(x) {
   if (d.every(v => v !== 0)) { const r = d[1] / d[0]; if (Number.isInteger(r) && d.every((v, i) => !i || v === d[i - 1] * r)) add(x[4] + d[3] * r, `gaps that multiply by ${r}`); }
   for (let m = -4; m <= 4; m++) { const c = x[1] - m * x[0]; if (x.every((v, i) => !i || v === m * x[i - 1] + c)) add(m * x[4] + c, `×${m} then ${c >= 0 ? '+' : '−'}${Math.abs(c)}`); }
   if (x.every((v, i) => i < 2 || v === x[i - 1] + x[i - 2])) add(x[3] + x[4], 'adding the two before');
-  if (x[2] - x[0] === x[4] - x[2] && !same(d)) add(x[3] + (x[3] - x[1]), 'two sequences taking turns');   // the 6th number continues the 2nd and 4th
+  if (d[0] === d[2] && d[1] === d[3] && d[0] !== d[1]) add(x[4] + d[0], `the steps repeating (+${d[0]}, ${d[1] < 0 ? '−' : '+'}${Math.abs(d[1])})`);
   return out;
 }
 function patCheck(v) {
