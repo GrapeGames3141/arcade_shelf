@@ -283,7 +283,7 @@ function start(kind, practice, seed, race, opts) {
   if (seed === undefined) seed = practice ? (Math.random() * 1e9) | 0 : hashStr(TODAY + ':' + kind);
   RUN = { kind, practice, race: !!race, rng: mulberry32(seed), t0: performance.now(), score: 0, penalty: 0, size: opts && opts.size };
   show('play'); $('#pBar').style.width = '0%'; $('#raceBar').classList.toggle('on', !!race); if (race) raceDraw();
-  tickT = setInterval(() => { if (RUN) $('#pTime').textContent = fmtT(performance.now() - RUN.t0 + RUN.penalty * 1000); }, 250);
+  tickT = setInterval(() => { if (RUN) { $('#pTime').textContent = fmtT(performance.now() - RUN.t0 + RUN.penalty * 1000); $('#pTime').style.visibility = RUN.hideClock ? 'hidden' : ''; } }, 250);
   ({ estimate: estStart, picture: picStart, patterns: patStart })[kind]();
 }
 $('#bQuit').onclick = () => { if (RUN && RUN.race) { if (confirm('Leave the race? You will finish with 0.')) finishRun(0, true); return; } if (RUN && !RUN.practice && !confirm('Leave this daily puzzle? Your first try is the one that counts, so leaving gives you 0.')) return; if (RUN && !RUN.practice) finishRun(0, true); else goHome(); };
@@ -354,6 +354,7 @@ function estMake(kind, R) {
 function estScore(r, v) { const e = Math.abs(v - r.ans), lim = r.abs || r.rel * r.ans; return Math.round(200 * clamp(1 - e / lim, 0, 1)); }
 function estRound() {
   const r = RUN.rounds[RUN.i]; $('#pBar').style.width = (RUN.i / 5 * 100) + '%';
+  RUN.hideClock = !!r.time; $('#pTime').style.visibility = r.time ? 'hidden' : '';   // no peeking at the clock while you judge time
   $('#stage').innerHTML = `<div class="card"><div class="tag">Estimate · ${RUN.i + 1} of 5</div><div class="q">${r.q}</div>${r.time ? '' : '<canvas class="vis" id="vis"></canvas>'}<div id="ctl"></div><div class="msg" id="msg"></div><div class="tip" id="tip"></div></div><div id="foot"></div>`;
   if (r.time) return estTime(r);
   const cv = $('#vis'), dots = r.kind === 'dots'; drawEst(cv, r, !dots);
