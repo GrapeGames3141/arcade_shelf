@@ -3868,7 +3868,12 @@ function mpLeave() {
   Object.assign(MP, { role: null, started: false, roster: [], hold: {}, hostGone: 0, lostAt: 0, bk: null, ep: 0, hostPid: '', upause: null, snapUp: null, ban: {} });
   if (G) G.mp = null; clearInterval(MP.bg); mpPersp(0, [0, 1, 2, 3]); mpLobby(); mpHoldUI();
 }
-const mpLobbyHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+// whoever made the room stays its host, even after dropping out and coming back (switching apps to send the link);
+// only while they're away does the lowest seat stand in
+const mpSeatPid = st => st === MP.seat ? MP.pid : MP.pidOf.get(st) || 's' + st;
+const mpOwnerIn = () => !!MP.owner && [...MP.present].some(st => mpSeatPid(st) === MP.owner);
+const mpLobbyHost = () => MP.seat >= 0 && (mpOwnerIn() ? MP.owner === MP.pid : MP.seat === Math.min(...MP.present));
+const mpLobbyOrder = () => [...MP.present].sort((a, b) => (mpSeatPid(b) === MP.owner) - (mpSeatPid(a) === MP.owner) || a - b);
 // this screen sees its own clan as team 0; swT turns the host's team numbers into this screen's (it is its own inverse)
 const swT = t => t === 0 ? MP.me : t === MP.me ? 0 : t;
 function mpPersp(me, cols) {
@@ -3879,7 +3884,7 @@ function mpPersp(me, cols) {
 }
 const clanName = canon => CLAN_COL[MP.cols[canon]].name;
 function mpConnect(code) {
-  mpClose(); MP.code = code; MP.want = true;
+  mpClose(); MP.code = code; MP.want = true; if (code !== MP.ownRoom) MP.owner = '';
   let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=empire-rush&room=' + code); } catch (err) { mpStatus('Could not reach the game server.'); return; }
   MP.ws = ws; if (!MP.started) mpStatus(`Connecting to room <b>${code}</b>…`);
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (err) { return; } mpMsg(m); };
@@ -4064,9 +4069,9 @@ function mpLobby() {
   $('mpLobby').hidden = !on; $('mpJoinRow').hidden = on || MP.want;
   $('mpRejoin').hidden = !rec; if (rec) $('bMpRejoin').textContent = `↩ Rejoin match · ${rec.room}`;
   if (!on) return;
-  const seats = [...MP.present].sort((x, y) => x - y).slice(0, MAXP), host = mpLobbyHost();
+  const seats = mpLobbyOrder().slice(0, MAXP), host = mpLobbyHost(), hostSeat = mpOwnerIn() ? seats.find(st => mpSeatPid(st) === MP.owner) : Math.min(...MP.present);
   $('mpRoom').textContent = MP.code; $('bMpShare').hidden = !navigator.share;
-  $('mpList').innerHTML = seats.map((st, k) => `<span style="color:${CLAN_COL[k].lite}">${st === MP.seat ? 'You' : 'Player ' + (k + 1)}${k === 0 ? ' · host' : ''}</span>`).join('');
+  $('mpList').innerHTML = seats.map((st, k) => `<span style="color:${CLAN_COL[k].lite}">${st === MP.seat ? 'You' : 'Player ' + (k + 1)}${st === hostSeat ? ' · host' : ''}</span>`).join('');
   $('bMpStart').hidden = !host; $('bMpStart').disabled = seats.length < 2;
   $('bMpStart').textContent = seats.length < 2 ? 'Waiting for players…' : `Start · ${seats.length} players`;
   if (host && seats.length > 1 && MP.shown !== MP.code + seats.length) { MP.shown = MP.code + seats.length; $('bMpStart').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
@@ -4074,7 +4079,7 @@ function mpLobby() {
 }
 function mpHostStart() {
   if (!mpLobbyHost() || MP.present.size < 2) return;
-  const roster = [...MP.present].sort((x, y) => x - y).slice(0, MAXP).map(st => st === MP.seat ? MP.pid : MP.pidOf.get(st) || 's' + st), seed = (Math.random() * 1e6) | 0;
+  const order = mpLobbyOrder().slice(0, MAXP).map(mpSeatPid), roster = [MP.pid, ...order.filter(p => p !== MP.pid)], seed = (Math.random() * 1e6) | 0;
   Object.assign(MP, { roster, ep: 1, hostPid: MP.pid, on: new Set(roster.slice(1)), hold: {}, started: true, role: 'host', upause: null, ban: {} });
   mpPersp(0, [0, 1, 2, 3]); mpLobby();
   mpSend({ k: 'start', seed, roster, cols: MP.cols, ep: MP.ep });
@@ -4088,7 +4093,7 @@ function mpCheckMissing() {
   mpHoldUI();
 }
 $('mpHold').addEventListener('pointerdown', e => { const b = e.target.closest('button[data-act]'); if (b) { e.stopPropagation(); mpPauseAct(b.dataset.act); } });
-function mpHere(re) { mpSend({ k: 'here', pid: MP.pid, seat: MP.seat, re: re ? 1 : 0, host: MP.role === 'host' && MP.started ? 1 : 0, ep: MP.ep }); }
+function mpHere(re) { mpSend({ k: 'here', pid: MP.pid, seat: MP.seat, re: re ? 1 : 0, host: MP.role === 'host' && MP.started ? 1 : 0, ep: MP.ep, own: MP.owner || '' }); }
 function mpMsg(m) {
   if (m.k === 'full') { MP.want = false; mpStatus('That room is full (4 players).'); mpLobby(); return; }
   if (m.k === 'hello') {
@@ -4104,6 +4109,7 @@ function mpMsg(m) {
   }
   if (m.k === 'here') {
     const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
+    if (m.own && !MP.owner) MP.owner = m.own;
     if (isNew || !m.re) mpHere(true);   // answer newcomers so everyone knows everyone's id
     if (m.host && m.pid !== MP.pid) {
       clearTimeout(MP.claimT);   // someone else is running the match: wait for them to send it
@@ -4335,7 +4341,7 @@ function mpCommand(m) {
     }
   });
 }
-$('bMpNew').onclick = () => { audioInit(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('mpCode').value = c; mpRec(false); mpSaveClear(); mpConnect(c); mpLobby(); };
+$('bMpNew').onclick = () => { audioInit(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; $('mpCode').value = c; mpRec(false); mpSaveClear(); mpConnect(c); MP.owner = MP.pid; MP.ownRoom = c; mpLobby(); };
 $('bMpJoin').onclick = () => { audioInit(); const c = $('mpCode').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes have 5 letters and numbers.'); return; } mpConnect(c); mpLobby(); };
 $('bMpRejoin').onclick = () => { const r = mpLoadRec(); if (!r) { mpLobby(); return; } audioInit(); $('mpCode').value = r.room; mpConnect(r.room); mpLobby(); };
 $('bMpStart').onclick = () => { audioInit(); mpHostStart(); };

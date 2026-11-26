@@ -84,7 +84,7 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 #status.ready { color: var(--gold); border-color: rgba(242,196,90,.5); }
 body.touch #status { bottom: calc(150px + env(safe-area-inset-bottom)); }
 #bShop.afford { border-color: var(--gold); color: var(--gold); }
-#msg { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); font-weight: 800; font-size: 15px; padding: 8px 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
+#msg { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); font-weight: 800; font-size: 15px; padding: 8px 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; pointer-events: none; }
 #msg.on { opacity: 1; }
 /* shop: one row per upgrade, name + pips + price */
 #shopList { width: min(420px, 100%); padding: 8px; display: grid; gap: 2px; }
@@ -164,7 +164,7 @@ body:not(.driving) #miniw { display: none; }
       <div id="mpStatus"></div>
     </div>
     <div class="panel drawer hidden" id="how">
-      <div class="grp"><h5>UP CLOSE</h5><p>Missiles need 300 m to arm. Closer than that (inside the yellow ring on the map) use the light gun: click on a rival you can see. Gun upgrades are in the shop.</p></div>
+      <div class="grp"><h5>UP CLOSE</h5><p>Missiles need 300 m to arm (the yellow ring on the map). Closer than that, use the light gun: in the drive view, tap or click a rival's tank when it has yellow brackets. Gun upgrades are in the shop.</p></div>
       <div class="grp"><h5>THE IDEA</h5><p>You can't see your rivals. Fire anyway. The closer you land, the more you earn. Spend it on bigger blasts. Last launcher standing wins.</p></div>
       <div class="grp"><h5>CLUES</h5><p>Every landing is marked Cold → Scorching. A flash shows roughly where a rival fired from.</p></div>
       <div class="grp"><h5>DANGER</h5><p>Your own blast kills you. The aim ring turns red when you're inside it. Forest hides your launches.</p></div>
@@ -472,14 +472,25 @@ function gunSeen(viewer, shooter) {
   const ai = G.ais.find(a => a.i === viewer.i); if (ai) aiLaunch(ai, f);
 }
 // the gun only fires at a rival you can actually see on the map, by clicking on them
-function gunTarget(X, Y) {
-  const me = ME(), view = RADAR.view[me.lv.radar]; let best = null, bd = 30;
+// rivals in sight in the drive view, with where their tank is on screen and how big it looks
+function driveTargets() {
+  const me = ME(), view = RADAR.view[me.lv.radar], out = [];
   for (const q of G.players) {
     if (q === me || !q.alive || (G.mode === 'online' && !q.known)) continue;
-    const d = hyp(q.x - me.x, q.y - me.y); if (d >= GUN_RANGE || d >= view) continue;
-    const [x, y] = w2s(q.x, q.y), sd = hyp(x - X, y - Y); if (sd < bd) { bd = sd; best = q; }
+    const d = hyp(q.x - me.x, q.y - me.y); if (d >= view) continue;
+    const s = glProject(q.x, heightAt(q.x, q.y) + 2.5, q.y), top = glProject(q.x, heightAt(q.x, q.y) + 7, q.y); if (!s) continue;
+    out.push({ q, d, x: s[0], y: s[1], r: Math.max(26, top ? Math.abs(s[1] - top[1]) * 1.4 : 26), inRange: d < GUN_RANGE });
   }
-  return best;
+  return out;
+}
+function driveShoot(X, Y) {
+  const me = ME(); if (!G || G.over || !me.alive || G.view !== 'drive') return;
+  let hit = null, bd = 1e9;
+  for (const t of driveTargets()) { const sd = hyp(t.x - X, t.y - Y); if (sd < t.r + 14 && sd < bd) { bd = sd; hit = t; } }
+  if (!hit) return;
+  if (!hit.inRange) { say(`Out of gun range: ${Math.round(hit.d)} m (the gun reaches ${GUN_RANGE} m)`, 1.4); AUD.click(); return; }
+  if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; }
+  fireGun(me, hit.q.x, hit.q.y);
 }
 function launchSeen(viewer, shooter, forest, smoke) {
   const fz = RADAR.fuzz[viewer.lv.radar] * (forest ? 1.7 : 1) * (smoke || stat(shooter, 'stealth')), a = R() * TAU, d = Math.sqrt(R()) * fz;
@@ -1150,7 +1161,7 @@ function draw() {
   // rounds in flight: short tracers
   ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 2 / V.s;
   for (const r of G.rounds) { if (r.t <= 0) continue; const u = clamp(r.t / r.T, 0, 1), x = lerp(r.sx, r.tx, u), y = lerp(r.sy, r.ty, u), l = hyp(r.tx - r.sx, r.ty - r.sy) || 1, k = Math.min(14, u * l); ctx.beginPath(); ctx.moveTo(x - (r.tx - r.sx) / l * k, y - (r.ty - r.sy) / l * k); ctx.lineTo(x, y); ctx.stroke(); }
-  const near = AIM.on && me.alive && !G.over && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN, gq = AIM.on && me.alive && !G.over ? gunTarget(...w2s(...AIM.w)) : null, gunAim = near || !!gq;
+  const near = AIM.on && me.alive && !G.over && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN, gq = null, gunAim = near || !!gq;
   if (near && !gq) { const [ax, ay] = AIM.w, c = 7 / V.s; ctx.strokeStyle = 'rgba(255,90,70,.8)'; ctx.lineWidth = 1.8 / V.s; ctx.beginPath(); ctx.moveTo(ax - c, ay - c); ctx.lineTo(ax + c, ay + c); ctx.moveTo(ax + c, ay - c); ctx.lineTo(ax - c, ay + c); ctx.stroke(); AIM.danger = false; }
   if (gq) {
     const ax = gq.x, ay = gq.y, sp = 3 + hyp(ax - me.x, ay - me.y) * 0.05 + GUN_HIT, c = 9 / V.s;
@@ -1276,6 +1287,7 @@ cv.addEventListener('mousemove', e => {
 cv.addEventListener('mouseleave', () => { AIM.on = false; MOUSE.in = false; });
 document.addEventListener('mouseleave', () => { MOUSE.in = false; });
 cv.addEventListener('mousedown', e => {
+  if (G && !G.paused && G.view === 'drive' && e.button === 0) { AUD.init(); driveShoot(e.clientX, e.clientY); return; }
   if (!G || G.paused || G.view !== 'map') return; AUD.init();
   if (e.button === 1 || e.button === 2) { e.preventDefault(); MOUSE.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, right: e.button === 2 }; return; }
   if (e.button !== 0) return;
@@ -1308,9 +1320,7 @@ function renderInsp() {
 $('insp').addEventListener('click', e => { if (e.target.closest('[data-x]')) { G.insp = null; renderInsp(); } });
 function tryFire(keepOpen) {
   const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
-  const [X, Y] = w2s(...AIM.w), tq = gunTarget(X, Y);
-  if (tq) { if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; } fireGun(me, tq.x, tq.y); return; }
-  if (hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) { AUD.click(); say('Too close for a missile. Click a rival you can see to use the gun', 1.8); return; }
+  if (hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) { AUD.click(); say('Too close for a missile. Use the gun: tap their tank in the drive view', 1.8); return; }
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
   if (fire(me, ...AIM.w) && !keepOpen && SET.autoDrive === 1) setTimeout(() => { if (G && G.view === 'map' && ME().alive && !G.over) setView('drive'); }, 350);
 }
@@ -1319,7 +1329,9 @@ const stick = $('stick'), knob = stick.firstElementChild, TCH = new Map();
 stick.addEventListener('touchstart', e => { e.preventDefault(); AUD.init(); if (G && G.view !== 'drive') toggleMap(false), toggleShop(false); const t = e.changedTouches[0]; STK.id = t.identifier; stkMove(t); }, { passive: false });
 function stkMove(t) { const r = stick.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const l = hyp(dx, dy); if (l > 1) { dx /= l; dy /= l; } STK.dx = dx; STK.dy = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; }
 let pinch = null, tapArm = null;
+let driveTap = null;
 cv.addEventListener('touchstart', e => {
+  if (G && !G.paused && G.view === 'drive') { const t = e.changedTouches[0]; driveTap = { id: t.identifier, x: t.clientX, y: t.clientY, t0: performance.now() }; AUD.init(); return; }
   if (!G || G.paused || G.view !== 'map') return; AUD.init();
   for (const t of e.changedTouches) TCH.set(t.identifier, { x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, moved: 0, t0: performance.now() });
   if (TCH.size === 2) { const [a, b] = [...TCH.values()]; pinch = { d: hyp(a.x - b.x, a.y - b.y) }; }
@@ -1342,14 +1354,15 @@ const tEnd = e => {
     if (e.type === 'touchend' && p.moved < 10 && performance.now() - p.t0 < 450 && !pinch && G && !G.over && !G.paused) {
       if (inspectAt(t.clientX, t.clientY)) continue;
       const w = s2w(t.clientX, t.clientY), me = ME(); AIM.on = true; AIM.w = w; AIM.t = 1.2;
-      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6 && hyp(w[0] - me.x, w[1] - me.y) >= MISSILE_MIN && !gunTarget(t.clientX, t.clientY);
+      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6 && hyp(w[0] - me.x, w[1] - me.y) >= MISSILE_MIN;
       if (danger && !(tapArm && hyp(tapArm[0] - w[0], tapArm[1] - w[1]) < 30 / CAM.z && performance.now() - tapArm[2] < 1600)) { tapArm = [w[0], w[1], performance.now()]; say('Too close! Tap again to fire anyway', 1.4); AUD.warn(); }
       else { tapArm = null; tryFire(); }
     }
   }
   if (TCH.size === 0) pinch = null;
 };
-addEventListener('touchend', tEnd); addEventListener('touchcancel', tEnd);
+addEventListener('touchend', tEnd);
+cv.addEventListener('touchend', e => { const d = driveTap; driveTap = null; if (!d) return; for (const t of e.changedTouches) if (t.identifier === d.id && hyp(t.clientX - d.x, t.clientY - d.y) < 14 && performance.now() - d.t0 < 450) driveShoot(t.clientX, t.clientY); }); addEventListener('touchcancel', tEnd);
 if ('ontouchstart' in window || (navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches)) document.body.classList.add('touch');
 
 // ================= menus =================
@@ -1403,10 +1416,14 @@ if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStor
 const mpStatus = h => { $('mpStatus').innerHTML = h; };
 function mpSend(o) { if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
 function mpLeave() { MP.want = false; clearTimeout(MP.retryT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (e) { } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); renderLobby(); }
-const isHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
+// whoever made the room stays its host, even after dropping out and coming back (switching apps to send the link);
+// only while they're away does the lowest seat stand in
+const roomPids = () => [...MP.present].map(seatPid);
+const isHost = () => MP.seat >= 0 && (MP.owner && roomPids().includes(MP.owner) ? MP.owner === MP.pid : MP.seat === Math.min(...MP.present));
+const lobbyOrder = () => [...MP.present].sort((a, b) => (seatPid(b) === MP.owner) - (seatPid(a) === MP.owner) || a - b);
 const seatPid = s => s === MP.seat ? MP.pid : (MP.pidOf.get(s) || 's' + s);
 function mpConnect(code) {
-  mpLeave(); MP.code = code; MP.want = true;
+  mpLeave(); MP.code = code; MP.want = true; if (code !== MP.ownRoom) MP.owner = '';
   let ws; try { ws = new WebSocket(RELAY.replace(/^http/, 'ws') + '/ws?game=blindfire&room=' + code); } catch (e) { mpStatus('Could not reach the game server.'); return; }
   MP.ws = ws; if (!(G && G.mode === 'online')) mpStatus(`Connecting to <b>${code}</b>…`);
   ws.onmessage = ev => { let m; try { m = JSON.parse(ev.data); } catch (e) { return; } mpMsg(m); };
@@ -1415,9 +1432,12 @@ function mpConnect(code) {
     MP.ws = null; MP.seat = -1; MP.present.clear(); renderLobby();
     // dropped in the middle of a match: freeze and keep trying to get back in
     if (G && G.mode === 'online' && !G.over && MP.want) { G.lost = G.lost || { t: HOLD_S }; renderHold(); MP.retryT = setTimeout(() => { if (G && G.lost && !G.over) mpConnect(MP.code); }, 2500); }
+    // in the lobby (say, after switching apps to send the link): just reconnect
+    else if (MP.want && !(G && G.mode === 'online')) { mpStatus(`Reconnecting to <b>${MP.code}</b>…`); clearTimeout(MP.retryT); MP.retryT = setTimeout(() => { if (MP.want && !MP.ws) mpConnect(MP.code); }, document.hidden ? 4000 : 1500); }
     else mpStatus('Disconnected from the room.');
   };
 }
+document.addEventListener('visibilitychange', () => { if (!document.hidden && MP.want && !MP.ws && MP.code) mpConnect(MP.code); });
 // ---------- saving enough of your own launcher to come back to it
 const REC_KEY = 'blindfire.rejoin';
 function saveRec() {
@@ -1483,17 +1503,18 @@ function renderLobby() {
   const on = MP.seat >= 0;
   $('lobby').classList.toggle('hidden', !on); $('joinRows').classList.toggle('hidden', on);
   if (!on) return;
-  const seats = [...MP.present].sort((a, b) => a - b);
-  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${COLS[k % 7]}">${s === MP.seat ? 'You (' + CNAMES[k % 7] + ')' : CNAMES[k % 7]}${k === 0 ? ' · host' : ''}</span>`).join('');
+  const seats = lobbyOrder(), hs = seats.find(s => isHostSeat(s));
+  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${COLS[k % 7]}">${s === MP.seat ? 'You (' + CNAMES[k % 7] + ')' : CNAMES[k % 7]}${s === hs ? ' · host' : ''}</span>`).join('');
   const host = isHost();
   $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
   $('bStart').textContent = seats.length < 2 ? 'Waiting for players…' : `▶ Start · ${seats.length} players`;
   $('roomCode').textContent = MP.code; $('bShare').classList.toggle('hidden', !navigator.share);
   mpStatus(host ? 'Send friends the link or code, then start when everyone is in.' : 'Waiting for the host to start…');
 }
+const isHostSeat = s => MP.owner && roomPids().includes(MP.owner) ? seatPid(s) === MP.owner : s === Math.min(...MP.present);
 function hostStart() {
   if (!isHost()) return;
-  const roster = [...MP.present].sort((a, b) => a - b).slice(0, MAX_PLAYERS).map(seatPid), seed = (Math.random() * 1e9) | 0;
+  const roster = lobbyOrder().slice(0, MAX_PLAYERS).map(seatPid), seed = (Math.random() * 1e9) | 0;
   mpSend({ k: 'start', seed, roster }); beginOnline(seed, roster);
 }
 function beginOnline(seed, roster) {
@@ -1504,14 +1525,15 @@ function beginOnline(seed, roster) {
 function mpMsg(m) {
   if (m.k === 'full') { mpStatus('That room is full.'); return; }
   if (m.k === 'hello') {
-    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid }); renderLobby();
+    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid, own: MP.owner }); renderLobby();
     // coming back to a match: wait for the host's sync; if nothing comes the match is over
     if (loadRec() && loadRec().room === MP.code) { clearTimeout(MP.syncT); MP.syncT = setTimeout(() => { if (!(G && G.mode === 'online' && !G.lost)) { clearRec(); mpStatus('That match has ended. You can join the next one from here.'); } else if (G && G.lost) { G.lost = null; renderHold(); endMatch(-1, 'left'); } }, 8000); }
     return;
   }
   if (m.k === 'here') {
     const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
-    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1 });   // always answer a newcomer so everyone knows everyone's id
+    if (m.own && !MP.owner) MP.owner = m.own;
+    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1, own: MP.owner });   // always answer a newcomer so everyone knows everyone's id
     renderLobby(); if (G && G.over) updateAgain();
     // a player from the running match is back
     if (m.pid && !m.re && G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(m.pid) && m.pid !== MP.pid && isHost()) sendSync(m.pid);
@@ -1546,7 +1568,7 @@ function mpMsg(m) {
   else if (m.k === 'self') eliminate(p, 'self', p);
   else if (m.k === 'quit') eliminate(p, 'left', null);
 }
-$('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); };
+$('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); MP.owner = MP.pid; MP.ownRoom = c; };
 $('bJoin').onclick = () => { AUD.init(); const c = $('roomIn').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes are 5 letters.'); return; } mpConnect(c); };
 $('bStart').onclick = () => { AUD.init(); hostStart(); };
 $('bRejoin').onclick = () => { const r = loadRec(); if (!r) { showRejoin(); return; } AUD.init(); if ($('friend').classList.contains('hidden')) drawer('friend'); mpConnect(r.room); mpStatus(`Rejoining <b>${r.room}</b>…`); };
@@ -1599,6 +1621,15 @@ function driveOverlay() {
     const a = glProject(lerp(r.sx, r.tx, u0), lerp(heightAt(r.sx, r.sy) + 3, heightAt(r.tx, r.ty) + 1, u0), lerp(r.sy, r.ty, u0)), b = glProject(lerp(r.sx, r.tx, u), lerp(heightAt(r.sx, r.sy) + 3, heightAt(r.tx, r.ty) + 1, u), lerp(r.sy, r.ty, u));
     if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
   }
+  // rivals in gun range get yellow brackets: tap or click the tank to shoot
+  for (const t of driveTargets()) {
+    const r = t.r, c = r * 0.45, cool = (me.gcd || 0) > 0;
+    ctx.strokeStyle = t.inRange ? (cool ? 'rgba(242,210,74,.45)' : '#f2d24a') : 'rgba(238,243,234,.35)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const x = t.x + sx * r, y = t.y + sy * r * 0.8; ctx.moveTo(x, y - sy * c); ctx.lineTo(x, y); ctx.lineTo(x - sx * c, y); }
+    ctx.stroke();
+    if (t.inRange) { ctx.font = '800 11px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = cool ? 'rgba(242,210,74,.6)' : '#f2d24a'; ctx.fillText(cool ? 'GUN COOLING' : (document.body.classList.contains('touch') ? 'TAP TO SHOOT' : 'CLICK TO SHOOT'), t.x, t.y + r * 0.8 + 14); }
+  }
   // rivals you can see get a name tag
   ctx.font = '800 12px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const p of G.players) { if (p === me || !p.alive || hyp(p.x - me.x, p.y - me.y) > RADAR.view[me.lv.radar] || (G.mode === 'online' && !p.known)) continue; const s = glProject(p.x, heightAt(p.x, p.y) + 8, p.y); if (!s) continue; ctx.fillStyle = pcol(p); ctx.fillText(pname(p), s[0], s[1]); }
@@ -1636,8 +1667,7 @@ function driveOverlay() {
 function hudStatus() {
   const me = ME(), el = $('status'); let t = '', ready = false;
   if (!me.alive || G.over) t = G.view === 'map' ? (document.body.classList.contains('touch') ? 'Tap a launcher for details' : 'Click a launcher for details') : me.alive ? '' : 'Out · watching the rest';
-  else if (G.view === 'map' && AIM.on && gunTarget(...w2s(...AIM.w))) t = (me.gcd || 0) > 0 ? `Gun cooling ${me.gcd.toFixed(1)} s` : 'Click to fire the gun at them';
-  else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) t = 'Too close for a missile · click a rival you can see for the gun';
+  else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) t = 'Too close for a missile · use the gun from the drive view';
   else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : (SET.autoDrive === 1 ? 'Click to fire, then you\'re back to driving · Shift-click stays' : 'Click to fire · W to drive · Space finds you');
   else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
   if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace('Click to fire the gun', 'Tap to fire the gun').replace('click a rival', 'tap a rival').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
