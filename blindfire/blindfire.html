@@ -58,6 +58,14 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-variant-numeric: tabular-nums; }
 #money { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); font-size: 18px; color: var(--gold); transition: transform .15s; }
 #money.pop { transform: scale(1.12); }
+#insp { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(64px + env(safe-area-inset-top)); width: min(300px, calc(100vw - 20px)); max-height: 60vh; overflow: auto; pointer-events: auto; padding: 12px 14px; font-size: 13px; }
+#insp .ih { display: flex; align-items: center; gap: 8px; } #insp .ih i { width: 12px; height: 12px; border-radius: 50%; } #insp .ih b { font-size: 16px; }
+#insp .ih span { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; } #insp .ok { color: #9be14a; } #insp .out { color: #ff7a4a; }
+#insp .ix { margin-left: auto; background: none; border: 0; color: var(--soft); font-size: 16px; cursor: pointer; }
+#insp .ibar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); margin: 8px 0 6px; overflow: hidden; } #insp .ibar i { display: block; height: 100%; }
+#insp .irow { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--soft); margin: 4px 0; }
+#insp .iup { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 5px; }
+#insp .iup div { display: flex; flex-direction: column; } #insp .iup em { color: var(--gold); font-style: normal; font-weight: 800; margin-left: 4px; } #insp .iup small { color: var(--soft); }
 #hp { position: absolute; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); gap: 10px; font-size: 12px; letter-spacing: .1em; }
 .bar { width: 90px; height: 8px; border-radius: 8px; background: rgba(255, 255, 255, .1); overflow: hidden; }
 .bar i { display: block; height: 100%; width: 100%; transition: width .3s; }
@@ -121,6 +129,7 @@ body:not(.driving) #miniw { display: none; }
   <div id="topR"><button class="ib" id="bFull" title="Full screen (F)">⛶</button><button class="ib wide" id="bMap" title="Map (M)">🗺 <span class="t">Map</span></button><button class="ib wide" id="bShop" title="Upgrades (B)">🛠 <span class="t">Upgrades</span></button><button class="ib" id="bSound" title="Sound (M)">🔊</button><button class="ib" id="bPause" title="Menu (Esc)">❚❚</button></div>
   <div id="msg" class="chip"></div>
   <div id="status" class="chip"></div>
+  <div id="insp" class="panel hidden"></div>
   <div id="miniw" class="panel"><canvas id="mini" width="200" height="125"></canvas></div>
 </div>
 <div id="shop" class="screen center hidden">
@@ -357,6 +366,8 @@ const bandFor = gap => BANDS.find(b => gap < b.g) || BANDS[5];
 const bandRange = (id, r) => { const i = BANDS.findIndex(b => b.id === id); return [i === 0 ? 0 : r + BANDS[i - 1].g, i === 0 ? r : r + BANDS[i].g]; };
 const dmgAt = (d, r) => (60 + r * 0.5) * (1 - 0.6 * d / r);
 const INCOME = 7;
+// the steady trickle of money only flows while you're driving or at the map to fire; parked or in the upgrade menu it stops
+const earning = p => p.i !== G.me ? G.mode === 'cpu' : G.view === 'map' || (G.view === 'drive' && hyp(p.mx || 0, p.my || 0) > 0.1);
 
 // ================= game state =================
 let G = null;
@@ -603,9 +614,10 @@ function step(dt) {
   for (const p of G.players) {
     if (G.mode === 'online' && p !== me) continue;
     moveP(p, dt); p.cd = Math.max(0, p.cd - dt);
-    if (!G.over && p.alive) { p.money += INCOME * dt; const rp = stat(p, 'repair'); if (rp && p.hp < p.max) p.hp = Math.min(p.max, p.hp + rp * dt); }
+    if (!G.over && p.alive && earning(p)) p.money += INCOME * dt;
+    if (!G.over && p.alive) { const rp = stat(p, 'repair'); if (rp && p.hp < p.max) p.hp = Math.min(p.max, p.hp + rp * dt); }
   }
-  if (G.mode === 'online' && !G.over && me.alive) { G.sentT -= dt; if (G.sentT <= 0) { G.sentT = 0.2; mpSend({ k: 'pos', from: G.me, x: Math.round(me.x), y: Math.round(me.y), hd: +me.hd.toFixed(2), hp: Math.round(me.hp), max: me.max }); } }
+  if (G.mode === 'online' && !G.over && me.alive) { G.sentT -= dt; if (G.sentT <= 0) { G.sentT = 0.2; const o = { k: 'pos', from: G.me, x: Math.round(me.x), y: Math.round(me.y), hd: +me.hd.toFixed(2), hp: Math.round(me.hp), max: me.max }; if ((G.infoN = (G.infoN || 0) + 1) % 5 === 0) Object.assign(o, { money: Math.floor(me.money), lv: me.lv, st: me.st }); mpSend(o); } }
   // shots waiting for every rival's report: settle after a moment even if one never answers
   for (const id in G.pend) { const p = G.pend[id]; p.t += dt; if (p.t > 2.5) finishPend(id); }
   for (let i = G.missiles.length - 1; i >= 0; i--) {
@@ -1079,6 +1091,15 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
   }
   ctx.globalAlpha = 1;
+  if (!me.alive || G.over) {
+    ctx.font = '800 12px ui-rounded, system-ui, sans-serif';
+    for (const p of G.players) {
+      const [x, y] = w2s(p.x, p.y);
+      if (G.insp === p.i) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 18, 0, TAU); ctx.stroke(); }
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.75)'; const nm = (p === me ? 'You' : pname(p)) + (p.alive ? '' : ' · out');
+      ctx.strokeText(nm, x, y + 22); ctx.fillStyle = p.alive ? pcol(p) : '#9fb0a0'; ctx.fillText(nm, x, y + 22);
+    }
+  }
   for (const k of G.marks) if (k.t < MARK_S) { const [x, y] = w2s(k.x, k.y); ctx.globalAlpha = clamp(1 - k.t / MARK_S, 0, 1); ctx.strokeText(k.band.nm, x, y - 14); ctx.fillStyle = k.band.col; ctx.fillText(k.band.nm, x, y - 14); }
   ctx.globalAlpha = 1;
   ctx.font = '800 15px ui-rounded, system-ui, sans-serif';
@@ -1091,6 +1112,7 @@ function draw() {
 let lastMoney = -1;
 function hudTick() {
   const me = ME(), m = Math.floor(me.money);
+  if ((G.inspT = (G.inspT || 0) + 1) % 8 === 0 || G.insp == null) renderInsp();
   if (m !== lastMoney) { lastMoney = m; $('money').textContent = '$' + m.toLocaleString(); refreshShop(); }
   $('hpYou').firstElementChild.style.width = (100 * me.hp / me.max) + '%';
   for (const p of G.players) { if (p === me) continue; const el = document.getElementById('rb' + p.i); if (el) { el.firstElementChild.style.width = (100 * p.hp / p.max) + '%'; el.classList.toggle('out', !p.alive); } }
@@ -1173,10 +1195,33 @@ cv.addEventListener('mousedown', e => {
   if (!G || G.paused || G.view !== 'map') return; AUD.init();
   if (e.button === 1 || e.button === 2) { e.preventDefault(); MOUSE.drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, right: e.button === 2 }; return; }
   if (e.button !== 0) return;
-  AIM.w = s2w(e.clientX, e.clientY); tryFire(e.shiftKey);
+  AIM.w = s2w(e.clientX, e.clientY); if (inspectAt(e.clientX, e.clientY)) return; tryFire(e.shiftKey);
 });
 addEventListener('mouseup', e => { const d = MOUSE.drag; MOUSE.drag = null; if (d && d.right && hyp(e.clientX - d.x0, e.clientY - d.y0) < 5 && G && G.view === 'map') toggleMap(false); });
 cv.addEventListener('wheel', e => { if (!G || G.view !== 'map') return; e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
+// once you're out (or the match is over) the map is open: click or tap a launcher to see everything about it
+function inspectAt(X, Y) {
+  const me = ME(); if (me.alive && !G.over) return false;
+  let best = null, bd = 36;
+  for (const p of G.players) { const [x, y] = w2s(p.x, p.y), d = hyp(x - X, y - Y); if (d < bd) { bd = d; best = p; } }
+  G.insp = best ? best.i : null; renderInsp(); AUD.click(); return true;
+}
+function renderInsp() {
+  const box = $('insp'), p = G && G.insp != null ? G.players[G.insp] : null;
+  if (!p || G.view !== 'map') { box.classList.add('hidden'); return; }
+  const me = ME(), known = p === me || G.mode === 'cpu' || p.info, rows = [];
+  rows.push(`<div class="ih"><i style="background:${pcol(p)}"></i><b>${p === me ? 'You · ' + CNAMES[p.i % CNAMES.length] : pname(p)}</b><span class="${p.alive ? 'ok' : 'out'}">${p.alive ? 'In the fight' : 'Out'}</span><button class="ix" data-x>✕</button></div>`);
+  rows.push(`<div class="ibar"><i style="width:${100 * Math.max(0, p.hp) / p.max}%;background:${pcol(p)}"></i></div><div class="irow"><span>Hull ${Math.max(0, Math.round(p.hp))} / ${p.max}</span>${known ? `<span>💰 $${Math.floor(p.money).toLocaleString()}</span>` : ''}</div>`);
+  if (known) {
+    const st = p.st || {};
+    rows.push(`<div class="irow"><span>🚀 ${st.shots || 0} shots</span><span>🎯 ${st.hits || 0} hits</span><span>☠ ${st.kills || 0} out</span><span>💵 $${(st.earned || 0).toLocaleString()} earned</span></div>`);
+    const ups = UP.filter(u => p.lv[u.k] > 0);
+    rows.push('<div class="iup">' + (ups.length ? ups.map(u => `<div><span>${u.ic} ${u.nm} <em>${p.lv[u.k]}/${u.v.length - 1}</em></span><small>${u.f(u.v[p.lv[u.k]])}</small></div>`).join('') : '<div><small>No upgrades yet</small></div>') + '</div>');
+  } else rows.push('<div class="irow"><small>Their upgrades show up within a few seconds.</small></div>');
+  const html = rows.join(''); if (box._h !== html) { box._h = html; box.innerHTML = html; }
+  box.classList.remove('hidden');
+}
+$('insp').addEventListener('click', e => { if (e.target.closest('[data-x]')) { G.insp = null; renderInsp(); } });
 function tryFire(keepOpen) {
   const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
@@ -1208,6 +1253,7 @@ const tEnd = e => {
     if (TCH.size < 2) pinch = pinch && TCH.size ? pinch : null;
     // a quick tap that didn't scroll fires; inside your own blast it asks for a second tap
     if (e.type === 'touchend' && p.moved < 10 && performance.now() - p.t0 < 450 && !pinch && G && !G.over && !G.paused) {
+      if (inspectAt(t.clientX, t.clientY)) continue;
       const w = s2w(t.clientX, t.clientY), me = ME(); AIM.on = true; AIM.w = w; AIM.t = 1.2;
       const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6;
       if (danger && !(tapArm && hyp(tapArm[0] - w[0], tapArm[1] - w[1]) < 30 / CAM.z && performance.now() - tapArm[2] < 1600)) { tapArm = [w[0], w[1], performance.now()]; say('Too close! Tap again to fire anyway', 1.4); AUD.warn(); }
@@ -1396,7 +1442,7 @@ function mpMsg(m) {
   if (!G || G.mode !== 'online' || typeof m.from !== 'number' || !G.players[m.from] || m.from === G.me) return;
   const me = ME(), p = G.players[m.from];
   if (G.hold && G.roster && G.roster[m.from] in G.hold) endHold(G.roster[m.from], false);
-  if (m.k === 'pos') { p.x = m.x; p.y = m.y; p.hd = m.hd; p.known = true; if (m.hp !== undefined && p.alive) { p.hp = m.hp; p.max = m.max; } }
+  if (m.k === 'pos') { p.x = m.x; p.y = m.y; p.hd = m.hd; p.known = true; if (m.hp !== undefined && p.alive) { p.hp = m.hp; p.max = m.max; } if (m.lv) { p.money = m.money; p.lv = m.lv; p.st = m.st; p.info = true; } }
   else if (m.k === 'fire') {
     G.missiles.push({ id: 'r' + m.from + '-' + m.id, rid: m.id, o: m.from, sx: m.sx, sy: m.sy, tx: m.tx, ty: m.ty, t: 0, T: m.T, r: m.r, cl: m.cl || 0 });
     p.x = m.sx; p.y = m.sy;
@@ -1493,7 +1539,7 @@ function driveOverlay() {
 }
 function hudStatus() {
   const me = ME(), el = $('status'); let t = '', ready = false;
-  if (!me.alive || G.over) t = me.alive ? '' : 'Out · watching the rest';
+  if (!me.alive || G.over) t = G.view === 'map' ? (document.body.classList.contains('touch') ? 'Tap a launcher for details' : 'Click a launcher for details') : me.alive ? '' : 'Out · watching the rest';
   else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : (SET.autoDrive === 1 ? 'Click to fire, then you\'re back to driving · Shift-click stays' : 'Click to fire · W to drive · Space finds you');
   else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
   if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
