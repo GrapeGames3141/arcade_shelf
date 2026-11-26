@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <title>Empire Rush</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Empire Rush: raise a clan from cavemen to townsfolk through the Ember, Kiln and Forge ages, survive the wolves of the night and the hunger of winter, and burn your rival's Hearth Hall.">
 <style>
   :root { --ink:#f4ead6; --dim:rgba(244,234,214,.6); --panel:rgba(24,19,14,.86); --edge:rgba(255,224,165,.17); --gold:#e8c46c; --bad:#ff7d5e; --good:#a8e391; --blue:#7fb2ff; }
@@ -170,6 +171,7 @@
   <div class="pn" id="era" data-tip="era"><b id="eral">Ember Age</b><span id="eras">Rival: Ember Age</span></div>
 </div>
 <div id="topR">
+  <button class="pn ib" id="bFull" title="Full screen (F11)">⛶</button>
   <button class="pn ib" id="bSpeed" title="Game speed">1×</button>
   <button class="pn ib" id="bSound" title="Sound">♪</button>
   <button class="pn ib" id="bMenu" title="Menu">☰</button>
@@ -248,7 +250,7 @@
 // ============================================================================
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
-const T = 32, N = 96, WPX = N * T;           // tile size, map size in tiles, map size in px
+const T = 32, N = 192, WPX = N * T;           // tile size, map size in tiles, map size in px
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -360,7 +362,7 @@ const WILD = 4, CLAN_COL = [
   { main: '#6b5a46', dark: '#3a2f24', lite: '#a8957c', name: 'Wild' },
 ];
 let TEAM_COL = CLAN_COL.slice();   // indexed by team as this screen sees it (online, a guest's own clan is team 0 but keeps its colour)
-const BASES = [{ x: 14, y: 82 }, { x: 82, y: 14 }, { x: 14, y: 14 }, { x: 82, y: 82 }];   // TC footprint centers in tile units
+const BASES = [{ x: 28, y: 164 }, { x: 164, y: 28 }, { x: 28, y: 28 }, { x: 164, y: 164 }];   // TC footprint centers in tile units
 let ACT = BASES.slice(0, 2);   // the bases in play this match
 const isRival = t => t > 0 && t < WILD;
 
@@ -440,11 +442,11 @@ function genWorld(seed) {
   near('forest', -8, 3, 22, 2.8); near('forest', 1, -11, 20, 2.6); near('berry', -4, 8, 4, 1.1);
   for (const p of pairs) placeClusterPair(p.kind, p.x, p.y, p.n, p.spread);
   // Contested resources across the map
-  const kinds = ['gold', 'stone', 'gold', 'berry', 'deer', 'gold', 'stone', 'deer', 'berry'];
+  const kinds = [].concat(...Array(Math.round(N * N / 9216)).fill(['gold', 'stone', 'gold', 'berry', 'deer', 'gold', 'stone', 'deer', 'berry']));
   let tries = 0, placed = 0;
-  while (placed < kinds.length && tries++ < 400) {
+  while (placed < kinds.length && tries++ < kinds.length * 45) {
     const x = ri(8, N - 9), y = ri(8, N - 9);
-    if (baseD(x, y) < 22 || ter[tid(x, y)] < GRASS || blk[tid(x, y)]) continue;
+    if (baseD(x, y) < 24 || ter[tid(x, y)] < GRASS || blk[tid(x, y)]) continue;
     const k = kinds[placed];
     placeClusterPair(k, x, y, k === 'deer' ? 4 : k === 'berry' ? 5 : 6, k === 'deer' ? 2.5 : 1.2);
     placed++;
@@ -535,7 +537,7 @@ function setEra(tm, e) {
   for (const u of G.units) if (u.team === tm.id) { const m = stat(u, 'hp'); if (m !== u.maxhp) { u.hp = u.hp / u.maxhp * m; u.maxhp = m; } }
   for (const b of G.blds) if (b.team === tm.id) { const m = bMax(b.type, b.team); if (m !== b.maxhp) { b.hp = b.hp / b.maxhp * m; b.maxhp = m; } }
   if (tm.id === 0) { banner(ERA_NAMES[e], e === 1 ? 'Fired clay, bronze tools and woven cloth' : 'Steel, stone and the look of modern folk'); sfx('era'); }
-  else alertMsg(G.nc > 2 ? `${TEAM_COL[tm.id].name} clan has entered the ${ERA_NAMES[e]}.` : `Your rival has entered the ${ERA_NAMES[e]}.`, 'bad', TC_POS(tm.id));
+  else alertMsg(G.nc > 2 ? `${TEAM_COL[tm.id].name} clan has entered the ${ERA_NAMES[e]}.` : `Your rival has entered the ${ERA_NAMES[e]}.`, 'bad');
   G.uiDirty = true; void old;
 }
 const TC_POS = team => { const b = G.teams[team].tc; return b ? { x: b.x, y: b.y } : null; };
@@ -638,7 +640,7 @@ function hpop() {
 }
 const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [-1, 1, 1.4142], [1, -1, 1.4142], [-1, -1, 1.4142]];
 // goal: {x0,y0,x1,y1} inclusive tile rect; reaching any tile in it (or touching it, for blocked rects) ends the search
-function astar(sx, sy, g, maxIt = 7000) {
+function astar(sx, sy, g, maxIt = 16000) {
   pst++; hn = 0;
   const gx = (g.x0 + g.x1) / 2, gy = (g.y0 + g.y1) / 2;
   const hf = (x, y) => { const dx = Math.abs(x - gx), dy = Math.abs(y - gy); return (dx + dy) + (1.4142 - 2) * Math.min(dx, dy); };
@@ -1814,9 +1816,15 @@ const NT = new Float32Array(256 * 256);
 // ---------------------------------------------------------------------------
 // Terrain chunks
 // ---------------------------------------------------------------------------
-const CH = 512, CHN = WPX / CH, chunks = new Array(CHN * CHN).fill(null);
+const CH = 512, CHN = WPX / CH, chunks = new Array(CHN * CHN).fill(null), chunkUse = new Float64Array(CHN * CHN), CHUNK_KEEP = 40;
+let chunkFrame = 0;
 const COL = { deep: [22, 54, 80], shal: [46, 108, 128], sand: [198, 180, 128], wet: [142, 128, 92], dry: [138, 146, 72], mid: [94, 130, 56], lush: [58, 106, 44], dirt: [122, 98, 64], floor: [64, 88, 44] };
 let HGX = null, HGY = null;
+// a big map has many terrain chunks: forget the ones not drawn for the longest, so memory stays bounded
+function dropOldChunks() {
+  let n = 0; for (const c of chunks) if (c) n++;
+  while (n > CHUNK_KEEP) { let o = -1, ot = Infinity; for (let i = 0; i < chunks.length; i++) if (chunks[i] && chunkUse[i] < ot && chunkUse[i] < chunkFrame) { ot = chunkUse[i]; o = i; } if (o < 0) break; chunks[o] = null; n--; }
+}
 function slopes() { // smooth per-corner gradients so hill shading has no tile seams
   const C = N + 1; HGX = new Float32Array(C * C); HGY = new Float32Array(C * C);
   for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
@@ -2681,11 +2689,11 @@ function render() {
   g.setTransform(DPR * z, 0, 0, DPR * z, DPR * (VW / 2 - cam.x * z), DPR * (VH / 2 - cam.y * z));
   g.imageSmoothingEnabled = true;
   // terrain
-  let baked = 0;
+  let baked = 0; chunkFrame++;
   for (let cy = Math.max(0, Math.floor(y0 / CH)); cy <= Math.min(CHN - 1, Math.floor(y1 / CH)); cy++)
     for (let cx = Math.max(0, Math.floor(x0 / CH)); cx <= Math.min(CHN - 1, Math.floor(x1 / CH)); cx++) {
-      let c = chunks[cy * CHN + cx];
-      if (!c && (baked < 1 || !G.started)) { c = chunks[cy * CHN + cx] = bakeChunk(cx, cy); baked++; }
+      let c = chunks[cy * CHN + cx]; chunkUse[cy * CHN + cx] = chunkFrame;
+      if (!c && (baked < 1 || !G.started)) { c = chunks[cy * CHN + cx] = bakeChunk(cx, cy); baked++; dropOldChunks(); }
       if (c) g.drawImage(c, cx * CH, cy * CH, CH + .5, CH + .5);
       else { g.fillStyle = '#4a6a34'; g.fillRect(cx * CH, cy * CH, CH, CH); }
     }
@@ -2995,11 +3003,12 @@ function updFog() {
 // Minimap
 // ---------------------------------------------------------------------------
 const mini = document.getElementById('mini'), mctx = mini.getContext('2d');
-const miniBase = document.createElement('canvas'); miniBase.width = miniBase.height = 192;
+const MS = 192, MK = MS / N;   // minimap pixels, and minimap pixels per tile
+const miniBase = document.createElement('canvas'); miniBase.width = miniBase.height = MS;
 function bakeMini() {
-  const g = miniBase.getContext('2d'), img = g.createImageData(192, 192);
-  for (let y = 0; y < 192; y++) for (let x = 0; x < 192; x++) {
-    const i = tid(x >> 1, y >> 1), t = ter[i], k = (y * 192 + x) * 4, m = mC[(y >> 1) * (N + 1) + (x >> 1)];
+  const g = miniBase.getContext('2d'), img = g.createImageData(MS, MS);
+  for (let y = 0; y < MS; y++) for (let x = 0; x < MS; x++) {
+    const tx = (x / MK) | 0, ty = (y / MK) | 0, i = tid(tx, ty), t = ter[i], k = (y * MS + x) * 4, m = mC[ty * (N + 1) + tx];
     let c = t === W_DEEP ? [30, 64, 92] : t === W_SHALLOW ? [52, 108, 126] : t === SAND ? [196, 178, 128] : [lerp(130, 60, m), lerp(140, 108, m), lerp(70, 44, m)];
     const r = resAt[i] && G.resById.get(resAt[i]);
     if (r) c = r.kind === 'tree' ? [34, 70, 34] : r.kind === 'gold' ? [236, 196, 70] : r.kind === 'stone' ? [170, 168, 160] : [200, 60, 70];
@@ -3012,11 +3021,11 @@ function drawMini() {
   if (G.miniDirty && (!G.miniT || G.time - G.miniT > 2 || !G.started)) { bakeMini(); G.miniDirty = false; G.miniT = G.time; }
   const g = mctx; g.imageSmoothingEnabled = false;
   g.drawImage(miniBase, 0, 0);
-  for (const b of G.blds) { if (b.team !== 0 && !expl[tid(b.tx, b.ty)]) continue; g.fillStyle = TEAM_COL[b.team].main; g.fillRect(b.tx * 2, b.ty * 2, b.w * 2, b.h * 2); }
-  for (const u of G.units) { if (u.hidden || (u.team !== 0 && !visAt(u.x, u.y))) continue; g.fillStyle = u.team < WILD ? TEAM_COL[u.team].lite : u.type === 'deer' ? '#e0c890' : '#d8d8d8'; g.fillRect((u.x / T * 2 | 0) - 1, (u.y / T * 2 | 0) - 1, 2.5, 2.5); }
-  g.imageSmoothingEnabled = true; g.globalAlpha = .92; g.drawImage(fogC, 0, 0, N, N, 0, 0, 192, 192); g.globalAlpha = 1;
-  if (G.dark > .05) { g.fillStyle = `rgba(6,10,30,${G.dark * .35})`; g.fillRect(0, 0, 192, 192); }
-  const a = toWorld(0, 0), b = toWorld(VW, VH), k = 192 / WPX;
+  for (const b of G.blds) { if (b.team !== 0 && !expl[tid(b.tx, b.ty)]) continue; g.fillStyle = TEAM_COL[b.team].main; g.fillRect(b.tx * MK, b.ty * MK, Math.max(1.5, b.w * MK), Math.max(1.5, b.h * MK)); }
+  for (const u of G.units) { if (u.hidden || (u.team !== 0 && !visAt(u.x, u.y))) continue; g.fillStyle = u.team < WILD ? TEAM_COL[u.team].lite : u.type === 'deer' ? '#e0c890' : '#d8d8d8'; g.fillRect((u.x / T * MK | 0) - 1, (u.y / T * MK | 0) - 1, 2.5, 2.5); }
+  g.imageSmoothingEnabled = true; g.globalAlpha = .92; g.drawImage(fogC, 0, 0, N, N, 0, 0, MS, MS); g.globalAlpha = 1;
+  if (G.dark > .05) { g.fillStyle = `rgba(6,10,30,${G.dark * .35})`; g.fillRect(0, 0, MS, MS); }
+  const a = toWorld(0, 0), b = toWorld(VW, VH), k = MS / WPX;
   g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 1.2; g.strokeRect(a.x * k, a.y * k, (b.x - a.x) * k, (b.y - a.y) * k);
   for (const p of UI.pings) { const f = (G.time - p.t) / 3; if (f > 1) continue; g.strokeStyle = `rgba(255,${p.c === 'bad' ? 90 : 220},80,${1 - f})`; g.lineWidth = 2; g.beginPath(); g.arc(p.x * k, p.y * k, 4 + f * 14, 0, TAU); g.stroke(); }
 }
@@ -4101,6 +4110,7 @@ function mpSetup(role) {
     // the client draws whatever the host sends; its own clan arrives as team 0 in the first snapshot
     for (const b of G.blds) for (let y = b.ty; y < b.ty + b.h; y++) for (let x = b.tx; x < b.tx + b.w; x++) { const i = tid(x, y); if (occ[i] === b.id) { occ[i] = 0; recalcBlk(i); } }
     G.units = []; G.blds = []; G.unitById.clear(); G.bldById.clear(); for (const t of G.teams) t.tc = null; MP.first = true;
+    expl.fill(0); vis.fill(0);   // newGame explored around the host's hall; this screen has seen nothing yet
   }
 }
 // Host -> client snapshots: only fields that changed since the last one
@@ -4316,6 +4326,20 @@ $('diffRow').addEventListener('click', e => { const b = e.target.closest('.choic
 document.querySelectorAll('#diffRow .choice').forEach(x => x.classList.toggle('on', +x.dataset.d === diff));
 $('bStart').onclick = startGame;
 $('bAgain').onclick = () => { mpLeave(); $('end').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; };
+// full screen: the standard API, the WebKit one, and a tip where neither exists (iPhone Safari)
+function toggleFull() {
+  const d = document, el = d.documentElement, on = d.fullscreenElement || d.webkitFullscreenElement;
+  try {
+    if (on) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+    else if (el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => fullTip());
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else fullTip();
+  } catch (err) { fullTip(); }
+}
+function fullTip() { alertMsg('Full screen is not available here. On iPhone: Share, then Add to Home Screen, and open it from there.'); }
+const fullSync = () => { $('bFull').textContent = document.fullscreenElement || document.webkitFullscreenElement ? '🗗' : '⛶'; resize(); };
+document.addEventListener('fullscreenchange', fullSync); document.addEventListener('webkitfullscreenchange', fullSync);
+$('bFull').onclick = e => { e.stopPropagation(); toggleFull(); };
 $('bLook').onclick = () => { $('end').hidden = true; UI.looking = true; };
 $('bMenu').onclick = () => { if (!G.started) return; paused = !MP.role; $('pause').hidden = false; };
 $('bResume').onclick = () => { paused = false; $('pause').hidden = true; rebinding = null; $('keysBox').hidden = true; };
@@ -4376,7 +4400,7 @@ window.HF = {
     return { day: G.day, dayT: +G.dayT.toFixed(3), season: SEASONS[G.season], clock: Math.round(G.clock), over: G.over,
       p: { res: Object.fromEntries(RES.map(k => [k, Math.floor(t[0].res[k])])), pop: t[0].pop, cap: t[0].cap, era: t[0].era, units: by(0), blds: bl(0) },
       ai: { res: Object.fromEntries(RES.map(k => [k, Math.floor(t[1].res[k])])), pop: t[1].pop, cap: t[1].cap, era: t[1].era, units: by(1), blds: bl(1), wave: G.ai.wave, next: Math.round(G.ai.next) },
-      wild: by(2) };
+      wild: by(WILD) };
   },
   step(sec, render = true) { const n = Math.round(sec * 30); for (let i = 0; i < n && !G.over; i++) tick(1 / 30); if (render) { updParts(1 / 30); updFog(); window.HF.draw(); } return this.state(); },
   draw() { render(); drawMini(); updTop(); updInfo(); buildCmds(true); },
