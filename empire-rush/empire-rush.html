@@ -346,12 +346,18 @@ function applyTech(tm, k) {
 // ---------------------------------------------------------------------------
 let G = null;                         // game state
 let ter, hC, mC, blk, occ, resAt, vis, expl;
-const TEAM_COL = [
+// Up to four clans (0 is always the local player's point of view); wild animals are team WILD
+const WILD = 4, CLAN_COL = [
   { main: '#2f6fd6', dark: '#1b3f86', lite: '#8fbaff', name: 'Blue' },
   { main: '#cc3b2c', dark: '#7a1c14', lite: '#ff9b84', name: 'Red' },
+  { main: '#d9a21c', dark: '#7c5a0c', lite: '#ffe08a', name: 'Gold' },
+  { main: '#8a4fd0', dark: '#4c2780', lite: '#d3b0ff', name: 'Purple' },
   { main: '#6b5a46', dark: '#3a2f24', lite: '#a8957c', name: 'Wild' },
 ];
-const BASES = [{ x: 14, y: 82 }, { x: 82, y: 14 }];   // TC footprint centers in tile units
+let TEAM_COL = CLAN_COL.slice();   // indexed by team as this screen sees it (online, a guest's own clan is team 0 but keeps its colour)
+const BASES = [{ x: 14, y: 82 }, { x: 82, y: 14 }, { x: 14, y: 14 }, { x: 82, y: 82 }];   // TC footprint centers in tile units
+let ACT = BASES.slice(0, 2);   // the bases in play this match
+const isRival = t => t > 0 && t < WILD;
 
 function newTeam(id) {
   return { id, res: { food: 200, wood: 220, stone: 150, gold: 0 }, era: 0, pop: 0, cap: 0, techs: {}, busy: {}, atkB: 0, armB: 0, upkeepMul: 1,
@@ -362,33 +368,42 @@ function newTeam(id) {
 // World generation (point-symmetric so both villages start equal)
 // ---------------------------------------------------------------------------
 const W_DEEP = 0, W_SHALLOW = 1, SAND = 2, GRASS = 3;
+let MIRT = [(x, y) => [x, y], (x, y) => [N - 1 - x, N - 1 - y]];   // tile mirrors for this map's symmetry
 function genWorld(seed) {
   rnd = mulberry32(seed * 9973 + 17);
   const S = (seed * 131) | 0;
   ter = new Uint8Array(N * N); blk = new Uint8Array(N * N); occ = new Int32Array(N * N); resAt = new Int32Array(N * N);
   vis = new Uint8Array(N * N); expl = new Uint8Array(N * N);
   const C = N + 1; hC = new Float32Array(C * C); mC = new Float32Array(C * C);
-  const segD = (x, y) => { // distance to the base-to-base corridor (with a wobble)
-    const ax = BASES[0].x, ay = BASES[0].y, bx = BASES[1].x, by = BASES[1].y;
+  // two clans: point symmetry; three or four: mirrored both ways, so every corner starts equal
+  const four = ACT.length > 2;
+  const MV = four ? [(x, y) => [x, y], (x, y) => [N - x, N - y], (x, y) => [x, N - y], (x, y) => [N - x, y]] : [(x, y) => [x, y], (x, y) => [N - x, N - y]];
+  const MT = four ? [(x, y) => [x, y], (x, y) => [N - 1 - x, N - 1 - y], (x, y) => [x, N - 1 - y], (x, y) => [N - 1 - x, y]] : [(x, y) => [x, y], (x, y) => [N - 1 - x, N - 1 - y]];
+  MIRT = MT;
+  const avg = (fn, x, y) => { let t = 0; for (const m of MV) { const [a, b] = m(x, y); t += fn(a, b); } return t * (1 / MV.length); };
+  const segs = four ? [[0, 1], [0, 2], [0, 3]] : [[0, 1]];
+  const segD = (x, y, sg = segs[0]) => { // distance to a base-to-base corridor (with a wobble)
+    const ax = BASES[sg[0]].x, ay = BASES[sg[0]].y, bx = BASES[sg[1]].x, by = BASES[sg[1]].y;
     const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
     const t = clamp(((x - ax) * dx + (y - ay) * dy) / L, 0, 1);
     const wob = Math.sin(t * 9 + seed) * 5 * Math.sin(t * Math.PI);
     const px = ax + dx * t - dy / Math.sqrt(L) * wob, py = ay + dy * t + dx / Math.sqrt(L) * wob;
     return Math.hypot(x - px, y - py);
   };
+  const dcAt = (x, y) => { let d = 1e9; for (const sg of segs) for (const m of MV) { const [a, b] = m(x, y); d = Math.min(d, segD(a, b, sg)); } return d; };
   for (let y = 0; y <= N; y++) for (let x = 0; x <= N; x++) {
     const f = (fx, fy) => fbm(fx / 21, fy / 21, S, 5);
-    let h = (f(x, y) + f(N - x, N - y)) * .5;
+    let h = four ? avg(f, x, y) : (f(x, y) + f(N - x, N - y)) * .5;
     h = (h - .5) * 2.1 + .52;
     const g = (fx, fy) => fbm(fx / 13 + 50, fy / 13, S + 7, 4);
-    let m = (g(x, y) + g(N - x, N - y)) * .5;
+    let m = four ? avg(g, x, y) : (g(x, y) + g(N - x, N - y)) * .5;
     m = (m - .5) * 2 + .5;
-    for (const b of BASES) {
+    for (const b of ACT) {
       const d = Math.hypot(x - b.x, y - b.y);
       h = lerp(h, Math.max(h, .58), sstep(14, 7, d));
       m = lerp(m, Math.max(m, .5), sstep(10, 4, d) * .6);
     }
-    const dc = Math.min(segD(x, y), segD(N - x, N - y));
+    const dc = dcAt(x, y);
     h = Math.max(h, lerp(.3, .5, sstep(4.5, 1.5, dc)) * (dc < 4.5 ? 1 : 0));
     const edge = Math.min(x, y, N - x, N - y);
     h = lerp(h, Math.max(h, .45), sstep(3, 0, edge) * .5);
@@ -402,12 +417,13 @@ function genWorld(seed) {
   for (let i = 0; i < N * N; i++) blk[i] = ter[i] <= W_SHALLOW ? 1 : 0;
 
   // Forests: symmetric noise and symmetric per-tile dice
-  const forest = (x, y) => (fbm(x / 9, y / 9, S + 33, 4) + fbm((N - 1 - x) / 9, (N - 1 - y) / 9, S + 33, 4)) * .5;
-  const baseD = (x, y) => Math.min(Math.hypot(x + .5 - BASES[0].x, y + .5 - BASES[0].y), Math.hypot(x + .5 - BASES[1].x, y + .5 - BASES[1].y));
+  const fz = (x, y) => fbm(x / 9, y / 9, S + 33, 4);
+  const forest = (x, y) => four ? MT.reduce((t, m) => t + fz(...m(x, y)), 0) / 4 : (fz(x, y) + fz(N - 1 - x, N - 1 - y)) * .5;
+  const baseD = (x, y) => Math.min(...ACT.map(b => Math.hypot(x + .5 - b.x, y + .5 - b.y)));
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const i = tid(x, y); if (ter[i] < SAND || ter[i] === SAND) continue;
-    const mi = tid(N - 1 - x, N - 1 - y), dice = hash2(Math.min(i, mi), 7, S);
-    const bd = baseD(x, y), dc = Math.min(segD(x + .5, y + .5), segD(N - x - .5, N - y - .5));
+    const dice = hash2(Math.min(...MT.map(m => tid(...m(x, y)))), 7, S);
+    const bd = baseD(x, y), dc = dcAt(x + .5, y + .5);
     if (bd < 8 || dc < 1.4) continue;
     const f = forest(x, y);
     if ((f > .56 && dice < .82) || (f > .5 && dice < .25) || dice < .012) addRes('tree', x, y);
@@ -429,7 +445,7 @@ function genWorld(seed) {
     placed++;
   }
   // Clear the hearths
-  for (const b of BASES) for (let y = b.y - 6; y < b.y + 6; y++) for (let x = b.x - 6; x < b.x + 6; x++) {
+  for (const b of ACT) for (let y = b.y - 6; y < b.y + 6; y++) for (let x = b.x - 6; x < b.x + 6; x++) {
     if (!inMap(x, y)) continue; const i = tid(x, y);
     if (Math.hypot(x + .5 - b.x, y + .5 - b.y) < 5.2 && resAt[i]) removeRes(G.resById.get(resAt[i]), true);
   }
@@ -440,15 +456,16 @@ function placeClusterPair(kind, cx, cy, n, spread) {
   while (cells.length < n && guard++ < n * 40) {
     const a = rnd() * TAU, r = Math.sqrt(rnd()) * spread * (kind === 'forest' ? 1.4 : 1) + (guard > n * 10 ? guard / (n * 10) : 0);
     const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
-    if (!inMap(x, y) || !inMap(N - 1 - x, N - 1 - y)) continue;
-    const i = tid(x, y), mi = tid(N - 1 - x, N - 1 - y);
-    if (ter[i] < GRASS || ter[mi] < GRASS || blk[i] || blk[mi] || occ[i]) continue;
+    const ms = MIRT.map(m => m(x, y));
+    if (ms.some(([a, b]) => !inMap(a, b))) continue;
+    const i = tid(x, y);
+    if (ms.some(([a, b]) => ter[tid(a, b)] < GRASS || blk[tid(a, b)]) || occ[i]) continue;
     if (cells.some(c => c[0] === x && c[1] === y)) continue;
-    if (kind !== 'forest' && kind !== 'deer' && Math.min(Math.hypot(x + .5 - BASES[0].x, y + .5 - BASES[0].y), Math.hypot(N - .5 - x - BASES[0].x, N - .5 - y - BASES[0].y)) < 4.6) continue;
+    if (kind !== 'forest' && kind !== 'deer' && Math.min(...ms.map(([a, b]) => Math.min(...ACT.map(q => Math.hypot(a + .5 - q.x, b + .5 - q.y))))) < 4.6) continue;
     cells.push([x, y]);
   }
-  for (const [x, y] of cells) for (const [px, py] of [[x, y], [N - 1 - x, N - 1 - y]]) {
-    if (kind === 'deer') spawnUnit('deer', 2, px * T + T / 2, py * T + T / 2);
+  for (const [x, y] of cells) for (const [px, py] of MIRT.map(m => m(x, y))) {
+    if (kind === 'deer') spawnUnit('deer', WILD, px * T + T / 2, py * T + T / 2);
     else addRes(kind === 'forest' ? 'tree' : kind, px, py);
   }
 }
@@ -485,15 +502,15 @@ function recalcBlk(i) {
 // ---------------------------------------------------------------------------
 // Entities
 // ---------------------------------------------------------------------------
-const eraOf = team => team < 2 ? G.teams[team].era : 0;
+const eraOf = team => team < WILD ? G.teams[team].era : 0;
 function stat(u, k) { let v = UNIT[u.type][k]; if (Array.isArray(v)) v = v[eraOf(u.team)]; return v ?? 0; }
 function unitName(u) { const d = UNIT[u.type]; return d.names ? d.names[eraOf(u.team)] : d.name; }
 function unitCost(type, team) { const c = UNIT[type].cost; return Array.isArray(c) ? c[eraOf(team)] : c; }
-function atkOf(u) { return stat(u, 'atk') + (u.team < 2 && UNIT[u.type].mil ? G.teams[u.team].atkB : 0); }
-function armOf(u) { return stat(u, 'arm') + (u.team < 2 && UNIT[u.type].mil ? G.teams[u.team].armB : 0); }
+function atkOf(u) { return stat(u, 'atk') + (u.team < WILD && UNIT[u.type].mil ? G.teams[u.team].atkB : 0); }
+function armOf(u) { return stat(u, 'arm') + (u.team < WILD && UNIT[u.type].mil ? G.teams[u.team].armB : 0); }
 function bName(b) { const d = BLD[b.type]; return d.names ? d.names[eraOf(b.team)] : d.name; }
 function bMax(type, team) { const v = BLD[type].hp; return Array.isArray(v) ? v[eraOf(team)] : v; }
-const hostile = (a, b) => a !== b && !(a === 2 && b === 2);
+const hostile = (a, b) => a !== b && !(a === WILD && b === WILD);
 const isAnimal = u => u.type === 'deer';
 const getE = id => G.unitById.get(id) || G.bldById.get(id) || G.resById.get(id) || null;
 
@@ -503,9 +520,9 @@ function spawnUnit(type, team, x, y) {
     scan: Math.random() * .5, stk: 0, skx: x, sky: y, repath: 0, needPath: null, guard: null, resume: null, task: '', sel: false, born: G.time };
   u.maxhp = u.hp = stat(u, 'hp');
   if (type === 'deer') { u.home = { x, y }; u.wt = Math.random() * 4; }
-  if (type === 'wolf' || type === 'direwolf') { u.base = dist(x, y, BASES[0].x * T, BASES[0].y * T) < dist(x, y, BASES[1].x * T, BASES[1].y * T) ? 0 : 1; u.ang = 0; u.st = 'roam'; }
+  if (type === 'wolf' || type === 'direwolf') { { let bd = 1e9; ACT.forEach((b, k) => { const d = dist(x, y, b.x * T, b.y * T); if (d < bd) { bd = d; u.base = k; } }); } u.ang = 0; u.st = 'roam'; }
   G.units.push(u); G.unitById.set(u.id, u);
-  if (team < 2) recount(team);
+  if (team < WILD) recount(team);
   return u;
 }
 function setEra(tm, e) {
@@ -513,7 +530,7 @@ function setEra(tm, e) {
   for (const u of G.units) if (u.team === tm.id) { const m = stat(u, 'hp'); if (m !== u.maxhp) { u.hp = u.hp / u.maxhp * m; u.maxhp = m; } }
   for (const b of G.blds) if (b.team === tm.id) { const m = bMax(b.type, b.team); if (m !== b.maxhp) { b.hp = b.hp / b.maxhp * m; b.maxhp = m; } }
   if (tm.id === 0) { banner(ERA_NAMES[e], e === 1 ? 'Fired clay, bronze tools and woven cloth' : 'Steel, stone and the look of modern folk'); sfx('era'); }
-  else alertMsg(`Your rival has entered the ${ERA_NAMES[e]}.`, 'bad', TC_POS(1));
+  else alertMsg(G.nc > 2 ? `${TEAM_COL[tm.id].name} clan has entered the ${ERA_NAMES[e]}.` : `Your rival has entered the ${ERA_NAMES[e]}.`, 'bad', TC_POS(tm.id));
   G.uiDirty = true; void old;
 }
 const TC_POS = team => { const b = G.teams[team].tc; return b ? { x: b.x, y: b.y } : null; };
@@ -527,7 +544,7 @@ function canPlace(type, tx, ty, team, margin = 0) {
     if (inner) {
       if (ter[i] < SAND || resAt[i] || occ[i]) return false;
       if (team === 0 && !expl[i]) return false;
-      if (team === 0 && G.units.some(u => u.team !== 0 && u.team !== 2 && vis[i] && Math.floor(u.x / T) === x && Math.floor(u.y / T) === y)) return false;
+      if (team === 0 && G.units.some(u => u.team !== 0 && u.team !== WILD && vis[i] && Math.floor(u.x / T) === x && Math.floor(u.y / T) === y)) return false;
     } else if (occ[i] || resAt[i]) return false;
   }
   return true;
@@ -576,7 +593,7 @@ function destroyBuilding(b, by) {
   sfx('collapse', b.x, b.y);
   const tm = G.teams[b.team];
   if (tm.tc === b) tm.tc = null;
-  if (by && by.team < 2) G.teams[by.team].stats.kills++;
+  if (by && by.team < WILD) G.teams[by.team].stats.kills++;
   recount(b.team);
   G.miniDirty = true; G.uiDirty = true;
 }
@@ -783,7 +800,7 @@ function smartOrder(u, e) {
   }
   if (e.ent === 'res') { if (vill) orderGather(u, e); else orderMove(u, e.x, e.y + T * .8); return; }
   if (e.ent === 'b') {
-    if (e.team !== u.team) { if (vill && e.team === 2) return; orderAttack(u, e); return; }
+    if (e.team !== u.team) { if (vill && e.team === WILD) return; orderAttack(u, e); return; }
     if (vill) {
       if (!e.done || e.hp < e.maxhp) { orderBuild(u, e); return; }
       if (BLD[e.type].farm) { orderGather(u, e); return; }
@@ -811,12 +828,12 @@ function findEnemy(u, r, blds) {
   let best = null, bd = r * r;
   nearUnits(u.x, u.y, r, o => {
     if (!hostile(u.team, o.team) || o.type === 'deer') return;
-    if (u.team === 0 && o.team !== 2 && !visAt(o.x, o.y)) return;
+    if (u.team === 0 && o.team !== WILD && !visAt(o.x, o.y)) return;
     const d = (o.x - u.x) ** 2 + (o.y - u.y) ** 2; if (d < bd) { bd = d; best = o; }
   });
   if (!best && blds) {
     let bb = r;
-    for (const b of G.blds) { if (!hostile(u.team, b.team) || b.team === 2) continue; const d = edgeDist(u, b); if (d < bb) { bb = d; best = b; } }
+    for (const b of G.blds) { if (!hostile(u.team, b.team) || b.team === WILD) continue; const d = edgeDist(u, b); if (d < bb) { bb = d; best = b; } }
   }
   return best;
 }
@@ -827,7 +844,7 @@ const visAt = (x, y) => { const tx = (x / T) | 0, ty = (y / T) | 0; return inMap
 // ---------------------------------------------------------------------------
 function updUnit(u, dt) {
   u.cd -= dt; if (u.flash > 0) u.flash -= dt; if (u.swing > 0) u.swing -= dt; u.moving = false;
-  if (u.team === 2) { updWild(u, dt); return; }
+  if (u.team === WILD) { updWild(u, dt); return; }
   if (u.hidden) { sheltered(u, dt); return; }
   if ((G.tick + u.id) % 30 === 0 && u.hp < u.maxhp && G.time - (u.lastHit || -99) > 8 && isLit(u.x, u.y)) u.hp = Math.min(u.maxhp, u.hp + u.maxhp * .03);
   switch (u.st) {
@@ -838,7 +855,7 @@ function updUnit(u, dt) {
         u.scan = .4; const e = findEnemy(u, stat(u, 'sight') * T, true);
         if (e) { const d = u.dest; orderAttack(u, e); u.resume = d; return; }
       }
-      if (done) { u.st = 'idle'; u.path = null; u.scan = 0; if (u.amove && u.team === 1) u.scan = 0; }
+      if (done) { u.st = 'idle'; u.path = null; u.scan = 0; if (u.amove && isRival(u.team)) u.scan = 0; }
       u.task = u.amove ? 'Advancing' : 'Moving';
       break;
     }
@@ -866,18 +883,18 @@ function idle(u, dt) {
   if ((u.scan -= dt) > 0) return;
   u.scan = .5;
   if (UNIT[u.type].mil) {
-    const e = findEnemy(u, stat(u, 'sight') * T * (u.type === 'catapult' ? 1.1 : 1), u.team === 1 || u.type === 'catapult');
+    const e = findEnemy(u, stat(u, 'sight') * T * (u.type === 'catapult' ? 1.1 : 1), isRival(u.team) || u.type === 'catapult');
     if (e) { const g = { x: u.x, y: u.y }; orderAttack(u, e); u.guard = g; }
   } else if (u.type === 'villager') {
     const e = findEnemy(u, 2.5 * T);
-    if (e && UNIT[e.type] && (e.team === 2 || UNIT[e.type].mil)) startFlee(u, e);
+    if (e && UNIT[e.type] && (e.team === WILD || UNIT[e.type].mil)) startFlee(u, e);
     else if (u.job && (u.jobT = (u.jobT || 0) + .5) >= 2) { u.jobT = 0; if (!assignJob(u, u.job)) u.task = `Idle — no ${u.job === 'auto' ? 'work' : JOBS[u.job].toLowerCase()} found`; }
     else u.task = 'Idle';
   }
 }
 function attack(u, dt) {
   const t = getE(u.tgt);
-  if (!t || t.dead || t.hidden || t.ent === 'res' || (u.team === 0 && t.ent === 'u' && t.team !== 2 && !visAt(t.x, t.y) && edgeDist(u, t) > 3 * T)) { endAttack(u); return; }
+  if (!t || t.dead || t.hidden || t.ent === 'res' || (u.team === 0 && t.ent === 'u' && t.team !== WILD && !visAt(t.x, t.y) && edgeDist(u, t) > 3 * T)) { endAttack(u); return; }
   if (u.guard && dist(u.x, u.y, u.guard.x, u.guard.y) > stat(u, 'sight') * T * 1.8) { const g = u.guard; orderMove(u, g.x, g.y); return; }
   let rng = stat(u, 'rng'); if (u.type === 'villager' && t.type === 'deer') rng = 88;
   const d = edgeDist(u, t);
@@ -906,10 +923,10 @@ function attack(u, dt) {
   }
 }
 function endAttack(u) {
-  if (u.team === 2) { u.st = 'roam'; u.tgt = 0; u.path = null; return; }
+  if (u.team === WILD) { u.st = 'roam'; u.tgt = 0; u.path = null; return; }
   if (u.resume) { const r = u.resume; orderMove(u, r.x, r.y, true); return; }
   if (UNIT[u.type].mil) {
-    const e = findEnemy(u, stat(u, 'sight') * T, u.team === 1);
+    const e = findEnemy(u, stat(u, 'sight') * T, isRival(u.team));
     if (e) { const g = u.guard; u.tgt = e.id; u.path = null; u.needPath = null; u.guard = g; return; }
     if (u.guard) { const g = u.guard; orderMove(u, g.x, g.y); return; }
   }
@@ -1010,7 +1027,7 @@ function gather(u, dt) {
   }
   u.path = null; u.needPath = null;
   const tm = G.teams[u.team];
-  let rate = RATE[isFarm ? 'farm' : r.kind] * tm.gm[isFarm ? 'farm' : give] * (u.team === 1 ? DIFF[G.diff].gm : 1);
+  let rate = RATE[isFarm ? 'farm' : r.kind] * tm.gm[isFarm ? 'farm' : give] * (isRival(u.team) ? DIFF[G.diff].gm : 1);
   u.task = KIND_LABEL[isFarm ? 'farm' : r.kind];
   if (isFarm && G.winter) { rate *= WINTER_FIELDS; u.task = 'Farming · slow in the cold'; }
   if (r.kind === 'berry' && G.winter) rate *= .5;
@@ -1154,7 +1171,7 @@ function build(u, dt) {
   u.work += dt;
   if (u.work > .55) { u.work = 0; u.swing = .3; sfx('build', u.x, u.y); if (Math.random() < .6) puff(b.x + rr(-1, 1) * b.w * 12, b.y + rr(-1, 1) * b.h * 10, 'chip'); }
   if (!b.done) {
-    const inc = dt / BLD[b.type].time * (u.team === 1 ? DIFF[G.diff].gm : 1);
+    const inc = dt / BLD[b.type].time * (isRival(u.team) ? DIFF[G.diff].gm : 1);
     b.prog = Math.min(1, b.prog + inc); b.hp = Math.min(b.maxhp, b.hp + b.maxhp * inc);
     u.task = `Building ${bName(b)} · ${Math.floor(b.prog * 100)}%`;
     if (b.prog >= 1) { b.hp = Math.max(b.hp, b.maxhp * .999); complete(b); }
@@ -1173,8 +1190,8 @@ function afterBuild(u, b) {
 }
 function nextJob(u) {
   let best = null, bd = 10 * T;
-  for (const b of G.blds) if (b.team === u.team && (!b.done || (b.hp < b.maxhp && b.lastHit < G.time - 6 && u.team === 1)) && !d_isFarmEmpty(b)) { const d = dist(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
-  if (best && (!best.done || u.team === 1)) { const p = u.prevJob; orderBuild(u, best); u.prevJob = p; return; }
+  for (const b of G.blds) if (b.team === u.team && (!b.done || (b.hp < b.maxhp && b.lastHit < G.time - 6 && isRival(u.team))) && !d_isFarmEmpty(b)) { const d = dist(u.x, u.y, b.x, b.y); if (d < bd) { bd = d; best = b; } }
+  if (best && (!best.done || isRival(u.team))) { const p = u.prevJob; orderBuild(u, best); u.prevJob = p; return; }
   const p = u.prevJob; u.prevJob = null;
   const e = p && getE(p.tgt);
   if (e && !e.dead) { orderGather(u, e); return; }
@@ -1231,16 +1248,16 @@ function hurt(att, t, base) {
   if (t.ent === 'u') { for (let i = 0; i < 3; i++) puff(t.x, t.y - 8, t.type === 'deer' || t.type === 'wolf' || t.type === 'direwolf' ? 'fur' : 'spark'); onAttacked(t, att); }
   else if (Math.random() < .5) puff(t.x + rr(-1, 1) * t.w * 12, t.y + rr(-1, 1) * t.h * 10, 'chip');
   if (t.team === 0) underAttack(t, att);
-  if (t.team < 2 && t.ent === 'b' && G.ais[t.team]) G.ais[t.team].hitAt = { x: t.x, y: t.y, time: G.time, by: att.id };
+  if (t.team < WILD && t.ent === 'b' && G.ais[t.team]) G.ais[t.team].hitAt = { x: t.x, y: t.y, time: G.time, by: att.id };
   if (t.hp <= 0) { if (t.ent === 'u') killUnit(t, att); else destroyBuilding(t, att); }
 }
 function onAttacked(t, att) {
   const a = G.unitById.get(att.id);
   if (t.type === 'deer') { t.st = 'flee'; t.fleeT = 2.4; t.fx = att.x; t.fy = att.y; t.path = null; return; }
-  if (t.team === 2) { if (a && t.st !== 'attack' && t.st !== 'leave') { t.st = 'attack'; t.tgt = a.id; t.path = null; } return; }
+  if (t.team === WILD) { if (a && t.st !== 'attack' && t.st !== 'leave') { t.st = 'attack'; t.tgt = a.id; t.path = null; } return; }
   if (!a || a.dead) return;
   if (UNIT[t.type].mil) { if (t.st === 'idle' || (t.st === 'move' && t.amove)) { const g = t.st === 'idle' ? { x: t.x, y: t.y } : null; const res = t.st === 'move' ? t.dest : null; orderAttack(t, a); t.guard = g; t.resume = res; } }
-  else if (t.type === 'villager' && t.st !== 'flee' && !(t.st === 'attack' && a.type === 'deer')) { if (a.team === 2 || UNIT[a.type].mil) startFlee(t, a); }
+  else if (t.type === 'villager' && t.st !== 'flee' && !(t.st === 'attack' && a.type === 'deer')) { if (a.team === WILD || UNIT[a.type].mil) startFlee(t, a); }
 }
 function killUnit(u, by) {
   if (u.dead) return;
@@ -1251,9 +1268,9 @@ function killUnit(u, by) {
     const c = addRes('carcass', clamp((u.x / T) | 0, 0, N - 1), clamp((u.y / T) | 0, 0, N - 1), u.x, u.y);
     for (const v of G.units) if (!v.dead && v.type === 'villager' && v.st === 'attack' && v.tgt === u.id) orderGather(v, c);
   }
-  if (u.team < 2) { G.teams[u.team].stats.lost++; recount(u.team); if (u.team === 0) G.uiDirty = true; }
-  if (by && by.team < 2 && u.type !== 'deer') G.teams[by.team].stats.kills++;
-  sfx(u.team === 2 ? (u.type === 'deer' ? 'thud' : 'yelp') : 'death', u.x, u.y);
+  if (u.team < WILD) { G.teams[u.team].stats.lost++; recount(u.team); if (u.team === 0) G.uiDirty = true; }
+  if (by && by.team < WILD && u.type !== 'deer') G.teams[by.team].stats.kills++;
+  sfx(u.team === WILD ? (u.type === 'deer' ? 'thud' : 'yelp') : 'death', u.x, u.y);
 }
 
 // ---------------------------------------------------------------------------
@@ -1289,7 +1306,7 @@ function updWild(u, dt) {
     u.scan = .45;
     let best = null, bd = 1e9;
     nearUnits(u.x, u.y, 13 * T, o => {
-      if (o.team > 1) return;
+      if (o.team >= WILD) return;
       if (!G.bloodNight && isLit(o.x, o.y)) return;
       const d = (o.x - u.x) ** 2 + (o.y - u.y) ** 2 * (o.type === 'villager' ? .7 : 1); if (d < bd) { bd = d; best = o; }
     });
@@ -1297,7 +1314,7 @@ function updWild(u, dt) {
   }
   u.st = 'roam';
   if (!u.path && !u.needPath) {
-    const b = BASES[u.base], bx = b.x * T, by = b.y * T;
+    const b = ACT[u.base] || ACT[0], bx = b.x * T, by = b.y * T;
     u.ang = (u.ang || 0) + rr(.25, .7) * (u.id % 2 ? 1 : -1);
     const r = (G.bloodNight ? 6 : 10.5) * T + rr(-1, 2) * T;
     const px = clamp(bx + Math.cos(u.ang) * r, T, WPX - T), py = clamp(by + Math.sin(u.ang) * r, T, WPX - T);
@@ -1307,18 +1324,18 @@ function updWild(u, dt) {
 }
 function spawnWolves() {
   const mul = [.7, 1, 1.25][G.diff];
-  let n = Math.min(20, Math.round((1 + G.day * .65) * (G.winter ? 1.5 : 1) * mul));
-  let dire = G.bloodNight ? Math.min(10, 1 + Math.floor(G.day / 5) * 2) : 0;
+  let n = Math.min(10 * ACT.length, Math.round((1 + G.day * .65) * (G.winter ? 1.5 : 1) * mul * ACT.length / 2));
+  let dire = G.bloodNight ? Math.min(5 * ACT.length, Math.round((1 + Math.floor(G.day / 5) * 2) * ACT.length / 2)) : 0;
   let pack = 0, guard = 0;
   while ((n > 0 || dire > 0) && guard++ < 200) {
     const x = ri(2, N - 3), y = ri(2, N - 3), i = tid(x, y);
-    if (blk[i] || Math.min(dist(x, y, BASES[0].x, BASES[0].y), dist(x, y, BASES[1].x, BASES[1].y)) < 22 || vis[i]) continue;
+    if (blk[i] || Math.min(...ACT.map(b => dist(x, y, b.x, b.y))) < 22 || vis[i]) continue;
     const size = Math.min(n + dire, ri(2, 4));
     for (let k = 0; k < size; k++) {
       const type = dire > 0 && (k === 0 || n <= 0) ? 'direwolf' : 'wolf';
       if (type === 'direwolf') dire--; else n--;
-      const w = spawnUnit(type, 2, x * T + T / 2 + rr(-8, 8), y * T + T / 2 + rr(-8, 8));
-      w.base = pack % 2; w.st = 'roam'; w.ang = Math.atan2(y - BASES[w.base].y, x - BASES[w.base].x);
+      const w = spawnUnit(type, WILD, x * T + T / 2 + rr(-8, 8), y * T + T / 2 + rr(-8, 8));
+      w.base = pack % ACT.length; w.st = 'roam'; w.ang = Math.atan2(y - ACT[w.base].y, x - ACT[w.base].x);
     }
     pack++;
   }
@@ -1418,11 +1435,11 @@ function updClock(dt) {
   G.dark = darkness(G.dayT);
   G.snow = clamp(G.snow + (G.winter ? 1 : -1) * dt / 10, 0, 1);
   // frost: units outside firelight in a winter night slowly freeze
-  if (G.winter && G.dark > .6 && (G.tick % 15) === 0) for (const u of G.units) if (u.team < 2 && !u.dead && !u.hidden && !isLit(u.x, u.y)) { u.hp -= .1; if (u.hp <= 0) killUnit(u, null); }
+  if (G.winter && G.dark > .6 && (G.tick % 15) === 0) for (const u of G.units) if (u.team < WILD && !u.dead && !u.hidden && !isLit(u.x, u.y)) { u.hp -= .1; if (u.hp <= 0) killUnit(u, null); }
 }
 function dawn() {
   for (const tm of G.teams.slice(0, 2)) upkeep(tm);
-  for (const u of G.units) if (u.team === 2 && u.type !== 'deer' && !u.dead) {
+  for (const u of G.units) if (u.team === WILD && u.type !== 'deer' && !u.dead) {
     u.st = 'leave'; u.leaveT = 30; u.tgt = 0;
     const ex = u.x < WPX / 2 ? 2 : WPX - 2, ey = u.y < WPX / 2 ? 2 : WPX - 2;
     if (Math.abs(u.x - ex) < Math.abs(u.y - ey)) goTo(u, clamp(ex, T / 2, WPX - T / 2), u.y); else goTo(u, u.x, clamp(ey, T / 2, WPX - T / 2));
@@ -1469,6 +1486,8 @@ function updVision() {
 // ---------------------------------------------------------------------------
 // Rival AI
 // ---------------------------------------------------------------------------
+// with more than two clans, an AI picks on the nearest hall still standing
+function aiFoe(me, tc) { let best = -1, bd = 1e9; for (let t = 0; t < G.nc; t++) { const o = G.teams[t].tc; if (t === me || !o) continue; const d = dist(o.x, o.y, tc.x, tc.y); if (d < bd) { bd = d; best = t; } } return best < 0 ? (me ? 0 : 1) : best; }
 function aiInit(team = 1) { G.ais[team] = { t: 2 + team * .4, next: DIFF[G.diff].firstAtk, wave: 0, atk: new Set(), warned: false, hitAt: null }; if (team === 1) G.ai = G.ais[1]; }
 function aiSpot(type, nx, ny, rmin, rmax, me = 1) {
   const d = BLD[type], margin = d.farm || type === 'brazier' ? 0 : 1, cx = nx / T, cy = ny / T, a0 = rnd() * TAU;
@@ -1497,7 +1516,8 @@ function aiBuild(type, nx, ny, rmin, rmax, vills, crew = 0) {
 const RES_OF = { tree: 'wood', berry: 'food', carcass: 'food', farm: 'food', deer: 'food', stone: 'stone', gold: 'gold' };
 function aiUpdate(dt, me = 1) {
   const A = G.ais[me]; if (!A) return; A.t -= dt; if (A.t > 0) return; A.t = .8;
-  const opp = 1 - me, tm = G.teams[me], tc = tm.tc; if (!tc) return;
+  const tm = G.teams[me], tc = tm.tc; if (!tc) return;
+  const opp = G.nc === 2 ? 1 - me : aiFoe(me, tc);
   const D = DIFF[G.diff];
   const vills = [], army = [];
   for (const u of G.units) if (u.team === me && !u.dead) (u.type === 'villager' ? vills : army).push(u);
@@ -1637,17 +1657,18 @@ function aiAssign(tm, vills, tc, foodLow) {
 // ---------------------------------------------------------------------------
 // Game setup and the fixed-step tick
 // ---------------------------------------------------------------------------
-function newGame(seed, diff) {
+function newGame(seed, diff, nc = 2) {
+  ACT = BASES.slice(0, nc > 2 ? 4 : 2);
   G = { nextId: 1, units: [], blds: [], res: [], unitById: new Map(), bldById: new Map(), resById: new Map(), decals: [], parts: [], proj: [], lights: [],
-    teams: [newTeam(0), newTeam(1), newTeam(2)], time: 0, clock: 0, day: 1, dayT: .1, season: 0, winter: false, bloodNight: false, dark: 0, snow: 0,
-    diff, seed, over: false, tick: 0, bell: [false, false], ais: [null, null], groups: {}, uiDirty: true, miniDirty: true, resPulse: {}, started: false, speed: 1 };
+    teams: [0, 1, 2, 3, 4].map(newTeam), nc, out: [], time: 0, clock: 0, day: 1, dayT: .1, season: 0, winter: false, bloodNight: false, dark: 0, snow: 0,
+    diff, seed, over: false, tick: 0, bell: [false, false, false, false, false], ais: [null, null, null, null, null], groups: {}, uiDirty: true, miniDirty: true, resPulse: {}, started: false, speed: 1 };
   genWorld(seed);
-  for (let t = 0; t < 2; t++) {
+  for (let t = 0; t < nc; t++) {
     const b = BASES[t], tc = placeBuilding('tc', t, b.x - 2, b.y - 2, true);
     for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU + .4; spawnUnit('villager', t, tc.x + Math.cos(a) * 2.9 * T, tc.y + Math.sin(a) * 2.9 * T + 8); }
   }
   const st = DIFF[diff].start; G.teams[1].res.food += st; G.teams[1].res.wood += st;
-  for (const u of G.units) if (u.team === 1) { const r = findRes(1, 'berry', u.x, u.y, 20 * T); if (r) orderGather(u, r); }
+  for (const u of G.units) if (isRival(u.team)) { const r = findRes(u.team, 'berry', u.x, u.y, 20 * T); if (r) orderGather(u, r); }
   aiInit(); updLights(); updVision();
   rebuildGrid();
   resetView();
@@ -1664,7 +1685,7 @@ function tick(dt) {
   separate();
   for (const b of G.blds.slice()) if (!b.dead) updBld(b, dt);
   updProj(dt);
-  aiUpdate(dt, 1); if (G.ais[0]) aiUpdate(dt, 0);   // a remote player's team has no AI (G.ais[1] is null)
+  for (let t = 0; t < G.nc; t++) if (G.ais[t]) aiUpdate(dt, t);   // a remote player's clan has no AI
   if (G.units.some(u => u.dead)) G.units = G.units.filter(u => !u.dead);
   for (const d of G.decals) d.t += dt;
   if (G.tick % 30 === 0) G.decals = G.decals.filter(d => d.k === 'stump' || d.k === 'rubble' ? d.t < 400 : d.k === 'body' ? d.t < 30 : d.t < 12);
@@ -1693,8 +1714,27 @@ function shift(u, dx, dy) {
 }
 function checkEnd() {
   if (G.over) return;
-  if (!G.teams[0].tc) endGame(false);
-  else if (!G.teams[1].tc) endGame(true);
+  if (!G.mp && G.nc === 2) { if (!G.teams[0].tc) endGame(false); else if (!G.teams[1].tc) endGame(true); return; }
+  // more clans or online: a clan whose hall burns is out; the last clan standing wins
+  for (let t = 0; t < G.nc; t++) if (!G.out[t] && !G.teams[t].tc) clanOut(t);
+  const alive = [...Array(G.nc).keys()].filter(t => !G.out[t]);
+  if (alive.length <= 1) { G.winner = alive.length ? alive[0] : -1; endGame(G.winner === 0); }
+}
+// a clan is out of the match: its people scatter and its buildings fall
+function clanOut(t, why = 'hall') {
+  if (G.out[t]) return; G.out[t] = { day: G.day, why };
+  for (const b of G.blds.slice()) if (b.team === t && !b.dead) destroyBuilding(b, null);
+  for (const u of G.units) if (u.team === t && !u.dead) killUnit(u, null);
+  G.teams[t].tc = null; G.uiDirty = true; G.miniDirty = true;
+  if (t === 0) showOut(why);
+  else alertMsg(`${TEAM_COL[t].name} clan ${why === 'left' ? 'did not come back and is out' : 'has fallen'}.`, t ? 'good' : 'bad');
+}
+// this screen's clan is out but the match goes on for the others: watch, or leave
+function showOut(why) {
+  if (G.over || G.shownOut) return; G.shownOut = true; setSel([]);
+  $('endT').textContent = 'Defeat';
+  $('endS').textContent = why === 'left' ? 'You were away too long, so your clan is out. The others play on.' : `Your Hearth Hall fell on day ${G.day}. The others play on.`;
+  $('endStats').innerHTML = ''; $('end').hidden = false; UI.looking = false; sfx('lose');
 }
 
 // ============================================================================
@@ -2670,12 +2710,12 @@ function render() {
     if (d.x < x0 - 60 || d.x > x1 + 60 || d.y < y0 - 60 || d.y > y1 + 60) continue;
     if (d.k === 'stump') { g.fillStyle = '#5a3d22'; ell(g, d.x, d.y, 4.5, 2.6); g.fill(); g.fillStyle = '#b08a5a'; ell(g, d.x, d.y - 1.2, 3.6, 1.9); g.fill(); g.strokeStyle = '#7a5a36'; g.lineWidth = .5; ell(g, d.x, d.y - 1.2, 1.8, .9); g.stroke(); }
     else if (d.k === 'rubble') { const a = Math.max(0, 1 - d.t / 400); g.globalAlpha = a; const R = mulberry32(d.v); g.fillStyle = 'rgba(40,30,22,.5)'; ell(g, d.x, d.y, d.w * 15, d.h * 12); g.fill(); for (let k = 0; k < 10 * d.w; k++) { g.fillStyle = R() < .5 ? '#5a4632' : '#6e6a62'; g.fillRect(d.x + (R() - .5) * d.w * 26, d.y + (R() - .5) * d.h * 20, 2 + R() * 4, 2 + R() * 3); } g.globalAlpha = 1; }
-    else if (d.k === 'body') { const a = Math.max(0, 1 - d.t / 30); g.globalAlpha = a * .85; g.fillStyle = d.team < 2 ? TEAM_COL[d.team].dark : d.type === 'deer' ? '#8a5e34' : '#6a6c70'; ell(g, d.x, d.y - 2, 6.5, 2.4); g.fill(); g.fillStyle = d.team < 2 ? SKIN[0] : g.fillStyle; g.beginPath(); g.arc(d.x + 6 * d.face, d.y - 2.5, 2.2, 0, TAU); g.fill(); g.globalAlpha = 1; }
+    else if (d.k === 'body') { const a = Math.max(0, 1 - d.t / 30); g.globalAlpha = a * .85; g.fillStyle = d.team < WILD ? TEAM_COL[d.team].dark : d.type === 'deer' ? '#8a5e34' : '#6a6c70'; ell(g, d.x, d.y - 2, 6.5, 2.4); g.fill(); g.fillStyle = d.team < WILD ? SKIN[0] : g.fillStyle; g.beginPath(); g.arc(d.x + 6 * d.face, d.y - 2.5, 2.2, 0, TAU); g.fill(); g.globalAlpha = 1; }
     else if (d.k === 'arrow') { const a = Math.max(0, 1 - d.t / 12); g.globalAlpha = a; g.strokeStyle = '#6b4a2c'; g.lineWidth = .9; g.beginPath(); g.moveTo(d.x, d.y); g.lineTo(d.x - Math.cos(d.a) * 5, d.y - Math.sin(d.a) * 5 - 2); g.stroke(); g.globalAlpha = 1; }
   }
   // selection rings and rally
   for (const e of selected()) {
-    if (e.ent === 'u') { g.strokeStyle = e.team === 0 ? 'rgba(150,255,140,.9)' : e.team === 2 ? 'rgba(255,230,120,.9)' : 'rgba(255,120,100,.9)'; g.lineWidth = 1.3; ell(g, e.x, e.y, UNIT[e.type].r + 3, (UNIT[e.type].r + 3) * .45); g.stroke(); }
+    if (e.ent === 'u') { g.strokeStyle = e.team === 0 ? 'rgba(150,255,140,.9)' : e.team === WILD ? 'rgba(255,230,120,.9)' : 'rgba(255,120,100,.9)'; g.lineWidth = 1.3; ell(g, e.x, e.y, UNIT[e.type].r + 3, (UNIT[e.type].r + 3) * .45); g.stroke(); }
     else if (e.ent === 'b') { g.strokeStyle = e.team === 0 ? 'rgba(150,255,140,.75)' : 'rgba(255,120,100,.8)'; g.lineWidth = 1.5; g.setLineDash([6, 4]); g.strokeRect(e.tx * T - 2, e.ty * T - 2, e.w * T + 4, e.h * T + 4); g.setLineDash([]);
       if (e.rally && e.team === 0) { g.strokeStyle = 'rgba(255,240,200,.5)'; g.beginPath(); g.moveTo(e.x, e.y); g.lineTo(e.rally.x, e.rally.y); g.stroke(); flag(g, 0, e.rally.x, e.rally.y, 14, .8); } }
     else if (e.ent === 'res') { g.strokeStyle = 'rgba(255,240,170,.8)'; g.lineWidth = 1.2; ell(g, e.x, e.y, 13, 6); g.stroke(); }
@@ -2966,8 +3006,8 @@ function drawMini() {
   if (G.miniDirty && (!G.miniT || G.time - G.miniT > 2 || !G.started)) { bakeMini(); G.miniDirty = false; G.miniT = G.time; }
   const g = mctx; g.imageSmoothingEnabled = false;
   g.drawImage(miniBase, 0, 0);
-  for (const b of G.blds) { if (b.team !== 0 && !expl[tid(b.tx, b.ty)]) continue; g.fillStyle = b.team === 0 ? '#5aa0ff' : '#ff5a44'; g.fillRect(b.tx * 2, b.ty * 2, b.w * 2, b.h * 2); }
-  for (const u of G.units) { if (u.hidden || (u.team !== 0 && !visAt(u.x, u.y))) continue; g.fillStyle = u.team === 0 ? '#bfe0ff' : u.team === 1 ? '#ff8a6a' : u.type === 'deer' ? '#e0c890' : '#d8d8d8'; g.fillRect((u.x / T * 2 | 0) - 1, (u.y / T * 2 | 0) - 1, 2.5, 2.5); }
+  for (const b of G.blds) { if (b.team !== 0 && !expl[tid(b.tx, b.ty)]) continue; g.fillStyle = TEAM_COL[b.team].main; g.fillRect(b.tx * 2, b.ty * 2, b.w * 2, b.h * 2); }
+  for (const u of G.units) { if (u.hidden || (u.team !== 0 && !visAt(u.x, u.y))) continue; g.fillStyle = u.team < WILD ? TEAM_COL[u.team].lite : u.type === 'deer' ? '#e0c890' : '#d8d8d8'; g.fillRect((u.x / T * 2 | 0) - 1, (u.y / T * 2 | 0) - 1, 2.5, 2.5); }
   g.imageSmoothingEnabled = true; g.globalAlpha = .92; g.drawImage(fogC, 0, 0, N, N, 0, 0, 192, 192); g.globalAlpha = 1;
   if (G.dark > .05) { g.fillStyle = `rgba(6,10,30,${G.dark * .35})`; g.fillRect(0, 0, 192, 192); }
   const a = toWorld(0, 0), b = toWorld(VW, VH), k = 192 / WPX;
@@ -3117,8 +3157,8 @@ function updTop() {
   const left = G.dayT < NIGHT_AT ? NIGHT_AT - G.dayT : 1 - G.dayT;
   $('seasonl').textContent = `${SEASONS[G.season]} · ${G.dayT < NIGHT_AT && G.dayT > DAWN_END ? 'night in' : 'dawn in'} ${Math.ceil(left * DAY_LEN)}s${G.day % 5 === 0 ? ' · Blood Moon' : ''}`;
   $('eral').textContent = ERA_NAMES[tm.era];
-  const rq = G.teams[1].tc ? ERA_NAMES[G.teams[1].era] : 'Fallen';
-  $('eras').textContent = `Rival: ${rq}`;
+  if (G.nc === 2) { const rq = G.teams[1].tc ? ERA_NAMES[G.teams[1].era] : 'Fallen'; $('eras').textContent = `Rival: ${rq}`; }
+  else $('eras').innerHTML = [...Array(G.nc).keys()].filter(t => t).map(t => `<span style="color:${TEAM_COL[t].lite}" title="${TEAM_COL[t].name} clan">● ${G.teams[t].tc ? ERA_NAMES[G.teams[t].era].replace(' Age', '') : '✕'}</span>`).join(' ');
   drawClock();
 }
 function costHTML(c) {
@@ -3248,7 +3288,7 @@ function updInfo() {
   const e = sel[0];
   let title = '', sub = '', stats = '', task = '', extra = '', firelightStatus = '', f = 1;
   if (e.ent === 'u') {
-    title = unitName(e); sub = e.team === 0 ? '' : e.team === 1 ? 'Rival' : UNIT[e.type].name === 'Deer' ? 'Wild game' : 'Wild beast';
+    title = unitName(e); sub = e.team === 0 ? '' : isRival(e.team) ? (G.nc === 2 ? 'Rival' : TEAM_COL[e.team].name + ' clan') : UNIT[e.type].name === 'Deer' ? 'Wild game' : 'Wild beast';
     f = e.hp / e.maxhp;
     stats = `<span>HP <b>${Math.ceil(e.hp)}/${e.maxhp}</b></span><span>Attack <b>${atkOf(e)}</b></span><span>Armor <b>${armOf(e)}</b></span>${stat(e, 'rng') ? `<span>Range <b>${Math.round(stat(e, 'rng') / T)}</b></span>` : ''}`;
     if (e.team === 0) {
@@ -3759,7 +3799,8 @@ function endGame(win) {
   G.over = true; updVision(); updFog(); setSel([]);
   const tm = G.teams[0], s = tm.stats, mins = Math.floor(G.clock / 60);
   $('endT').textContent = win ? 'Victory' : 'Defeat';
-  $('endS').textContent = win ? `The rival hall burns. Your hearth stands after ${G.day} days.` : `Your Hearth Hall has fallen on day ${G.day}.`;
+  $('endS').textContent = win ? (G.nc > 2 ? `Every rival hall has burned. Your hearth stands after ${G.day} days.` : `The rival hall burns. Your hearth stands after ${G.day} days.`)
+    : G.nc > 2 && G.winner > 0 ? `${TEAM_COL[G.winner].name} clan wins on day ${G.day}.` : `Your Hearth Hall has fallen on day ${G.day}.`;
   $('endStats').innerHTML = [['Days', G.day], ['Time', `${mins}m ${Math.floor(G.clock % 60)}s`], ['Era', ERA_NAMES[tm.era]], ['Difficulty', DIFF[G.diff].name], ['Trained', s.trained], ['Built', s.built], ['Enemies slain', s.kills], ['People lost', s.lost], ['Gathered', fmt(s.gathered)], ['Rival era', ERA_NAMES[G.teams[1].era]]].map(([a, b]) => `<div>${a} <b>${b}</b></div>`).join('');
   $('end').hidden = false; sfx(win ? 'win' : 'lose');
 }
@@ -3946,7 +3987,7 @@ function mpApply(s) {
   for (const id of s.ug) {
     const u = G.unitById.get(id); if (!u) continue;
     u.dead = true; G.unitById.delete(id);
-    if (!u.hidden) { G.decals.push({ k: 'body', type: u.type, team: u.team, x: u.x, y: u.y, face: u.face, t: 0, era: eraOf(u.team) }); sfx(u.team === 2 ? (u.type === 'deer' ? 'thud' : 'yelp') : 'death', u.x, u.y); }
+    if (!u.hidden) { G.decals.push({ k: 'body', type: u.type, team: u.team, x: u.x, y: u.y, face: u.face, t: 0, era: eraOf(u.team) }); sfx(u.team === WILD ? (u.type === 'deer' ? 'thud' : 'yelp') : 'death', u.x, u.y); }
   }
   if (s.ug.length) G.units = G.units.filter(u => !u.dead);
   const oldEra = G.teams[0].era, oldDay = G.day;
