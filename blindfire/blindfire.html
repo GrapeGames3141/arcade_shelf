@@ -207,14 +207,14 @@ try { Object.assign(SET, JSON.parse(localStorage.getItem('blindfire.set') || '{}
 const saveSet = () => { try { localStorage.setItem('blindfire.set', JSON.stringify(SET)); } catch (e) { } };
 
 // ================= map =================
-const MW = 4800, MH = 3000, CS = 10, TW = MW / CS, TH = MH / CS;
+const MW = 9600, MH = 6000, CS = 10, TW = MW / CS, TH = MH / CS;
 const GRASS = 0, FOREST = 1, WATER = 2, ROCK = 3;
 let cells = new Uint8Array(TW * TH), elev = null, terrainCv = null, scorchCv = null, SEED = 1;
 let SPAWNS = [[260, 500], [1340, 500]];
 function spawnBases(n, seed) {
-  if (n <= 2) return [[800, 1500], [4000, 1500]];
+  if (n <= 2) return [[MW / 6, MH / 2], [MW * 5 / 6, MH / 2]];
   const r = rng(seed ^ 0x5bd1e995), a0 = r() * TAU, out = [];
-  for (let k = 0; k < n; k++) { const a = a0 + k * TAU / n; out.push([2400 + Math.cos(a) * 1750, 1500 + Math.sin(a) * 1050]); }
+  for (let k = 0; k < n; k++) { const a = a0 + k * TAU / n; out.push([MW / 2 + Math.cos(a) * MW * 0.365, MH / 2 + Math.sin(a) * MH * 0.35]); }
   return out;
 }
 // Every match rolls a new map: its own water level, forest cover, mountains, maybe a river, and a season.
@@ -223,8 +223,8 @@ const THEMES = {
   autumn: { grass: [120, 124, 64], floor: [96, 88, 52], sand: [190, 170, 120], rock: [126, 118, 106], deep: [30, 58, 84], shallow: [60, 104, 116], leaf: [[204, 104, 38], [222, 160, 52], [176, 62, 40], [96, 120, 48]], pine: [38, 74, 48], pineFrac: 0.3, snow: false },
   winter: { grass: [222, 230, 236], floor: [196, 206, 214], sand: [204, 206, 200], rock: [150, 152, 158], deep: [34, 64, 92], shallow: [92, 136, 160], leaf: [[150, 136, 120], [168, 150, 132]], pine: [34, 70, 56], pineFrac: 0.8, snow: true }
 };
-const TR = 0.5;  // overview map pixels per metre
-const EG = 8, EW = MW / EG + 1, EH = MH / EG + 1;
+const TR = 0.36;  // overview map pixels per metre (keeps the overview canvas near 7 megapixels)
+const EG = 12, EW = MW / EG + 1, EH = MH / EG + 1;
 let MAP = null, burnt = new Uint8Array(TW * TH), groundSm = null;
 function elevAt(x, y) {
   const fx = clamp(x / EG, 0, EW - 1.001), fy = clamp(y / EG, 0, EH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
@@ -236,7 +236,7 @@ function genMap(seed, n = 2) {
   MAP = {
     theme: ['summer', 'summer', 'autumn', 'winter'][Math.floor(pr() * 4)],
     wl: 0.31 + pr() * 0.1, rl: 0.66 + pr() * 0.09, fl: 0.49 + pr() * 0.12, scale: 0.0008 + pr() * 0.0007,
-    river: pr() < 0.5 ? { y0: 0.25 + pr() * 0.5, a: 300 + pr() * 400, f: 2 + pr() * 2.5, ph: pr() * TAU, w: 22 + pr() * 22, vertical: pr() < 0.3, fords: [0.2 + pr() * 0.15, 0.5 + pr() * 0.1, 0.75 + pr() * 0.12] } : null
+    river: pr() < 0.5 ? { y0: 0.25 + pr() * 0.5, a: 600 + pr() * 800, f: 3 + pr() * 3, ph: pr() * TAU, w: 22 + pr() * 22, vertical: pr() < 0.3, fords: [0.2 + pr() * 0.15, 0.5 + pr() * 0.1, 0.75 + pr() * 0.12] } : null
   };
   const th = THEMES[MAP.theme]; MAP.th = th;
   const E = (x, y) => { let e = fbm(x * MAP.scale, y * MAP.scale, seed, 5); e += 0.12 * (fbm(x * 0.005, y * 0.005, seed + 9, 3) - 0.5); return e; };
@@ -298,16 +298,20 @@ function paintRegion(x0, y0, x1, y1) {
     if (t === ROCK && hash(i, j, 9) < 0.1) { const r = 3 + hash(i, j, 12) * 5, x = cx + hash(i, j, 10) * CS, y = cy + hash(i, j, 11) * CS; g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(x + 1.5, y + 2, r, 0, TAU); g.fill(); g.fillStyle = th.snow ? '#e8ecef' : rgb(th.rock, 1.08); g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
     else if (t === GRASS && burnt[j * TW + i]) { g.fillStyle = '#3a2c20'; g.fillRect(cx + 4, cy + 4, 2.5, 2.5); }
   }
+  // treetops, batched into one path per colour (shadows, then crowns, then highlights): far fewer fills on a big map
+  const P = new Map(), arc = (st, x, y, r) => { let q = P.get(st); if (!q) P.set(st, q = new Path2D()); q.moveTo(x + r, y); q.arc(x, y, r, 0, TAU); };
+  const shade = 'rgba(0,0,0,.3)', hi = th.snow ? 'rgba(245,248,250,.75)' : null;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cells[j * TW + i] === FOREST) {
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash(i, j, 50) < 0.45) break;
       const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS, pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, r = (pine ? 4 : 5) * s;
       const c = pine ? th.pine : th.leaf[Math.floor(hash(i, j, 61 + k) * th.leaf.length)];
-      g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.arc(x + 2.5, y + 2.5, r, 0, TAU); g.fill();
-      g.fillStyle = rgb(c, 0.9); g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-      g.fillStyle = th.snow ? 'rgba(245,248,250,.75)' : rgb(c, 1.2); g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.45, 0, TAU); g.fill();
+      arc('0' + shade, x + 2.5, y + 2.5, r);
+      arc('1' + rgb(c, 0.9), x, y, r);
+      arc('2' + (hi || rgb(c, 1.2)), x - r * 0.3, y - r * 0.3, r * 0.45);
     }
   }
+  for (const [st, q] of [...P].sort((u, v) => u[0][0] - v[0][0])) { g.fillStyle = st.slice(1); g.fill(q); }
   g.restore();
 }
 function burn(x, y, r) {
@@ -362,8 +366,8 @@ const pcol = p => p.i === G.me ? COLS[0] : COLS[1 + (p.i - (p.i > G.me ? 1 : 0))
 const pname = p => p.i === G.me ? 'You' : CNAMES[1 + (p.i - (p.i > G.me ? 1 : 0)) % 6];
 function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
 function spawnPt(i) {
-  const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 1000 : 260;
-  for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 520, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
+  const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 2000 : 520;
+  for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 1040, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
   return [sx, sy];
 }
 function newMatch(opts) {
@@ -689,7 +693,7 @@ mini.addEventListener('pointerup', () => { MOUSE.mini = false; });
 let fogCv = document.createElement('canvas');
 // ================= drive view: a WebGL2 camera behind your launcher =================
 // Map units are metres. Map x → GL x, map y → GL z, terrain height → GL y.
-const HSTEP = 20, HW = MW / HSTEP + 1, HH = MH / HSTEP + 1, HK = 320;
+const HSTEP = 20, TILE = 40, HW = MW / HSTEP + 1, HH = MH / HSTEP + 1, HK = 320;
 let heights = new Float32Array(HW * HH);
 function heightAt(x, y) {
   const fx = clamp(x / HSTEP, 0, HW - 1.001), fy = clamp(y / HSTEP, 0, HH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
@@ -773,7 +777,7 @@ precision highp float; in float vA; uniform vec4 uCol; out vec4 o; void main(){ 
 // called after genMap: terrain mesh, ground texture, sprite atlas
 function glNewMap() {
   if (GL.fail || !GL.gl) return;
-  const gl = GL.gl, ew = MW / 8 + 1;
+  const gl = GL.gl, ew = EW;
   // heights from the elevation field: water flat, land rises, mountains climb
   for (let j = 0; j < HH; j++) for (let i = 0; i < HW; i++) {
     const e = elevAt(i * HSTEP, j * HSTEP);
@@ -786,8 +790,13 @@ function glNewMap() {
     const nx = -hx, ny = 2 * HSTEP, nz = -hz, l = Math.hypot(nx, ny, nz);
     P.set([i * HSTEP, h, j * HSTEP, nx / l, ny / l, nz / l, h < -1 ? 1 : 0], k * 7);
   }
-  const idx = new Uint32Array((HW - 1) * (HH - 1) * 6); let q = 0;
-  for (let j = 0; j < HH - 1; j++) for (let i = 0; i < HW - 1; i++) { const a = j * HW + i, b = a + 1, c = a + HW, d = c + 1; idx.set([a, c, b, b, c, d], q); q += 6; }
+  // indices laid out tile by tile, so the drive view can skip tiles past the far plane or behind the camera
+  const idx = new Uint32Array((HW - 1) * (HH - 1) * 6); let q = 0; GL.tiles = [];
+  for (let tj = 0; tj < HH - 1; tj += TILE) for (let ti = 0; ti < HW - 1; ti += TILE) {
+    const q0 = q, j1 = Math.min(HH - 1, tj + TILE), i1 = Math.min(HW - 1, ti + TILE);
+    for (let j = tj; j < j1; j++) for (let i = ti; i < i1; i++) { const a = j * HW + i, b = a + 1, c = a + HW, d = c + 1; idx.set([a, c, b, b, c, d], q); q += 6; }
+    GL.tiles.push({ x0: ti * HSTEP, x1: i1 * HSTEP, y0: tj * HSTEP, y1: j1 * HSTEP, off: q0 * 4, n: q - q0 });
+  }
   if (GL.terrVao) gl.deleteVertexArray(GL.terrVao);
   GL.terrVao = gl.createVertexArray(); gl.bindVertexArray(GL.terrVao);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
@@ -836,6 +845,7 @@ function glTrees(cx, cy) {
   GL.treesAt = [cx, cy]; GL.treeData = new Float32Array(out); GL.treeN = out.length / 12; GL.dirtyTrees = false;
 }
 // 4×4 matrix helpers (column-major)
+const FAR = 4000;
 function m4persp(f, a, n, fr) { const t = 1 / Math.tan(f / 2); return [t / a, 0, 0, 0, 0, t, 0, 0, 0, 0, (fr + n) / (n - fr), -1, 0, 0, 2 * fr * n / (n - fr), 0]; }
 function m4look(e, c) {
   let zx = e[0] - c[0], zy = e[1] - c[1], zz = e[2] - c[2], l = Math.hypot(zx, zy, zz); zx /= l; zy /= l; zz /= l;
@@ -861,7 +871,7 @@ function glRender(dt) {
   const ex = me.x - cs * 30, ez = me.y - sn * 30; let ey = my + 15;
   ey = Math.max(ey, heightAt(ex, ez) + 4, heightAt(me.x - cs * 15, me.y - sn * 15) + 6);
   const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 45, my + 2, me.y + sn * 45];
-  const VP = m4mul(m4persp(1.05, W / H, 0.6, 4000), m4look(eye, tgt));
+  const VP = m4mul(m4persp(1.05, W / H, 0.6, FAR), m4look(eye, tgt));
   const right = [-sn, 0, cs];
   const sky = th.snow ? [0.62, 0.68, 0.74] : MAP.theme === 'autumn' ? [0.62, 0.6, 0.56] : [0.55, 0.68, 0.78];
   const sun = (() => { const v = [-0.45, 0.75, -0.35], l = Math.hypot(...v); return v.map(a => a / l); })();
@@ -875,7 +885,13 @@ function glRender(dt) {
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, GL.texG); gl.uniform1i(GL.terr.u.uG, 0);
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, GL.texS); gl.uniform1i(GL.terr.u.uS, 1);
   gl.uniform2f(GL.terr.u.uMap, MW, MH); gl.uniform1f(GL.terr.u.uT, G.t);
-  gl.bindVertexArray(GL.terrVao); gl.drawElements(gl.TRIANGLES, GL.terrN, gl.UNSIGNED_INT, 0);
+  gl.bindVertexArray(GL.terrVao);
+  for (const t of GL.tiles) {
+    const cx = clamp(eye[0], t.x0, t.x1), cz = clamp(eye[2], t.y0, t.y1);
+    if (hyp(cx - eye[0], cz - eye[2]) > FAR) continue;                                   // past the far plane
+    if (((t.x0 + t.x1) / 2 - eye[0]) * cs + ((t.y0 + t.y1) / 2 - eye[2]) * sn < -TILE * HSTEP) continue;   // well behind the camera
+    gl.drawElements(gl.TRIANGLES, t.n, gl.UNSIGNED_INT, t.off);
+  }
   // launchers: yours, and rivals you can see
   common(GL.mesh); gl.bindVertexArray(GL.cube); gl.uniform1f(GL.mesh.u.uEm, 0);
   const box = (M, col, em = 0) => { gl.uniformMatrix4fv(GL.mesh.u.uM, false, M); gl.uniform3f(GL.mesh.u.uCol, ...col); gl.uniform1f(GL.mesh.u.uEm, em); gl.drawArrays(gl.TRIANGLES, 0, 36); };
