@@ -58,10 +58,6 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-variant-numeric: tabular-nums; }
 #money { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); font-size: 18px; color: var(--gold); transition: transform .15s; }
 #money.pop { transform: scale(1.12); }
-#bGun { position: fixed; z-index: 6; right: calc(16px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; height: 52px; padding: 0 18px; border-radius: 26px; display: none; gap: 6px; align-items: center; font-weight: 800; font-size: 15px; overflow: hidden; }
-body.playing.driving #bGun { display: inline-flex; }
-#bGun i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--gold); width: 0; }
-#bGun.cool { opacity: .6; }
 #insp { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(64px + env(safe-area-inset-top)); width: min(300px, calc(100vw - 20px)); max-height: 60vh; overflow: auto; pointer-events: auto; padding: 12px 14px; font-size: 13px; }
 #insp .ih { display: flex; align-items: center; gap: 8px; } #insp .ih i { width: 12px; height: 12px; border-radius: 50%; } #insp .ih b { font-size: 16px; }
 #insp .ih span { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; } #insp .ok { color: #9be14a; } #insp .out { color: #ff7a4a; }
@@ -146,7 +142,6 @@ body:not(.driving) #miniw { display: none; }
   </div>
 </div>
 <div id="stick"><i></i></div>
-<button id="bGun" class="ib" title="Gun (G or Space): shoots the nearest rival in sight within 300 m">🔫 <span>Gun</span><i></i></button>
 <div id="hold" class="panel hidden"><div id="holdT"></div><button class="btn alt sm" id="bHoldGo">Continue without them</button></div>
 
 <div id="title" class="screen">
@@ -169,7 +164,7 @@ body:not(.driving) #miniw { display: none; }
       <div id="mpStatus"></div>
     </div>
     <div class="panel drawer hidden" id="how">
-      <div class="grp"><h5>UP CLOSE</h5><p>Missiles need 300 m to arm. Closer than that, use the light gun: click inside the yellow ring on the map, or press G (or the Gun button) while driving to shoot the nearest rival in sight. Gun upgrades are in the shop.</p></div>
+      <div class="grp"><h5>UP CLOSE</h5><p>Missiles need 300 m to arm. Closer than that (inside the yellow ring on the map) use the light gun: click on a rival you can see. Gun upgrades are in the shop.</p></div>
       <div class="grp"><h5>THE IDEA</h5><p>You can't see your rivals. Fire anyway. The closer you land, the more you earn. Spend it on bigger blasts. Last launcher standing wins.</p></div>
       <div class="grp"><h5>CLUES</h5><p>Every landing is marked Cold → Scorching. A flash shows roughly where a rival fired from.</p></div>
       <div class="grp"><h5>DANGER</h5><p>Your own blast kills you. The aim ring turns red when you're inside it. Forest hides your launches.</p></div>
@@ -472,14 +467,15 @@ function gunSeen(viewer, shooter) {
   if (viewer.i === G.me) { G.flashes.push(f); AUD.gun(2, 0.5); }
   const ai = G.ais.find(a => a.i === viewer.i); if (ai) aiLaunch(ai, f);
 }
-// driving: the gun turns to the nearest rival in sight and within range
-function driveGun() {
-  const me = ME(); if (!G || G.over || !me.alive) return;
-  if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; }
-  let best = null, bd = Math.min(GUN_RANGE, RADAR.view[me.lv.radar]);
-  for (const q of G.players) { if (q === me || !q.alive || (G.mode === 'online' && !q.known)) continue; const d = hyp(q.x - me.x, q.y - me.y); if (d < bd) { bd = d; best = q; } }
-  if (!best) { say(`No rival in sight within ${GUN_RANGE} m`, 1.4); AUD.click(); return; }
-  fireGun(me, best.x, best.y);
+// the gun only fires at a rival you can actually see on the map, by clicking on them
+function gunTarget(X, Y) {
+  const me = ME(), view = RADAR.view[me.lv.radar]; let best = null, bd = 30;
+  for (const q of G.players) {
+    if (q === me || !q.alive || (G.mode === 'online' && !q.known)) continue;
+    const d = hyp(q.x - me.x, q.y - me.y); if (d >= GUN_RANGE || d >= view) continue;
+    const [x, y] = w2s(q.x, q.y), sd = hyp(x - X, y - Y); if (sd < bd) { bd = sd; best = q; }
+  }
+  return best;
 }
 function launchSeen(viewer, shooter, forest, smoke) {
   const fz = RADAR.fuzz[viewer.lv.radar] * (forest ? 1.7 : 1) * (smoke || stat(shooter, 'stealth')), a = R() * TAU, d = Math.sqrt(R()) * fz;
@@ -723,15 +719,18 @@ function hudPads() {
   const vis = id => { const e = $(id); return e && e.offsetParent !== null ? e.getBoundingClientRect() : null; };
   let t = 0, b = 0;
   for (const id of ['money', 'hp', 'topR']) { const r = vis(id); if (r && r.top < V.h / 2) t = Math.max(t, r.bottom); }
-  for (const id of ['status', 'miniw', 'stick']) { const r = vis(id); if (r && r.bottom > V.h / 2) b = Math.max(b, V.h - r.top); }
+  for (const id of ['status']) { const r = vis(id); if (r && r.bottom > V.h / 2) b = Math.max(b, V.h - r.top); }
   HUDPAD.t = t + 24; HUDPAD.b = b + 24; HUDPAD.at = performance.now();
 }
 function clampCam() {
   if (performance.now() - HUDPAD.at > 1000) hudPads();
-  const z = CAM.z, hw = V.w / 2 / z, hh = V.h / 2 / z, px = HUDPAD.x / z, pt = HUDPAD.t / z, pb = HUDPAD.b / z;
-  const x0 = hw - px, x1 = MW - hw + px, y0 = hh - pt, y1 = MH - hh + pb;
-  CAM.x = clamp(CAM.x, Math.min(x0, x1), Math.max(x0, x1));
-  CAM.y = clamp(CAM.y, Math.min(y0, y1), Math.max(y0, y1));
+  // per axis: a map that fits between the HUD bars sits centred there; a bigger one may be dragged until its edge clears them
+  const z = CAM.z, axis = (c, len, view, lo, hi) => {
+    if (len * z <= view - lo - hi) return len / 2 - ((lo - hi) / 2) / z;
+    return clamp(c, view / 2 / z - lo / z, len - view / 2 / z + hi / z);
+  };
+  CAM.x = axis(CAM.x, MW, V.w, HUDPAD.x, HUDPAD.x);
+  CAM.y = axis(CAM.y, MH, V.h, HUDPAD.t, HUDPAD.b);
   V.s = CAM.z;
 }
 const w2s = (x, y) => [(x - CAM.x) * CAM.z + V.w / 2, (y - CAM.y) * CAM.z + V.h / 2];
@@ -1139,9 +1138,10 @@ function draw() {
   // rounds in flight: short tracers
   ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 2 / V.s;
   for (const r of G.rounds) { if (r.t <= 0) continue; const u = clamp(r.t / r.T, 0, 1), x = lerp(r.sx, r.tx, u), y = lerp(r.sy, r.ty, u), l = hyp(r.tx - r.sx, r.ty - r.sy) || 1, k = Math.min(14, u * l); ctx.beginPath(); ctx.moveTo(x - (r.tx - r.sx) / l * k, y - (r.ty - r.sy) / l * k); ctx.lineTo(x, y); ctx.stroke(); }
-  const gunAim = AIM.on && me.alive && !G.over && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < GUN_RANGE;
-  if (gunAim) {
-    const [ax, ay] = AIM.w, sp = 3 + hyp(ax - me.x, ay - me.y) * 0.05 + GUN_HIT, c = 9 / V.s;
+  const near = AIM.on && me.alive && !G.over && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN, gq = AIM.on && me.alive && !G.over ? gunTarget(...w2s(...AIM.w)) : null, gunAim = near || !!gq;
+  if (near && !gq) { const [ax, ay] = AIM.w, c = 7 / V.s; ctx.strokeStyle = 'rgba(255,90,70,.8)'; ctx.lineWidth = 1.8 / V.s; ctx.beginPath(); ctx.moveTo(ax - c, ay - c); ctx.lineTo(ax + c, ay + c); ctx.moveTo(ax + c, ay - c); ctx.lineTo(ax - c, ay + c); ctx.stroke(); AIM.danger = false; }
+  if (gq) {
+    const ax = gq.x, ay = gq.y, sp = 3 + hyp(ax - me.x, ay - me.y) * 0.05 + GUN_HIT, c = 9 / V.s;
     ctx.strokeStyle = '#f2d24a'; ctx.lineWidth = 1.6 / V.s; ctx.beginPath(); ctx.arc(ax, ay, sp, 0, TAU); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(ax - c, ay); ctx.lineTo(ax - c / 3, ay); ctx.moveTo(ax + c / 3, ay); ctx.lineTo(ax + c, ay); ctx.moveTo(ax, ay - c); ctx.lineTo(ax, ay - c / 3); ctx.moveTo(ax, ay + c / 3); ctx.lineTo(ax, ay + c); ctx.stroke();
     const gc = stat(me, 'gcool'), k = 1 - (me.gcd || 0) / gc;
@@ -1163,17 +1163,6 @@ function draw() {
   // screen-space labels
   screenXf();
   ctx.font = '800 12px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.7)';
-  // rivals' launch rings that are off screen (or under the HUD): an arrow at the edge points the way
-  for (const f of G.flashes) {
-    const [fx, fy] = w2s(f.x, f.y), L = HUDPAD.x, T = HUDPAD.t, Rr = V.w - HUDPAD.x, B = V.h - HUDPAD.b;
-    if (fx >= L && fx <= Rr && fy >= T && fy <= B) continue;
-    const cx = V.w / 2, cy = (T + B) / 2, dx = fx - cx, dy = fy - cy, k = Math.min((dx > 0 ? Rr - 16 - cx : cx - L - 16) / Math.abs(dx || 1e-6), (dy > 0 ? B - 16 - cy : cy - T - 16) / Math.abs(dy || 1e-6));
-    const ax = cx + dx * k, ay = cy + dy * k, ang = Math.atan2(dy, dx);
-    ctx.save(); ctx.globalAlpha = Math.pow(clamp(1 - f.t / MAP_FLASH_S, 0, 1), 0.8); ctx.translate(ax, ay); ctx.rotate(ang);
-    ctx.fillStyle = G.players[f.owner] ? pcol(G.players[f.owner]) : '#ff7a4a'; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-8, -10); ctx.lineTo(-4, 0); ctx.lineTo(-8, 10); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
-  }
-  ctx.globalAlpha = 1;
   if (!me.alive || G.over) {
     ctx.font = '800 12px ui-rounded, system-ui, sans-serif';
     for (const p of G.players) {
@@ -1195,7 +1184,6 @@ function draw() {
 let lastMoney = -1;
 function hudTick() {
   const me = ME(), m = Math.floor(me.money);
-  { const g = $('bGun'), k = (me.gcd || 0) / stat(me, 'gcool'); g.classList.toggle('cool', k > 0); g.lastElementChild.style.width = (100 * (1 - k)) + '%'; }
   if ((G.inspT = (G.inspT || 0) + 1) % 8 === 0 || G.insp == null) renderInsp();
   if (m !== lastMoney) { lastMoney = m; $('money').textContent = '$' + m.toLocaleString(); refreshShop(); }
   $('hpYou').firstElementChild.style.width = (100 * me.hp / me.max) + '%';
@@ -1232,7 +1220,7 @@ function setView(v) {
   $('bMap').classList.toggle('on', v === 'map'); $('bMap').querySelector('.t').textContent = v === 'map' ? 'Drive' : 'Map';
   $('shop').classList.toggle('hidden', v !== 'shop');
   if (v !== 'map') AIM.on = false;
-  if (v === 'map') { const me = ME(), mc = G.mapCam; CAM.z = clamp(mc ? mc.z : (SET.mapZ || Math.min(V.w, V.h) / 1700), zFit(), 3.2); if (mc) { CAM.x = mc.x; CAM.y = mc.y; CAM.follow = false; clampCam(); } else centerOn(me.x, me.y, false); }
+  if (v === 'map') { hudPads(); const me = ME(), mc = G.mapCam; CAM.z = clamp(mc ? mc.z : (SET.mapZ || Math.min(V.w, V.h) / 1700), zFit(), 3.2); if (mc) { CAM.x = mc.x; CAM.y = mc.y; CAM.follow = false; clampCam(); } else centerOn(me.x, me.y, false); }
   if (v === 'shop') renderShop();
 }
 const toggleShop = on => { if (!G || !ME().alive || G.over) return; const open = on === undefined ? G.view !== 'shop' : on; if (open) setView('shop'); else if (G.view === 'shop') setView('drive'); };
@@ -1263,7 +1251,6 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape') { if (G.view === 'shop') toggleShop(false); else if (G.view === 'map' && ME().alive && !G.over) toggleMap(false); else if (!G.over) pauseMenu(!$('pause').classList.contains('hidden') ? false : true); }
   if (e.code === 'KeyN') setSound(SET.sound ? 0 : 1);
   if (e.code === 'KeyF') toggleFull();
-  if ((e.code === 'KeyG' || (e.code === 'Space' && G.view === 'drive')) && ME().alive && !G.over) { if (G.view === 'shop') setView('drive'); driveGun(); }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => KEYS.delete(e.code));
@@ -1306,13 +1293,12 @@ function renderInsp() {
   const html = rows.join(''); if (box._h !== html) { box._h = html; box.innerHTML = html; }
   box.classList.remove('hidden');
 }
-$('bGun').addEventListener('click', e => { e.stopPropagation(); AUD.init(); driveGun(); });
-$('bGun').addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 $('insp').addEventListener('click', e => { if (e.target.closest('[data-x]')) { G.insp = null; renderInsp(); } });
 function tryFire(keepOpen) {
   const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
-  const gd = hyp(AIM.w[0] - me.x, AIM.w[1] - me.y);
-  if (gd < GUN_RANGE) { if (gd < 12) return; if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; } fireGun(me, ...AIM.w); return; }
+  const [X, Y] = w2s(...AIM.w), tq = gunTarget(X, Y);
+  if (tq) { if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; } fireGun(me, tq.x, tq.y); return; }
+  if (hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) { AUD.click(); say('Too close for a missile. Click a rival you can see to use the gun', 1.8); return; }
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
   if (fire(me, ...AIM.w) && !keepOpen && SET.autoDrive === 1) setTimeout(() => { if (G && G.view === 'map' && ME().alive && !G.over) setView('drive'); }, 350);
 }
@@ -1344,7 +1330,7 @@ const tEnd = e => {
     if (e.type === 'touchend' && p.moved < 10 && performance.now() - p.t0 < 450 && !pinch && G && !G.over && !G.paused) {
       if (inspectAt(t.clientX, t.clientY)) continue;
       const w = s2w(t.clientX, t.clientY), me = ME(); AIM.on = true; AIM.w = w; AIM.t = 1.2;
-      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6 && hyp(w[0] - me.x, w[1] - me.y) >= GUN_RANGE;
+      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6 && hyp(w[0] - me.x, w[1] - me.y) >= MISSILE_MIN && !gunTarget(t.clientX, t.clientY);
       if (danger && !(tapArm && hyp(tapArm[0] - w[0], tapArm[1] - w[1]) < 30 / CAM.z && performance.now() - tapArm[2] < 1600)) { tapArm = [w[0], w[1], performance.now()]; say('Too close! Tap again to fire anyway', 1.4); AUD.warn(); }
       else { tapArm = null; tryFire(); }
     }
@@ -1638,10 +1624,11 @@ function driveOverlay() {
 function hudStatus() {
   const me = ME(), el = $('status'); let t = '', ready = false;
   if (!me.alive || G.over) t = G.view === 'map' ? (document.body.classList.contains('touch') ? 'Tap a launcher for details' : 'Click a launcher for details') : me.alive ? '' : 'Out · watching the rest';
-  else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < GUN_RANGE) t = (me.gcd || 0) > 0 ? `Gun cooling ${me.gcd.toFixed(1)} s` : 'Gun range · click to fire a burst (missiles need 300 m)';
+  else if (G.view === 'map' && AIM.on && gunTarget(...w2s(...AIM.w))) t = (me.gcd || 0) > 0 ? `Gun cooling ${me.gcd.toFixed(1)} s` : 'Click to fire the gun at them';
+  else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) t = 'Too close for a missile · click a rival you can see for the gun';
   else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : (SET.autoDrive === 1 ? 'Click to fire, then you\'re back to driving · Shift-click stays' : 'Click to fire · W to drive · Space finds you');
-  else if (G.view === 'drive') { ready = me.cd <= 0; t = (ready ? 'Missile ready · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`) + ' · Gun: G'; }
-  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
+  else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
+  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace('Click to fire the gun', 'Tap to fire the gun').replace('click a rival', 'tap a rival').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
   if (el.textContent !== t) el.textContent = t;
   el.classList.toggle('ready', ready); el.classList.toggle('hidden', !t);
 }
