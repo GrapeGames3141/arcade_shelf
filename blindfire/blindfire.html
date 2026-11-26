@@ -45,6 +45,7 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .seg button { border: 0; background: none; padding: 7px 11px; font-size: 13px; font-weight: 700; color: var(--soft); }
 .seg button.on { background: var(--gold); color: #10170f; }
 .room { display: flex; gap: 8px; }
+.room.nm input { letter-spacing: .02em; text-transform: none; font: 700 17px/1 ui-rounded, system-ui, sans-serif; }
 .room input { flex: 1; min-width: 0; font: 800 18px/1 ui-monospace, Menlo, monospace; letter-spacing: .25em; text-transform: uppercase; color: var(--ink); background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 #mpStatus { color: var(--soft); font-size: 14px; min-height: 1.4em; overflow-wrap: anywhere; }
 #roomCode { font: 800 22px/1 ui-monospace, Menlo, monospace; letter-spacing: .22em; margin-right: 4px; user-select: all; -webkit-user-select: all; }
@@ -152,6 +153,7 @@ body:not(.driving) #miniw { display: none; }
     <div><button class="btn big" id="bCpu">▶ Play the CPU</button></div>
     <div class="sub"><button id="bFriend">Play online</button><button id="bHow">How to play</button><button id="bSet">Settings</button><a href="../index.html" data-arcade-home>🏠 Arcade Shelf</a></div>
     <div class="panel drawer hidden" id="friend">
+      <div class="grp"><h5>YOUR NAME</h5><div class="room nm"><input id="nameIn" maxlength="14" placeholder="Pick a name" autocomplete="nickname" spellcheck="false"></div></div>
       <div id="joinRows" class="drawer">
         <div class="grp"><h5>NEW ROOM · UP TO 6 PLAYERS</h5><div><button class="btn alt" id="bCreate">Create a room</button></div></div>
         <div class="grp"><h5>JOIN A ROOM</h5><div class="room"><input id="roomIn" maxlength="5" placeholder="CODE" autocomplete="off" spellcheck="false"><button class="btn alt" id="bJoin">Join</button></div></div>
@@ -212,7 +214,7 @@ let R = rng(1);
 function hash(x, y, s) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function vnoise(x, y, s) { const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, f = t => t * t * (3 - 2 * t); const a = hash(i, j, s), b = hash(i + 1, j, s), c = hash(i, j + 1, s), d = hash(i + 1, j + 1, s); return lerp(lerp(a, b, f(u)), lerp(c, d, f(u)), f(v)); }
 function fbm(x, y, s, o = 4) { let t = 0, a = 0.5, n = 0; for (let k = 0; k < o; k++) { t += a * vnoise(x, y, s + k * 17); n += a; x *= 2.02; y *= 2.02; a *= 0.5; } return t / n; }
-const SET = { diff: 1, sound: 1, rivals: 1, autoDrive: 0 };
+const SET = { diff: 1, sound: 1, rivals: 1, autoDrive: 0, name: '' };
 try { Object.assign(SET, JSON.parse(localStorage.getItem('blindfire.set') || '{}')); } catch (e) { }
 const saveSet = () => { try { localStorage.setItem('blindfire.set', JSON.stringify(SET)); } catch (e) { } };
 
@@ -385,7 +387,10 @@ let G = null;
 const COLS = ['#5fd4ff', '#ff7a4a', '#ff5ab4', '#f2d24a', '#9be14a', '#b48cff', '#4ae0c0'], CNAMES = ['Blue', 'Orange', 'Pink', 'Yellow', 'Lime', 'Violet', 'Teal'];
 const MARK_S = 6, MAP_FLASH_S = 7;   // seconds your shot markers and rivals' launch rings stay on the map
 const pcol = p => COLS[p.i % COLS.length];   // each launcher keeps its colour on every screen
-const pname = p => p.i === G.me ? 'You' : CNAMES[p.i % CNAMES.length];
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const cleanName = t => String(t || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14);
+const nameOf = pid => (pid && MP.names.get(pid)) || '';
+const pname = p => p.i === G.me ? 'You' : (G && G.roster && nameOf(G.roster[p.i])) || CNAMES[p.i % CNAMES.length];
 function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, gcd: 0, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
 function spawnPt(i) {
   const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 2000 : 520;
@@ -401,7 +406,7 @@ function newMatch(opts) {
   if (G.mode === 'cpu') for (let i = 1; i < n; i++) G.ais.push(aiInit(i));
   for (const id of ['title', 'pause', 'end']) $(id).classList.add('hidden');
   $('hud').classList.remove('hidden'); document.body.classList.add('playing');
-  document.documentElement.style.setProperty('--you', pcol(ME())); $('hp').firstElementChild.textContent = 'YOU · ' + CNAMES[G.me % CNAMES.length].toUpperCase();
+  document.documentElement.style.setProperty('--you', pcol(ME())); $('hp').firstElementChild.textContent = (SET.name || 'You').toUpperCase() + ' · ' + CNAMES[G.me % CNAMES.length].toUpperCase();
   renderRivals(); renderShop(); AUD.init(); lastMoney = -1;
   ME().tank = true; GL.hd = ME().hd; $('shop').classList.add('hidden');
   layout(); centerOn(ME().x, ME().y, true); miniBase = null; setView('drive');
@@ -1216,7 +1221,7 @@ function hudTick() {
 }
 function renderRivals() {
   const el = $('rivals'); el.classList.toggle('one', G.n === 2);
-  el.innerHTML = G.players.filter(p => p.i !== G.me).map(p => `<div class="rb${p.alive ? '' : ' out'}" id="rb${p.i}" title="${pname(p)}"><i style="background:${pcol(p)};width:${100 * p.hp / p.max}%"></i></div>`).join('');
+  el.innerHTML = G.players.filter(p => p.i !== G.me).map(p => `<div class="rb${p.alive ? '' : ' out'}" id="rb${p.i}" title="${esc(pname(p))}"><i style="background:${pcol(p)};width:${100 * p.hp / p.max}%"></i></div>`).join('');
 }
 function renderShop() {
   const me = ME();
@@ -1306,7 +1311,7 @@ function renderInsp() {
   const box = $('insp'), p = G && G.insp != null ? G.players[G.insp] : null;
   if (!p || G.view !== 'map') { box.classList.add('hidden'); return; }
   const me = ME(), known = p === me || G.mode === 'cpu' || p.info, rows = [];
-  rows.push(`<div class="ih"><i style="background:${pcol(p)}"></i><b>${p === me ? 'You · ' + CNAMES[p.i % CNAMES.length] : pname(p)}</b><span class="${p.alive ? 'ok' : 'out'}">${p.alive ? 'In the fight' : 'Out'}</span><button class="ix" data-x>✕</button></div>`);
+  rows.push(`<div class="ih"><i style="background:${pcol(p)}"></i><b>${p === me ? 'You · ' + esc(SET.name || CNAMES[p.i % CNAMES.length]) : esc(pname(p)) + (G.roster && nameOf(G.roster[p.i]) ? ' · ' + CNAMES[p.i % CNAMES.length] : '')}</b><span class="${p.alive ? 'ok' : 'out'}">${p.alive ? 'In the fight' : 'Out'}</span><button class="ix" data-x>✕</button></div>`);
   rows.push(`<div class="ibar"><i style="width:${100 * Math.max(0, p.hp) / p.max}%;background:${pcol(p)}"></i></div><div class="irow"><span>Hull ${Math.max(0, Math.round(p.hp))} / ${p.max}</span>${known ? `<span>💰 $${Math.floor(p.money).toLocaleString()}</span>` : ''}</div>`);
   if (known) {
     const st = p.st || {};
@@ -1410,7 +1415,7 @@ function menuBackdrop() { genMap((Math.random() * 1e9) | 0, 2); backdrop = true;
 // while they're gone everyone else's match is paused for up to HOLD_S seconds.
 const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? 'http://127.0.0.1:8787' : 'https://relay.thearcadeshelf.com');
 const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', MAX_PLAYERS = 6, HOLD_S = 90;
-const MP = { ws: null, seat: -1, code: '', present: new Set(), pidOf: new Map(), pid: '', retry: 0, want: false };
+const MP = { names: new Map(), ws: null, seat: -1, code: '', present: new Set(), pidOf: new Map(), pid: '', retry: 0, want: false };
 try { MP.pid = localStorage.getItem('blindfire.pid') || ''; } catch (e) { }
 if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('blindfire.pid', MP.pid); } catch (e) { } }
 const mpStatus = h => { $('mpStatus').innerHTML = h; };
@@ -1504,7 +1509,7 @@ function renderLobby() {
   $('lobby').classList.toggle('hidden', !on); $('joinRows').classList.toggle('hidden', on);
   if (!on) return;
   const seats = lobbyOrder(), hs = seats.find(s => isHostSeat(s));
-  $('lobbyList').innerHTML = seats.map((s, k) => `<span style="color:${COLS[k % 7]}">${s === MP.seat ? 'You (' + CNAMES[k % 7] + ')' : CNAMES[k % 7]}${s === hs ? ' · host' : ''}</span>`).join('');
+  $('lobbyList').innerHTML = seats.map((s, k) => { const n = s === MP.seat ? SET.name : nameOf(seatPid(s)); return `<span style="color:${COLS[k % 7]}">${s === MP.seat ? 'You (' + esc(n || CNAMES[k % 7]) + ')' : esc(n || CNAMES[k % 7])}${s === hs ? ' · host' : ''}</span>`; }).join('');
   const host = isHost();
   $('bStart').classList.toggle('hidden', !host); $('bStart').disabled = seats.length < 2;
   $('bStart').textContent = seats.length < 2 ? 'Waiting for players…' : `▶ Start · ${seats.length} players`;
@@ -1525,15 +1530,17 @@ function beginOnline(seed, roster) {
 function mpMsg(m) {
   if (m.k === 'full') { mpStatus('That room is full.'); return; }
   if (m.k === 'hello') {
-    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid, own: MP.owner }); renderLobby();
+    MP.seat = m.seat; MP.present = new Set([m.seat, ...(m.seats || [])]); mpSend({ k: 'here', seat: m.seat, pid: MP.pid, own: MP.owner, nm: SET.name }); renderLobby();
     // coming back to a match: wait for the host's sync; if nothing comes the match is over
     if (loadRec() && loadRec().room === MP.code) { clearTimeout(MP.syncT); MP.syncT = setTimeout(() => { if (!(G && G.mode === 'online' && !G.lost)) { clearRec(); mpStatus('That match has ended. You can join the next one from here.'); } else if (G && G.lost) { G.lost = null; renderHold(); endMatch(-1, 'left'); } }, 8000); }
     return;
   }
+  if (m.k === 'nm') { if (m.pid) MP.names.set(m.pid, cleanName(m.nm)); renderLobby(); if (G) renderRivals(); return; }
   if (m.k === 'here') {
     const isNew = !MP.present.has(m.seat); MP.present.add(m.seat); if (m.pid) MP.pidOf.set(m.seat, m.pid);
     if (m.own && !MP.owner) MP.owner = m.own;
-    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1, own: MP.owner });   // always answer a newcomer so everyone knows everyone's id
+    if (m.pid) MP.names.set(m.pid, cleanName(m.nm));
+    if (isNew || !m.re) mpSend({ k: 'here', seat: MP.seat, pid: MP.pid, re: 1, own: MP.owner, nm: SET.name });   // always answer a newcomer so everyone knows everyone's id
     renderLobby(); if (G && G.over) updateAgain();
     // a player from the running match is back
     if (m.pid && !m.re && G && G.mode === 'online' && !G.over && G.roster && G.roster.includes(m.pid) && m.pid !== MP.pid && isHost()) sendSync(m.pid);
@@ -1568,6 +1575,11 @@ function mpMsg(m) {
   else if (m.k === 'self') eliminate(p, 'self', p);
   else if (m.k === 'quit') eliminate(p, 'left', null);
 }
+// your name: saved as you type, sent to the room when you're done
+$('nameIn').value = SET.name || '';
+$('nameIn').addEventListener('input', () => { SET.name = cleanName($('nameIn').value); saveSet(); renderLobby(); });
+$('nameIn').addEventListener('change', () => { $('nameIn').value = SET.name; mpSend({ k: 'nm', pid: MP.pid, nm: SET.name }); });
+$('nameIn').addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') $('nameIn').blur(); });
 $('bCreate').onclick = () => { AUD.init(); let c = ''; for (let i = 0; i < 5; i++) c += ROOM_ABC[(Math.random() * ROOM_ABC.length) | 0]; mpConnect(c); MP.owner = MP.pid; MP.ownRoom = c; };
 $('bJoin').onclick = () => { AUD.init(); const c = $('roomIn').value.toUpperCase().replace(/[^A-Z2-9]/g, ''); if (c.length !== 5) { mpStatus('Room codes are 5 letters.'); return; } mpConnect(c); };
 $('bStart').onclick = () => { AUD.init(); hostStart(); };
