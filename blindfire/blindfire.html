@@ -767,11 +767,11 @@ function panBy(dx, dy) { CAM.x += dx; CAM.y += dy; CAM.follow = false; clampCam(
 function centerOn(x, y, follow) { CAM.x = x; CAM.y = y; CAM.follow = !!follow; clampCam(); }
 // camera each frame: follow your launcher, arrow keys and screen edges scroll
 function camStep(dt) {
-  if (!G) return;
+  if (!G || G.view !== 'map') return;   // closed, the map stays exactly where you left it
   const me = ME(), sp = 760 / CAM.z * dt;
   let px = 0, py = 0;
   if (KEYS.has('ArrowLeft')) px -= 1; if (KEYS.has('ArrowRight')) px += 1; if (KEYS.has('ArrowUp')) py -= 1; if (KEYS.has('ArrowDown')) py += 1;
-  if (MOUSE.in && !MOUSE.drag && !G.over) { const e = 14; if (MOUSE.x < e) px -= 1; if (MOUSE.x > V.w - e) px += 1; if (MOUSE.y < e) py -= 1; if (MOUSE.y > V.h - e) py += 1; }
+  // no screen-edge scrolling: reaching for a button along an edge used to slide the map away (drag, arrow keys and the wheel move it)
   if (px || py) panBy(px * sp, py * sp);
   // driving pulls the camera back once your launcher nears the edge of the screen
   if (!CAM.follow && me.alive && (me.mx || me.my)) { const [sx, sy] = w2s(me.x, me.y); if (Math.abs(sx - V.w / 2) > V.w * 0.36 || Math.abs(sy - V.h / 2) > V.h * 0.36) CAM.follow = true; }
@@ -1239,7 +1239,7 @@ function refreshShop() {
   $('shopList').querySelectorAll('.up').forEach(b => { const u = UP.find(u => u.k === b.dataset.k), l = me.lv[u.k], max = l >= u.c.length; b.classList.toggle('max', max); b.classList.toggle('poor', !max && me.money < u.c[l]); b.disabled = max || me.money < u.c[l]; });
 }
 // three exclusive modes: driving, the map (to fire), the upgrade shop
-function rememberMap() { G.mapCam = { x: CAM.x, y: CAM.y, z: CAM.z }; SET.mapZ = CAM.z; saveSet(); }
+function rememberMap() { G.mapCam = { x: CAM.x, y: CAM.y, z: CAM.z }; SET.mapZ = CAM.z; SET.mapCam = { seed: SEED, x: Math.round(CAM.x), y: Math.round(CAM.y) }; saveSet(); }
 function setView(v) {
   if (!G) return; if (G.view === 'map' && v !== 'map') rememberMap(); G.view = v;
   document.body.classList.toggle('driving', v === 'drive');
@@ -1248,7 +1248,7 @@ function setView(v) {
   $('bMap').classList.toggle('on', v === 'map'); $('bMap').querySelector('.t').textContent = v === 'map' ? 'Drive' : 'Map';
   $('shop').classList.toggle('hidden', v !== 'shop');
   if (v !== 'map') AIM.on = false;
-  if (v === 'map') { hudPads(); const me = ME(), mc = G.mapCam; CAM.z = clamp(mc ? mc.z : (SET.mapZ || Math.min(V.w, V.h) / 1700), zFit(), 3.2); if (mc) { CAM.x = mc.x; CAM.y = mc.y; CAM.follow = false; clampCam(); } else centerOn(me.x, me.y, false); }
+  if (v === 'map') { hudPads(); const me = ME(), mc = G.mapCam || (SET.mapCam && SET.mapCam.seed === SEED && G.mode === 'online' ? Object.assign({ z: SET.mapZ || CAM.z }, SET.mapCam) : null); CAM.z = clamp(mc ? mc.z : (SET.mapZ || Math.min(V.w, V.h) / 1700), zFit(), 3.2); if (mc) { CAM.x = mc.x; CAM.y = mc.y; CAM.follow = false; clampCam(); } else centerOn(me.x, me.y, false); }
   if (v === 'shop') renderShop();
 }
 const toggleShop = on => { if (!G || !ME().alive || G.over) return; const open = on === undefined ? G.view !== 'shop' : on; if (open) setView('shop'); else if (G.view === 'shop') setView('drive'); };
@@ -1284,8 +1284,12 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => KEYS.delete(e.code));
 addEventListener('blur', () => { KEYS.clear(); MOUSE.in = false; });
 cv.addEventListener('contextmenu', e => e.preventDefault());
+// touch screens send pretend mouse moves where you tapped: those must never start edge scrolling
+let lastTouchAt = 0;
+addEventListener('touchstart', () => { lastTouchAt = performance.now(); MOUSE.real = false; }, { passive: true, capture: true });
 cv.addEventListener('mousemove', e => {
-  MOUSE.x = e.clientX; MOUSE.y = e.clientY; MOUSE.in = true;
+  MOUSE.x = e.clientX; MOUSE.y = e.clientY; MOUSE.in = true; MOUSE.at = performance.now();
+  MOUSE.real = !document.body.classList.contains('touch') && performance.now() - lastTouchAt > 800 && (e.sourceCapabilities ? !e.sourceCapabilities.firesTouchEvents : true);
   if (MOUSE.drag) { panBy(-(e.clientX - MOUSE.drag.x) / CAM.z, -(e.clientY - MOUSE.drag.y) / CAM.z); MOUSE.drag.x = e.clientX; MOUSE.drag.y = e.clientY; return; }
   if (!G || G.view !== 'map') return; AIM.on = true; AIM.w = s2w(e.clientX, e.clientY);
 });
