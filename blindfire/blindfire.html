@@ -58,6 +58,10 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 .chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 800; font-variant-numeric: tabular-nums; }
 #money { position: absolute; left: calc(10px + env(safe-area-inset-left)); top: calc(10px + env(safe-area-inset-top)); font-size: 18px; color: var(--gold); transition: transform .15s; }
 #money.pop { transform: scale(1.12); }
+#bGun { position: fixed; z-index: 6; right: calc(16px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); width: auto; height: 52px; padding: 0 18px; border-radius: 26px; display: none; gap: 6px; align-items: center; font-weight: 800; font-size: 15px; overflow: hidden; }
+body.playing.driving #bGun { display: inline-flex; }
+#bGun i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--gold); width: 0; }
+#bGun.cool { opacity: .6; }
 #insp { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(64px + env(safe-area-inset-top)); width: min(300px, calc(100vw - 20px)); max-height: 60vh; overflow: auto; pointer-events: auto; padding: 12px 14px; font-size: 13px; }
 #insp .ih { display: flex; align-items: center; gap: 8px; } #insp .ih i { width: 12px; height: 12px; border-radius: 50%; } #insp .ih b { font-size: 16px; }
 #insp .ih span { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; } #insp .ok { color: #9be14a; } #insp .out { color: #ff7a4a; }
@@ -142,6 +146,7 @@ body:not(.driving) #miniw { display: none; }
   </div>
 </div>
 <div id="stick"><i></i></div>
+<button id="bGun" class="ib" title="Gun (G or Space): shoots the nearest rival in sight within 300 m">🔫 <span>Gun</span><i></i></button>
 <div id="hold" class="panel hidden"><div id="holdT"></div><button class="btn alt sm" id="bHoldGo">Continue without them</button></div>
 
 <div id="title" class="screen">
@@ -164,6 +169,7 @@ body:not(.driving) #miniw { display: none; }
       <div id="mpStatus"></div>
     </div>
     <div class="panel drawer hidden" id="how">
+      <div class="grp"><h5>UP CLOSE</h5><p>Missiles need 300 m to arm. Closer than that, use the light gun: click inside the yellow ring on the map, or press G (or the Gun button) while driving to shoot the nearest rival in sight. Gun upgrades are in the shop.</p></div>
       <div class="grp"><h5>THE IDEA</h5><p>You can't see your rivals. Fire anyway. The closer you land, the more you earn. Spend it on bigger blasts. Last launcher standing wins.</p></div>
       <div class="grp"><h5>CLUES</h5><p>Every landing is marked Cold → Scorching. A flash shows roughly where a rival fired from.</p></div>
       <div class="grp"><h5>DANGER</h5><p>Your own blast kills you. The aim ring turns red when you're inside it. Forest hides your launches.</p></div>
@@ -343,6 +349,9 @@ const UP = [
   { k: 'cluster', grp: 'Offense', ic: '🎆', nm: 'Cluster bomblets', v: [0, 1, 2, 3, 4, 6], base: 700, g: 1.7, f: v => v ? v + (v === 1 ? ' bomblet' : ' bomblets') + ' around each blast' : 'single warhead' },
   { k: 'reload', grp: 'Offense', ic: '⏱', nm: 'Autoloader', v: [3.2, 2.9, 2.6, 2.35, 2.1, 1.9, 1.7, 1.5, 1.35, 1.2], base: 150, g: 1.4, f: v => v + ' s reload' },
   { k: 'speed', grp: 'Offense', ic: '🚀', nm: 'Rocket motor', v: [300, 350, 400, 460, 520, 600, 680, 780, 880], base: 120, g: 1.4, f: v => v + ' m/s missiles' },
+  { k: 'cal', grp: 'Gun', ic: '🔫', nm: 'Gun caliber', v: [6, 7, 8.5, 10, 12, 14], base: 110, g: 1.45, f: v => v + ' damage a round' },
+  { k: 'feed', grp: 'Gun', ic: '🎞', nm: 'Ammo belt', v: [4, 5, 6, 7, 8], base: 130, g: 1.5, f: v => v + ' rounds a burst' },
+  { k: 'gcool', grp: 'Gun', ic: '🌀', nm: 'Barrel cooling', v: [1.8, 1.55, 1.3, 1.1, 0.9, 0.75], base: 120, g: 1.45, f: v => v + ' s between bursts' },
   { k: 'armor', grp: 'Defense', ic: '🛡', nm: 'Armor', v: [100, 115, 130, 150, 170, 195, 220, 250, 280], base: 150, g: 1.4, f: v => v + ' hull' },
   { k: 'repair', grp: 'Defense', ic: '🔧', nm: 'Repair crew', v: [0, 0.5, 1, 1.5, 2, 3], base: 250, g: 1.6, f: v => v ? 'repairs ' + v + ' hull/s' : 'no repairs' },
   { k: 'stealth', grp: 'Defense', ic: '🌫', nm: 'Smoke screen', v: [1, 1.25, 1.5, 1.8, 2.2, 2.7], base: 200, g: 1.6, f: v => v === 1 ? 'normal launch flash' : 'launch flash ×' + v + ' vaguer' },
@@ -353,7 +362,7 @@ const UP = [
 ];
 for (const u of UP) u.c = price(u.base, u.g, u.v.length - 1);
 const RADAR = { view: [180, 200, 220, 245, 270, 300, 340], fuzz: [420, 360, 300, 240, 180, 120, 80], warn: [2.0, 2.4, 2.8, 3.2, 3.6, 4.0, 4.5] };
-const stat = (p, k) => { const u = UP.find(u => u.k === k); return u.v[p.lv[k]]; };
+const stat = (p, k) => { const u = UP.find(u => u.k === k); return u.v[(p.lv && p.lv[k]) || 0]; };
 const BANDS = [
   { id: 'hit', nm: 'HIT', g: 0, pay: 200, col: '#ffffff' },
   { id: 'scorch', nm: 'Scorching', g: 90, pay: 180, col: '#ff4a3a' },
@@ -366,6 +375,8 @@ const bandFor = gap => BANDS.find(b => gap < b.g) || BANDS[5];
 const bandRange = (id, r) => { const i = BANDS.findIndex(b => b.id === id); return [i === 0 ? 0 : r + BANDS[i - 1].g, i === 0 ? r : r + BANDS[i].g]; };
 const dmgAt = (d, r) => (60 + r * 0.5) * (1 - 0.6 * d / r);
 const INCOME = 7;
+// short range: missiles need room to arm, so inside MISSILE_MIN only the light gun works (and it reaches no further)
+const MISSILE_MIN = 300, GUN_RANGE = 300, GUN_SPEED = 700, GUN_HIT = 9, GUN_HEAR = 900;
 // the steady trickle of money only flows while you're driving or at the map to fire; parked or in the upgrade menu it stops
 const earning = p => p.i !== G.me ? G.mode === 'cpu' : G.view === 'map' || (G.view === 'drive' && hyp(p.mx || 0, p.my || 0) > 0.1);
 
@@ -376,7 +387,7 @@ const COLS = ['#5fd4ff', '#ff7a4a', '#ff5ab4', '#f2d24a', '#9be14a', '#b48cff', 
 const MARK_S = 6, MAP_FLASH_S = 7;   // seconds your shot markers and rivals' launch rings stay on the map
 const pcol = p => COLS[p.i % COLS.length];   // each launcher keeps its colour on every screen
 const pname = p => p.i === G.me ? 'You' : CNAMES[p.i % CNAMES.length];
-function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
+function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, gcd: 0, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
 function spawnPt(i) {
   const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 2000 : 520;
   for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 1040, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
@@ -386,7 +397,7 @@ function newMatch(opts) {
   const n = opts.n || 2;
   genMap(opts.seed, n);
   const players = []; for (let i = 0; i < n; i++) players.push(mkPlayer(i, ...spawnPt(i)));
-  G = { mode: opts.mode, me: opts.me || 0, n, roster: opts.roster || null, t: 0, over: false, players, missiles: [], fx: [], marks: [], flashes: [], floats: [], shake: 0, nextId: 1, msgT: 0, paused: false, sentT: 0, pend: {}, out: [], place: 0, ais: [], subs: [], spots: [], log: [], hold: null, lost: null, recT: 0 };
+  G = { mode: opts.mode, me: opts.me || 0, n, roster: opts.roster || null, t: 0, over: false, players, missiles: [], rounds: [], bursts: {}, fx: [], marks: [], flashes: [], floats: [], shake: 0, nextId: 1, msgT: 0, paused: false, sentT: 0, pend: {}, out: [], place: 0, ais: [], subs: [], spots: [], log: [], hold: null, lost: null, recT: 0 };
   $('rejoinRow').classList.add('hidden'); renderHold();
   if (G.mode === 'cpu') for (let i = 1; i < n; i++) G.ais.push(aiInit(i));
   for (const id of ['title', 'pause', 'end']) $(id).classList.add('hidden');
@@ -405,6 +416,7 @@ function say(t, s = 2.4) { $('msg').textContent = t; $('msg').classList.add('on'
 function fire(p, tx, ty) {
   if (!p.alive || p.cd > 0 || G.over) return false;
   tx = clamp(tx, 0, MW); ty = clamp(ty, 0, MH);
+  if (hyp(tx - p.x, ty - p.y) < MISSILE_MIN) return false;   // too close for a heavy munition: that's gun range
   const d = hyp(tx - p.x, ty - p.y), T = Math.max(1.2, d / stat(p, 'speed') + 0.5), r = stat(p, 'blast');
   const m = { id: G.nextId++, o: p.i, sx: p.x, sy: p.y, tx, ty, t: 0, T, r, cl: stat(p, 'cluster') };
   G.missiles.push(m); p.cd = stat(p, 'reload'); p.st.shots++;
@@ -415,6 +427,59 @@ function fire(p, tx, ty) {
   if (p.i === G.me) AUD.launch(1);
   if (G.mode === 'online' && p.i === G.me) mpSend({ k: 'fire', from: p.i, id: m.id, sx: Math.round(m.sx), sy: Math.round(m.sy), tx: Math.round(tx), ty: Math.round(ty), T: +T.toFixed(3), r, forest, cl: m.cl, smoke: stat(p, 'stealth') });
   return true;
+}
+// the light gun: a burst of rounds at a point within GUN_RANGE. Each round lands near the aim point and hurts anyone within GUN_HIT
+function fireGun(p, tx, ty) {
+  if (!p.alive || G.over || (p.gcd || 0) > 0) return false;
+  tx = clamp(tx, 0, MW); ty = clamp(ty, 0, MH);
+  const d = hyp(tx - p.x, ty - p.y); if (d > GUN_RANGE + 1 || d < 12) return false;
+  const n = stat(p, 'feed'), dmg = stat(p, 'cal'), spread = 3 + d * 0.05, id = G.nextId++, shots = [];
+  for (let k = 0; k < n; k++) { const a = R() * TAU, r = spread * Math.sqrt(R()); shots.push([Math.round(tx + Math.cos(a) * r), Math.round(ty + Math.sin(a) * r), +(k * 0.09).toFixed(2)]); }
+  p.gcd = stat(p, 'gcool'); p.hd = Math.atan2(ty - p.y, tx - p.x); p.st.shots++;
+  spawnRounds(p.i, id, p.x, p.y, shots, dmg);
+  if (p.i === G.me) AUD.gun(n);
+  if (G.mode === 'cpu') for (const q of G.players) if (q !== p && q.alive) gunSeen(q, p);
+  if (G.mode === 'online' && p.i === G.me) mpSend({ k: 'gun', from: p.i, id, sx: Math.round(p.x), sy: Math.round(p.y), shots, dmg });
+  return true;
+}
+function spawnRounds(o, id, sx, sy, shots, dmg) {
+  G.bursts[o + ':' + id] = { left: shots.length, dmg: 0 };
+  for (const [tx, ty, dl] of shots) G.rounds.push({ o, id, sx, sy, tx, ty, t: -dl, T: hyp(tx - sx, ty - sy) / GUN_SPEED + 0.05, dmg });
+}
+function roundHit(r) {
+  G.fx.push({ k: 'spark', x: r.tx, y: r.ty, t: 0 });
+  const key = r.o + ':' + r.id, b = G.bursts[key], shooter = G.players[r.o], me = ME(), online = G.mode === 'online';
+  if (!G.over) for (const q of G.players) {
+    if (q === shooter || !q.alive || (online && q !== me) || hyp(q.x - r.tx, q.y - r.ty) >= GUN_HIT) continue;
+    q.hp = Math.max(0, q.hp - r.dmg); if (b) b.dmg += r.dmg;
+    if (q === me && online) mpSend({ k: 'hp', from: G.me, hp: Math.round(me.hp), max: me.max });
+    afterJudge({ o: r.o }, q, { dmg: r.dmg });
+  }
+  if (b && --b.left <= 0) {
+    delete G.bursts[key];
+    if (b.dmg) { if (!online) gunPay(shooter, b.dmg, r); else if (r.o !== G.me) mpSend({ k: 'ghit', from: G.me, to: r.o, dmg: b.dmg }); }
+  }
+}
+function gunPay(shooter, dmg, r) {
+  const amt = Math.round(dmg * 5 * stat(shooter, 'bounty'));
+  shooter.money += amt; shooter.st.earned += amt; shooter.st.hits++;
+  if (shooter.i === G.me) { G.floats.push({ x: r ? r.tx : shooter.x, y: r ? r.ty : shooter.y, txt: '+$' + amt + ' · gun hit', col: '#f2d24a', t: 0 }); AUD.ping(1); say('Gun hit! ' + Math.round(dmg) + ' damage', 1.4); }
+}
+// gunfire is loud but short-ranged: anyone within GUN_HEAR sees a tight flash where it came from
+function gunSeen(viewer, shooter) {
+  if (hyp(shooter.x - viewer.x, shooter.y - viewer.y) > GUN_HEAR) return;
+  const a = R() * TAU, d = R() * 40, f = { x: clamp(shooter.x + Math.cos(a) * d, 0, MW), y: clamp(shooter.y + Math.sin(a) * d, 0, MH), r: 45, t: 0, life: 1.3, owner: shooter.i, gun: true };
+  if (viewer.i === G.me) { G.flashes.push(f); AUD.gun(2, 0.5); }
+  const ai = G.ais.find(a => a.i === viewer.i); if (ai) aiLaunch(ai, f);
+}
+// driving: the gun turns to the nearest rival in sight and within range
+function driveGun() {
+  const me = ME(); if (!G || G.over || !me.alive) return;
+  if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; }
+  let best = null, bd = Math.min(GUN_RANGE, RADAR.view[me.lv.radar]);
+  for (const q of G.players) { if (q === me || !q.alive || (G.mode === 'online' && !q.known)) continue; const d = hyp(q.x - me.x, q.y - me.y); if (d < bd) { bd = d; best = q; } }
+  if (!best) { say(`No rival in sight within ${GUN_RANGE} m`, 1.4); AUD.click(); return; }
+  fireGun(me, best.x, best.y);
 }
 function launchSeen(viewer, shooter, forest, smoke) {
   const fz = RADAR.fuzz[viewer.lv.radar] * (forest ? 1.7 : 1) * (smoke || stat(shooter, 'stealth')), a = R() * TAU, d = Math.sqrt(R()) * fz;
@@ -543,7 +608,7 @@ function buy(p, k) {
 // Each CPU keeps a belief map of where its rivals might be and updates it with the same clues you get.
 const BG = 60, BW = MW / BG, BH = MH / BG;
 function aiInit(i) {
-  const ai = { i, b: new Float32Array(BW * BH), blurT: R() * 0.6, wander: null, think: 1 + R(), order: ['blast', 'reload', 'radar', 'blast', 'armor', 'bounty', 'speed', 'blast', 'repair', 'move', 'reload', 'blast', 'stealth', 'radar', 'armor', 'cluster', 'blast', 'spotter', 'speed', 'reload', 'bounty', 'blast', 'move', 'armor', 'repair', 'blast', 'radar', 'cluster', 'reload', 'stealth', 'blast', 'speed', 'spotter', 'armor', 'blast', 'move', 'bounty', 'reload', 'blast', 'cluster', 'radar', 'repair', 'blast', 'armor', 'stealth', 'speed', 'blast', 'spotter', 'move', 'blast', 'cluster', 'blast', 'blast'], oi: 0, noise: [320, 110, 25][SET.diff], slow: [3.0, 1.2, 0.2][SET.diff], dodge: [0.3, 0.75, 1][SET.diff], trust: [0.6, 0.22, 0.05][SET.diff] };
+  const ai = { i, b: new Float32Array(BW * BH), blurT: R() * 0.6, wander: null, think: 1 + R(), order: ['blast', 'reload', 'radar', 'cal', 'feed', 'blast', 'armor', 'bounty', 'speed', 'blast', 'repair', 'move', 'reload', 'blast', 'stealth', 'radar', 'armor', 'cluster', 'blast', 'spotter', 'speed', 'reload', 'bounty', 'blast', 'move', 'armor', 'repair', 'blast', 'radar', 'cluster', 'reload', 'stealth', 'blast', 'speed', 'spotter', 'armor', 'blast', 'move', 'bounty', 'reload', 'blast', 'cluster', 'radar', 'repair', 'blast', 'armor', 'stealth', 'speed', 'blast', 'spotter', 'move', 'blast', 'cluster', 'blast', 'blast'], oi: 0, noise: [320, 110, 25][SET.diff], slow: [3.0, 1.2, 0.2][SET.diff], dodge: [0.3, 0.75, 1][SET.diff], trust: [0.6, 0.22, 0.05][SET.diff] };
   aiReset(ai); return ai;
 }
 function aiReset(ai) { const me = G ? G.players[ai.i] : null, sx = me ? me.x : SPAWNS[ai.i][0], sy = me ? me.y : SPAWNS[ai.i][1]; for (let j = 0; j < BH; j++) for (let i = 0; i < BW; i++) { const x = i * BG + BG / 2, y = j * BG + BG / 2; ai.b[j * BW + i] = passable(x, y) ? 0.3 + hyp(x - sx, y - sy) / 1200 : 0; } aiNorm(ai); }
@@ -572,6 +637,8 @@ function aiStep(ai, dt) {
   const r = stat(me, 'blast'), spd = stat(me, 'move');
   let goal = ai.wander;
   if (flee) { const a = Math.atan2(me.y - flee.ty, me.x - flee.tx); goal = [me.x + Math.cos(a) * 300, me.y + Math.sin(a) * 300]; ai.wander = null; }
+  // a rival close and in sight: the gun
+  if ((me.gcd || 0) <= 0) { const sight = Math.min(GUN_RANGE, RADAR.view[me.lv.radar]); const tq = G.players.find(q => q !== me && q.alive && hyp(q.x - me.x, q.y - me.y) < sight); if (tq && R() < 0.8) { const e = [8, 5, 2][SET.diff] ?? 5; fireGun(me, tq.x + (R() - 0.5) * 2 * e, tq.y + (R() - 0.5) * 2 * e); } }
   // fire at the most likely spot, if it's safely outside its own blast
   ai.think -= dt;
   if (me.cd <= 0 && ai.think <= 0) {
@@ -581,7 +648,7 @@ function aiStep(ai, dt) {
     else { let s = 0; for (let i = 0; i < ai.b.length; i++) s += ai.b[i] ** 2; let q = R() * s; for (let i = 0; i < ai.b.length; i++) { q -= ai.b[i] ** 2; if (q <= 0) { bi = i; break; } } }
     const tx = (bi % BW) * BG + BG / 2 + (R() - 0.5) * BG + (R() - 0.5) * ai.noise, ty = Math.floor(bi / BW) * BG + BG / 2 + (R() - 0.5) * BG + (R() - 0.5) * ai.noise;
     const d = hyp(tx - me.x, ty - me.y), T = Math.max(1.2, d / stat(me, 'speed') + 0.5);
-    if (d > r + 30 + spd * T * 0.3) { fire(me, tx, ty); ai.wander = null; }
+    if (d > r + 30 + spd * T * 0.3 && d >= MISSILE_MIN) { fire(me, tx, ty); ai.wander = null; }
     else { const a = Math.atan2(me.y - ty, me.x - tx); goal = [me.x + Math.cos(a) * (r + 120), me.y + Math.sin(a) * (r + 120)]; ai.wander = goal; }
   }
   // shoot and scoot: pick a new hiding spot after firing
@@ -613,13 +680,14 @@ function step(dt) {
   if (G.mode === 'cpu' && !G.over) for (const ai of G.ais) aiStep(ai, dt);
   for (const p of G.players) {
     if (G.mode === 'online' && p !== me) continue;
-    moveP(p, dt); p.cd = Math.max(0, p.cd - dt);
+    moveP(p, dt); p.cd = Math.max(0, p.cd - dt); p.gcd = Math.max(0, (p.gcd || 0) - dt);
     if (!G.over && p.alive && earning(p)) p.money += INCOME * dt;
     if (!G.over && p.alive) { const rp = stat(p, 'repair'); if (rp && p.hp < p.max) p.hp = Math.min(p.max, p.hp + rp * dt); }
   }
   if (G.mode === 'online' && !G.over && me.alive) { G.sentT -= dt; if (G.sentT <= 0) { G.sentT = 0.2; const o = { k: 'pos', from: G.me, x: Math.round(me.x), y: Math.round(me.y), hd: +me.hd.toFixed(2), hp: Math.round(me.hp), max: me.max }; if ((G.infoN = (G.infoN || 0) + 1) % 5 === 0) Object.assign(o, { money: Math.floor(me.money), lv: me.lv, st: me.st }); mpSend(o); } }
   // shots waiting for every rival's report: settle after a moment even if one never answers
   for (const id in G.pend) { const p = G.pend[id]; p.t += dt; if (p.t > 2.5) finishPend(id); }
+  for (let i = G.rounds.length - 1; i >= 0; i--) { const r = G.rounds[i]; r.t += dt; if (r.t >= r.T) { G.rounds.splice(i, 1); roundHit(r); } }
   for (let i = G.missiles.length - 1; i >= 0; i--) {
     const m = G.missiles[i]; m.t += dt;
     if (m.o !== G.me && me.alive && !m.warned && m.T - m.t < RADAR.warn[me.lv.radar] && hyp(m.tx - me.x, m.ty - me.y) < m.r + 60) { m.warned = true; AUD.warn(); }
@@ -1052,7 +1120,8 @@ function draw() {
       const u = f.t / 1.2;
       ctx.fillStyle = `rgba(255,${200 - 120 * u},${90 - 80 * u},${Math.max(0, 0.85 - u * 1.6)})`; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * Math.min(1, f.t * 6), 0, TAU); ctx.fill();
       ctx.strokeStyle = `rgba(255,240,220,${Math.max(0, 0.7 - u)})`; ctx.lineWidth = 3 / V.s; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.4 + u * 1.1), 0, TAU); ctx.stroke();
-    } else { const a = Math.max(0, 1 - f.t / f.life) * 0.4; ctx.fillStyle = `rgba(40,36,32,${a})`; ctx.beginPath(); ctx.arc(f.x, f.y, f.s * (1 + f.t), 0, TAU); ctx.fill(); }
+    } else if (f.k === 'spark') { const a = Math.max(0, 1 - f.t / 0.4); if (a > 0) { ctx.fillStyle = `rgba(255,226,138,${a})`; ctx.beginPath(); ctx.arc(f.x, f.y, (2 + f.t * 14) / Math.max(0.5, V.s), 0, TAU); ctx.fill(); } }
+    else { const a = Math.max(0, 1 - f.t / f.life) * 0.4; ctx.fillStyle = `rgba(40,36,32,${a})`; ctx.beginPath(); ctx.arc(f.x, f.y, f.s * (1 + f.t), 0, TAU); ctx.fill(); }
   }
   // fog on top of the ground, then clues on top of the fog
   screenXf(); ctx.drawImage(fogCv, 0, 0, V.w, V.h); worldXf(shx, shy);
@@ -1065,8 +1134,22 @@ function draw() {
   for (const sp of G.spots) { const p = G.players[sp.i], a = clamp(1 - sp.t / 6, 0, 1); ctx.globalAlpha = a; ctx.strokeStyle = pcol(p); ctx.lineWidth = 2.5 / V.s; ctx.beginPath(); ctx.arc(sp.x, sp.y, 14 / V.s + 6, 0, TAU); ctx.stroke(); drawLauncher(Object.assign({}, p, { x: sp.x, y: sp.y }), pcol(p), a); ctx.globalAlpha = 1; }
   // view ring
   if (me.alive) ctx.strokeStyle = 'rgba(95,212,255,.18)'; ctx.lineWidth = 1 / V.s; if (me.alive) { ctx.beginPath(); ctx.arc(me.x, me.y, view, 0, TAU); ctx.stroke(); }
+  // gun range: inside this ring a click fires the gun; missiles only reach beyond it
+  if (me.alive && !G.over) { ctx.strokeStyle = 'rgba(242,210,74,.35)'; ctx.lineWidth = 1.2 / V.s; ctx.setLineDash([4 / V.s, 6 / V.s]); ctx.beginPath(); ctx.arc(me.x, me.y, GUN_RANGE, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
+  // rounds in flight: short tracers
+  ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 2 / V.s;
+  for (const r of G.rounds) { if (r.t <= 0) continue; const u = clamp(r.t / r.T, 0, 1), x = lerp(r.sx, r.tx, u), y = lerp(r.sy, r.ty, u), l = hyp(r.tx - r.sx, r.ty - r.sy) || 1, k = Math.min(14, u * l); ctx.beginPath(); ctx.moveTo(x - (r.tx - r.sx) / l * k, y - (r.ty - r.sy) / l * k); ctx.lineTo(x, y); ctx.stroke(); }
+  const gunAim = AIM.on && me.alive && !G.over && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < GUN_RANGE;
+  if (gunAim) {
+    const [ax, ay] = AIM.w, sp = 3 + hyp(ax - me.x, ay - me.y) * 0.05 + GUN_HIT, c = 9 / V.s;
+    ctx.strokeStyle = '#f2d24a'; ctx.lineWidth = 1.6 / V.s; ctx.beginPath(); ctx.arc(ax, ay, sp, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax - c, ay); ctx.lineTo(ax - c / 3, ay); ctx.moveTo(ax + c / 3, ay); ctx.lineTo(ax + c, ay); ctx.moveTo(ax, ay - c); ctx.lineTo(ax, ay - c / 3); ctx.moveTo(ax, ay + c / 3); ctx.lineTo(ax, ay + c); ctx.stroke();
+    const gc = stat(me, 'gcool'), k = 1 - (me.gcd || 0) / gc;
+    if (k < 1) { ctx.strokeStyle = '#f2c45a'; ctx.lineWidth = 3 / V.s; ctx.beginPath(); ctx.arc(ax, ay, 14 / V.s, -Math.PI / 2, -Math.PI / 2 + TAU * k); ctx.stroke(); }
+    AIM.danger = false;
+  }
   // aim reticle: blast ring, red if you'd be inside it
-  if (AIM.on && me.alive && !G.over) {
+  if (AIM.on && me.alive && !G.over && !gunAim) {
     const [ax, ay] = AIM.w, r = stat(me, 'blast'), danger = hyp(ax - me.x, ay - me.y) < r + 6;
     ctx.strokeStyle = danger ? '#ff4a3a' : 'rgba(240,248,240,.85)'; ctx.lineWidth = 1.6 / V.s;
     ctx.beginPath(); ctx.arc(ax, ay, r, 0, TAU); ctx.stroke();
@@ -1112,6 +1195,7 @@ function draw() {
 let lastMoney = -1;
 function hudTick() {
   const me = ME(), m = Math.floor(me.money);
+  { const g = $('bGun'), k = (me.gcd || 0) / stat(me, 'gcool'); g.classList.toggle('cool', k > 0); g.lastElementChild.style.width = (100 * (1 - k)) + '%'; }
   if ((G.inspT = (G.inspT || 0) + 1) % 8 === 0 || G.insp == null) renderInsp();
   if (m !== lastMoney) { lastMoney = m; $('money').textContent = '$' + m.toLocaleString(); refreshShop(); }
   $('hpYou').firstElementChild.style.width = (100 * me.hp / me.max) + '%';
@@ -1179,6 +1263,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape') { if (G.view === 'shop') toggleShop(false); else if (G.view === 'map' && ME().alive && !G.over) toggleMap(false); else if (!G.over) pauseMenu(!$('pause').classList.contains('hidden') ? false : true); }
   if (e.code === 'KeyN') setSound(SET.sound ? 0 : 1);
   if (e.code === 'KeyF') toggleFull();
+  if ((e.code === 'KeyG' || (e.code === 'Space' && G.view === 'drive')) && ME().alive && !G.over) { if (G.view === 'shop') setView('drive'); driveGun(); }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
 addEventListener('keyup', e => KEYS.delete(e.code));
@@ -1221,9 +1306,13 @@ function renderInsp() {
   const html = rows.join(''); if (box._h !== html) { box._h = html; box.innerHTML = html; }
   box.classList.remove('hidden');
 }
+$('bGun').addEventListener('click', e => { e.stopPropagation(); AUD.init(); driveGun(); });
+$('bGun').addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 $('insp').addEventListener('click', e => { if (e.target.closest('[data-x]')) { G.insp = null; renderInsp(); } });
 function tryFire(keepOpen) {
   const me = ME(); if (!me.alive || G.over || G.view !== 'map') return;
+  const gd = hyp(AIM.w[0] - me.x, AIM.w[1] - me.y);
+  if (gd < GUN_RANGE) { if (gd < 12) return; if ((me.gcd || 0) > 0) { AUD.click(); say('Gun cooling…', 0.8); return; } fireGun(me, ...AIM.w); return; }
   if (me.cd > 0) { AUD.click(); say('Reloading…', 0.8); return; }
   if (fire(me, ...AIM.w) && !keepOpen && SET.autoDrive === 1) setTimeout(() => { if (G && G.view === 'map' && ME().alive && !G.over) setView('drive'); }, 350);
 }
@@ -1255,7 +1344,7 @@ const tEnd = e => {
     if (e.type === 'touchend' && p.moved < 10 && performance.now() - p.t0 < 450 && !pinch && G && !G.over && !G.paused) {
       if (inspectAt(t.clientX, t.clientY)) continue;
       const w = s2w(t.clientX, t.clientY), me = ME(); AIM.on = true; AIM.w = w; AIM.t = 1.2;
-      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6;
+      const danger = hyp(w[0] - me.x, w[1] - me.y) < stat(me, 'blast') + 6 && hyp(w[0] - me.x, w[1] - me.y) >= GUN_RANGE;
       if (danger && !(tapArm && hyp(tapArm[0] - w[0], tapArm[1] - w[1]) < 30 / CAM.z && performance.now() - tapArm[2] < 1600)) { tapArm = [w[0], w[1], performance.now()]; say('Too close! Tap again to fire anyway', 1.4); AUD.warn(); }
       else { tapArm = null; tryFire(); }
     }
@@ -1386,7 +1475,7 @@ function applySync(m) {
   m.players.forEach((s, i) => { const p = G.players[i]; Object.assign(p, { x: s.x, y: s.y, hd: s.hd, hp: s.hp, max: s.max, alive: s.alive, known: true }); });
   for (const [x, y, r] of m.log || []) { burn(x, y, r); G.log.push([x, y, r]); }
   const rec = loadRec(), me = ME();
-  if (rec && rec.seed === m.seed && rec.room === MP.code) { Object.assign(me, { money: rec.money, lv: rec.lv, st: rec.st, cd: rec.cd || 0 }); if (rec.max > me.max) { me.max = rec.max; me.hp = Math.min(me.hp, me.max); } }
+  if (rec && rec.seed === m.seed && rec.room === MP.code) { Object.assign(me, { money: rec.money, lv: Object.assign(Object.fromEntries(UP.map(u => [u.k, 0])), rec.lv), st: rec.st, cd: rec.cd || 0 }); if (rec.max > me.max) { me.max = rec.max; me.hp = Math.min(me.hp, me.max); } }
   GL.hd = me.hd; renderRivals(); renderShop(); lastMoney = -1;
   if (!me.alive) setView('map'); else setView('drive');
   say(me.alive ? 'Back in the match!' : 'Back in the room · you were knocked out', 3);
@@ -1452,6 +1541,8 @@ function mpMsg(m) {
     p.hp = m.hp; p.max = m.max;
     if (m.to === G.me && G.pend[m.id]) { const q = G.pend[m.id]; q.got.push({ gap: m.gap, dmg: m.dmg }); if (q.got.length >= q.need) finishPend(m.id); }
   }
+  else if (m.k === 'gun') { p.x = m.sx; p.y = m.sy; spawnRounds(m.from, m.id, m.sx, m.sy, m.shots || [], m.dmg || 0); if (me.alive) gunSeen(me, p); }
+  else if (m.k === 'ghit') { if (m.to === G.me) gunPay(me, m.dmg || 0, null); }
   else if (m.k === 'hp') { p.hp = m.hp; p.max = m.max; }
   else if (m.k === 'dead') eliminate(p, 'kill', G.players[m.by] || null);
   else if (m.k === 'self') eliminate(p, 'self', p);
@@ -1487,6 +1578,7 @@ const AUD = {
   apply() { if (this.ctx) this.m.gain.setTargetAtTime(SET.sound ? 0.8 : 0, this.ctx.currentTime, 0.05); },
   tone(f0, f1, dur, type, vol, delay = 0) { if (!this.ctx) return; const t = this.ctx.currentTime + delay, o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); o.connect(g); g.connect(this.m); o.start(t); o.stop(t + dur + 0.05); },
   noise(dur, type, f0, f1, vol, delay = 0, q = 1) { if (!this.ctx) return; const t = this.ctx.currentTime + delay, s = this.ctx.createBufferSource(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain(); s.buffer = this.nb; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); s.connect(f); f.connect(g); g.connect(this.m); s.start(t, Math.random()); s.stop(t + dur + 0.05); },
+  gun(n = 4, v = 1) { for (let k = 0; k < n; k++) { this.noise(0.07, 'bandpass', 2600, 900, 0.32 * v, k * 0.09, 1.2); this.tone(220, 90, 0.05, 'square', 0.05 * v, k * 0.09); } },
   launch(v) { this.noise(0.7, 'bandpass', 600, 2400, 0.35 * v, 0, 1.4); this.tone(120, 60, 0.3, 'sawtooth', 0.12 * v); },
   boom(r, d) { const near = 1 / (1 + Math.max(0, d - r) / 250), big = clamp(r / 120, 0.4, 2); this.noise(0.8 + big * 0.8, 'lowpass', 1800 * near + 200, 60, 0.7 * near, 0, 0.7); this.tone(70, 28, 0.6 + big * 0.5, 'sine', 0.6 * near); },
   ping(i) { const f = [1320, 1180, 990, 784, 587, 440][i]; this.tone(f, f, 0.35, 'sine', 0.16); if (i <= 2) this.tone(f * 1.5, f * 1.5, 0.3, 'sine', 0.08, 0.08); },
@@ -1503,6 +1595,12 @@ const AUD = {
 function driveOverlay() {
   screenXf(); ctx.clearRect(0, 0, V.w, V.h);
   const me = ME();
+  ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 2;
+  for (const r of G.rounds) {
+    if (r.t <= 0) continue; const u = clamp(r.t / r.T, 0, 1), u0 = Math.max(0, u - 0.12);
+    const a = glProject(lerp(r.sx, r.tx, u0), lerp(heightAt(r.sx, r.sy) + 3, heightAt(r.tx, r.ty) + 1, u0), lerp(r.sy, r.ty, u0)), b = glProject(lerp(r.sx, r.tx, u), lerp(heightAt(r.sx, r.sy) + 3, heightAt(r.tx, r.ty) + 1, u), lerp(r.sy, r.ty, u));
+    if (a && b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  }
   // rivals you can see get a name tag
   ctx.font = '800 12px ui-rounded, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const p of G.players) { if (p === me || !p.alive || hyp(p.x - me.x, p.y - me.y) > RADAR.view[me.lv.radar] || (G.mode === 'online' && !p.known)) continue; const s = glProject(p.x, heightAt(p.x, p.y) + 8, p.y); if (!s) continue; ctx.fillStyle = pcol(p); ctx.fillText(pname(p), s[0], s[1]); }
@@ -1540,8 +1638,9 @@ function driveOverlay() {
 function hudStatus() {
   const me = ME(), el = $('status'); let t = '', ready = false;
   if (!me.alive || G.over) t = G.view === 'map' ? (document.body.classList.contains('touch') ? 'Tap a launcher for details' : 'Click a launcher for details') : me.alive ? '' : 'Out · watching the rest';
+  else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < GUN_RANGE) t = (me.gcd || 0) > 0 ? `Gun cooling ${me.gcd.toFixed(1)} s` : 'Gun range · click to fire a burst (missiles need 300 m)';
   else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : (SET.autoDrive === 1 ? 'Click to fire, then you\'re back to driving · Shift-click stays' : 'Click to fire · W to drive · Space finds you');
-  else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
+  else if (G.view === 'drive') { ready = me.cd <= 0; t = (ready ? 'Missile ready · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`) + ' · Gun: G'; }
   if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
   if (el.textContent !== t) el.textContent = t;
   el.classList.toggle('ready', ready); el.classList.toggle('hidden', !t);
