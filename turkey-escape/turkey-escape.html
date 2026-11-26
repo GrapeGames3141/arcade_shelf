@@ -57,6 +57,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#b9a777;color:var(--in
 .card button.go{margin-top:16px;width:100%;min-height:54px;border:0;border-radius:14px;background:var(--orange);color:#2a1206;font:26px/1 'Lilita One',sans-serif;cursor:pointer;box-shadow:0 4px 0 #9a4a14}
 .card button.go:active{transform:translateY(3px);box-shadow:0 1px 0 #9a4a14}
 .small{font-size:14px;opacity:.8}
+.qrow{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px}
+.qseg{display:inline-flex;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.25)}
+.qseg button{border:0;background:transparent;color:inherit;font:700 13px/1 system-ui,sans-serif;padding:7px 11px;cursor:pointer}
+.qseg button.on{background:var(--orange);color:#2a1206}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
 .stats div{background:rgba(255,255,255,.1);border-radius:12px;padding:8px 4px}
 .stats b{display:block;font:24px/1.1 'Lilita One',sans-serif;font-variant-numeric:tabular-nums}
@@ -97,6 +101,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#b9a777;color:var(--in
   <p>It's the Friday before Thanksgiving. The farmer has a pitchfork and a plan. You have legs. Make it to next Friday.</p>
   <div class="keys"><span>← → change lanes</span><span>↑ jump</span><span>↓ duck</span></div>
   <p class="small">On a phone: swipe, or tap to jump. Two stumbles in a row and he's got you.</p>
+  <div class="qrow small">Quality <span class="qseg" id="qSeg"><button data-q="auto" title="Lowers the resolution automatically if the game stutters">Auto</button><button data-q="low" title="Fastest, for older phones and laptops">Low</button><button data-q="high" title="Always full resolution">High</button></span></div>
   <button class="go" id="startBtn">Run!</button><button type="button" class="go" data-arcade-home onclick="location.href='../index.html'" style="margin-left:8px">🏠 Arcade Shelf</button>
   <p class="small" id="bestLine"></p>
 </div>
@@ -150,9 +155,13 @@ function lit(c,nx,ny,nz,ao=1){const d=Math.max(0,nx*SUN[0]+ny*SUN[1]+nz*SUN[2]);
 /* ---------------- renderer ---------------- */
 const canvas=$('c');
 let renderer;
-try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});}catch(e){$('nogl').hidden=false;return;}
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:true,powerPreference:'high-performance'});}catch(e){$('nogl').hidden=false;return;}
 const coarse=matchMedia('(pointer:coarse)').matches;
-renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,coarse?1.5:1.75));
+/* render resolution: Auto lowers it while frames run slow (and raises it again when they don't), Low starts small, High stays sharp */
+const PR_MAX=Math.min(window.devicePixelRatio||1,coarse?1.5:1.75),PR_MIN=0.5;
+let quality='auto';try{quality=localStorage.getItem('te-quality')||'auto';}catch(e){}
+let prNow=quality==='low'?Math.min(0.7,PR_MAX):PR_MAX,ftAvg=16,ftT=0;
+renderer.setPixelRatio(prNow);
 renderer.outputEncoding=THREE.sRGBEncoding;
 renderer.setClearColor(0x000000,0);
 const scene=new THREE.Scene();
@@ -881,7 +890,18 @@ function resize(){const w=innerWidth,h=innerHeight,a=w/h;renderer.setSize(w,h,fa
   for(const m of splatMats){m.uniforms.uVP.value.copy(vp);m.uniforms.uFocal.value=f;}}
 addEventListener('resize',resize);resize();
 let last=performance.now();
-function frame(now){const dt=Math.min(0.05,(now-last)/1000);last=now;
+function adaptRes(rawMs){
+  if(quality!=='auto'||document.hidden||rawMs>250)return;
+  ftAvg+=(rawMs-ftAvg)*0.08;ftT+=rawMs;
+  if(ftT<900)return;ftT=0;
+  let next=prNow;
+  if(ftAvg>24&&prNow>PR_MIN)next=Math.max(PR_MIN,prNow*0.82);
+  else if(ftAvg<15&&prNow<PR_MAX)next=Math.min(PR_MAX,prNow*1.12);
+  if(Math.abs(next-prNow)>0.01){prNow=next;renderer.setPixelRatio(prNow);resize();ftAvg=18;}}
+function setQuality(q){quality=q;try{localStorage.setItem('te-quality',q);}catch(e){}
+  prNow=q==='low'?Math.min(0.7,PR_MAX):PR_MAX;renderer.setPixelRatio(prNow);resize();ftAvg=16;
+  document.querySelectorAll('#qSeg button').forEach(b=>b.classList.toggle('on',b.dataset.q===q));}
+function frame(now){const raw=now-last,dt=Math.min(0.05,raw/1000);last=now;adaptRes(raw);
   if(G.state!=='paused')update(dt);
   scene.updateMatrixWorld();processSorting(false);renderer.render(scene,camera);requestAnimationFrame(frame);}
 
@@ -898,6 +918,7 @@ addEventListener('pointermove',e=>{if(!ptr||ptr.done||e.pointerId!==ptr.id)retur
 addEventListener('pointerup',e=>{if(!ptr||e.pointerId!==ptr.id)return;if(!ptr.done)act('U');ptr=null;});
 addEventListener('pointercancel',()=>{ptr=null;});
 $('startBtn').addEventListener('click',startSwing);
+document.querySelectorAll('#qSeg button').forEach(b=>b.addEventListener('click',()=>setQuality(b.dataset.q)));setQuality(quality);
 $('againBtn').addEventListener('click',()=>{hud.classList.add('off');resetWorld();processSorting(true);startSwing();});
 $('pauseBtn').addEventListener('click',()=>setPause(G.state==='run'));
 $('resumeBtn').addEventListener('click',()=>setPause(false));
@@ -906,7 +927,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)setPause(tr
 
 resetWorld();
 camera.position.copy(MENU_POS);camera.lookAt(menuLook);scene.updateMatrixWorld();processSorting(true);
-window.__te={G,T,act,startSwing,scene,camera,obstacles,addObs,update};
+window.__te={G,T,act,startSwing,scene,camera,obstacles,addObs,update,res:()=>({quality,prNow,ftAvg})};
 requestAnimationFrame(frame);
 })();
 </script>
