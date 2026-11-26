@@ -101,7 +101,8 @@
   #mpStatus b { color:#ffe6a8; letter-spacing:.12em; }
   .mp [hidden] { display:none !important; }
   #mpHold { position:fixed; left:50%; top:64px; transform:translateX(-50%); z-index:40; max-width:min(92vw,520px); text-align:center; padding:10px 16px; border-radius:10px;
-    background:rgba(24,18,12,.92); border:1px solid rgba(255,224,165,.45); color:var(--ink); font:600 14px/1.45 system-ui; box-shadow:0 6px 30px rgba(0,0,0,.5); pointer-events:none; }
+    background:rgba(24,18,12,.92); border:1px solid rgba(255,224,165,.45); color:var(--ink); font:600 14px/1.45 system-ui; box-shadow:0 6px 30px rgba(0,0,0,.5); }
+  #mpHold button { margin-top:8px; pointer-events:auto; } #mpHold button:disabled { opacity:.55; cursor:default; }
   #mpHold b { color:#ffe6a8; letter-spacing:.06em; }
   #mpHold[hidden] { display:none; }
   .mpg { margin:8px 0 2px; } .mph { font:700 10px/1 system-ui; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
@@ -226,8 +227,9 @@
 </div>
 <div id="pause" class="ov" hidden>
   <div class="card pn">
-    <h2>Paused</h2>
-    <div class="row"><button class="go" id="bResume">Resume</button></div>
+    <h2 id="pauseH">Paused</h2>
+    <div class="row"><button class="go" id="bResume">Resume</button><button class="choice" id="bMpPause" hidden>⏸ Pause for everyone</button></div>
+    <div class="hint" id="mpPauseNote" hidden></div>
     <div class="row"><button class="choice" id="bRestart">New game</button><button class="choice" id="bHelp">How to play</button><button class="choice" id="bKeys">Hotkeys</button></div>
     <div class="row"><a class="choice" href="../index.html" data-arcade-home style="text-decoration:none">🏠 Back to the Arcade Shelf</a></div>
     <div class="hint" id="helpText" hidden></div>
@@ -3830,14 +3832,14 @@ const RELAY = Q.get('relay') || (/^(localhost|127\.0\.0\.1)$/.test(location.host
 const ROOM_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', HOLD_S = +Q.get('hold') || 90, MAXP = 4, REC_KEY = 'empire-rush.rejoin', SAVE_KEY = 'empire-rush.save';
 try { MP.pid = localStorage.getItem('empire-rush.pid') || ''; } catch (err) { /* private mode */ }
 if (!MP.pid) { MP.pid = Math.random().toString(36).slice(2, 10); try { localStorage.setItem('empire-rush.pid', MP.pid); } catch (err) { /* private mode */ } }
-Object.assign(MP, { present: new Set(), pidOf: new Map(), on: new Set(), want: false, roster: [], cols: [0, 1, 2, 3], me: 0, ep: 0, hostPid: '', bk: null, hold: {}, hostGone: 0, lostAt: 0 });
+Object.assign(MP, { upause: null, ban: {}, present: new Set(), pidOf: new Map(), on: new Set(), want: false, roster: [], cols: [0, 1, 2, 3], me: 0, ep: 0, hostPid: '', bk: null, hold: {}, hostGone: 0, lostAt: 0 });
 const mpStatus = html => { $('mpStatus').innerHTML = html; };
 function mpSend(o) { if (o.k === 'c') o.from = MP.me; if (MP.ws && MP.ws.readyState === 1) MP.ws.send(JSON.stringify(o)); }
 function mpClose() { clearTimeout(MP.retryT); clearTimeout(MP.claimT); if (MP.ws) { MP.ws.onclose = null; try { MP.ws.close(); } catch (err) { /* closed */ } } MP.ws = null; MP.seat = -1; MP.present.clear(); MP.pidOf.clear(); MP.on.clear(); }
 function mpLeave() {
   if (MP.started) mpSend({ k: 'bye', pid: MP.pid });
   MP.want = false; mpClose(); mpRec(false); mpSaveClear();
-  Object.assign(MP, { role: null, started: false, roster: [], hold: {}, hostGone: 0, lostAt: 0, bk: null, ep: 0, hostPid: '' });
+  Object.assign(MP, { role: null, started: false, roster: [], hold: {}, hostGone: 0, lostAt: 0, bk: null, ep: 0, hostPid: '', upause: null, snapUp: null, ban: {} });
   if (G) G.mp = null; clearInterval(MP.bg); mpPersp(0, [0, 1, 2, 3]); mpLobby(); mpHoldUI();
 }
 const mpLobbyHost = () => MP.seat >= 0 && MP.seat === Math.min(...MP.present);
@@ -3943,7 +3945,24 @@ async function mpBackup() {
 }
 
 // ---------- pausing for players who dropped out
-const mpPaused = () => MP.role === 'host' && MP.started && G && !G.over && (!MP.ws || Object.keys(MP.hold).length > 0);
+const mpPaused = () => MP.role === 'host' && MP.started && G && !G.over && (!MP.ws || Object.keys(MP.hold).length > 0 || !!MP.upause);
+// ---------- pausing on purpose: anyone may pause; the one who paused resumes, or after VOTE_S the others can vote to carry on
+const VOTE_S = +Q.get('vote') || 45, BAN_S = 180;
+const mpUp = () => MP.role === 'host' ? MP.upause : MP.snapUp || null;
+function mpVoters(by) { return [...Array(G.nc).keys()].filter(t => t !== by && !G.out[t] && !(t in MP.hold) && (t === 0 || MP.on.has(MP.roster[t]))); }
+function mpPauseCmd(from, c) {
+  if (!G || G.over || G.out[from]) return;
+  const up = MP.upause;
+  if (c === 'pause' && !up && !((MP.ban[from] || 0) > G.time)) { MP.upause = { by: from, t: 0, votes: [] }; alertMsg(from ? `${clanName(from)} clan paused the match.` : 'You paused the match.'); sfx('click'); }
+  else if (c === 'resume' && up && up.by === from) { MP.upause = null; alertMsg('The match goes on.', 'good'); }
+  else if (c === 'vote' && up && up.by !== from && up.t >= VOTE_S && !up.votes.includes(from)) {
+    up.votes.push(from);
+    const vs = mpVoters(up.by), need = Math.floor(vs.length / 2) + 1;
+    if (up.votes.filter(v => vs.includes(v)).length >= need) { MP.ban[up.by] = G.time + BAN_S; MP.upause = null; alertMsg('The others voted to carry on.', 'good'); }
+  }
+  mpHoldUI();
+}
+function mpPauseAct(c) { if (MP.role === 'host') mpPauseCmd(0, c); else mpSend({ k: 'c', c }); }
 function mpTick(dt) {
   if (!MP.started || !G) return;
   const now = performance.now();
@@ -3952,6 +3971,8 @@ function mpTick(dt) {
       MP.hold[k] -= dt;
       if (MP.hold[k] <= 0) { delete MP.hold[k]; const idx = +k; MP.on.delete(MP.roster[idx]); clanOut(idx, 'left'); checkEnd(); }
     }
+    const up = MP.upause;
+    if (up) { if (G.out[up.by]) MP.upause = null; else if (MP.ws && !Object.keys(MP.hold).length) up.t += dt; }
     if (now - (MP.saveT || 0) > 5000) { MP.saveT = now; mpSave(); }
     if (now - (MP.bkT || 0) > 8000) { MP.bkT = now; mpBackup(); }
   }
@@ -3959,13 +3980,25 @@ function mpTick(dt) {
   if (now - (MP.uiT || 0) > 250) { MP.uiT = now; mpHoldUI(); }
 }
 function mpHoldUI() {
-  const box = $('mpHold'), lines = [];
+  const box = $('mpHold'), lines = []; let btn = '';
   if (MP.started && G && !G.over) {
     if (!MP.ws) lines.push('Connection lost · reconnecting…');
     else if (MP.role === 'client' && MP.hostGone > 0) lines.push(MP.waitNew ? 'Handing the match to another player…' : `${clanName(0)} clan (the host) lost connection · waiting ${Math.ceil(MP.hostGone)} s for them to come back`);
     else { const h = MP.role === 'host' ? MP.hold : (MP.snapHold || {}); for (const k in h) lines.push(`${clanName(+k)} clan lost connection · back in ${Math.ceil(h[k])} s or they are out`); }
+    const up = mpUp();
+    if (up && MP.ws && !(MP.role === 'client' && MP.hostGone > 0)) {
+      if (up.by === MP.me) { lines.push('You paused the match.'); btn = '<button class="go sm" data-act="resume">▶ Resume</button>'; }
+      else {
+        const need = MP.role === 'host' ? Math.floor(mpVoters(up.by).length / 2) + 1 : up.need, got = up.votes.length, wait = Math.ceil(VOTE_S - up.t);
+        lines.push(`${clanName(up.by)} clan paused the match.` + (got ? ` ${got} of ${need} votes to carry on.` : ''));
+        btn = up.votes.includes(MP.me) ? '<button class="choice" disabled>You voted to carry on</button>'
+          : wait > 0 ? `<button class="choice" disabled>Vote to carry on in ${wait} s</button>` : '<button class="go sm" data-act="vote">Vote to carry on</button>';
+      }
+    }
   }
-  box.hidden = !lines.length; if (lines.length) box.innerHTML = '<b>⏸ Paused</b><br>' + lines.join('<br>');
+  box.hidden = !lines.length;
+  const html = lines.length ? '<b>⏸ Paused</b><br>' + lines.join('<br>') + (btn ? '<br>' + btn : '') : '';
+  if (html !== box._html) { box._html = html; box.innerHTML = html; }
 }
 // the host never came back: the lowest-numbered player still here carries on from the last backup
 async function mpTakeOver() {
@@ -4016,7 +4049,7 @@ function mpLobby() {
 function mpHostStart() {
   if (!mpLobbyHost() || MP.present.size < 2) return;
   const roster = [...MP.present].sort((x, y) => x - y).slice(0, MAXP).map(st => st === MP.seat ? MP.pid : MP.pidOf.get(st) || 's' + st), seed = (Math.random() * 1e6) | 0;
-  Object.assign(MP, { roster, ep: 1, hostPid: MP.pid, on: new Set(roster.slice(1)), hold: {}, started: true, role: 'host' });
+  Object.assign(MP, { roster, ep: 1, hostPid: MP.pid, on: new Set(roster.slice(1)), hold: {}, started: true, role: 'host', upause: null, ban: {} });
   mpPersp(0, [0, 1, 2, 3]); mpLobby();
   mpSend({ k: 'start', seed, roster, cols: MP.cols, ep: MP.ep });
   startGame({ role: 'host', seed, nc: roster.length });
@@ -4028,6 +4061,7 @@ function mpCheckMissing() {
   MP.roster.forEach((p, i) => { if (i > 0 && !MP.on.has(p) && !G.out[i] && !(i in MP.hold)) MP.hold[i] = HOLD_S; });
   mpHoldUI();
 }
+$('mpHold').addEventListener('pointerdown', e => { const b = e.target.closest('button[data-act]'); if (b) { e.stopPropagation(); mpPauseAct(b.dataset.act); } });
 function mpHere(re) { mpSend({ k: 'here', pid: MP.pid, seat: MP.seat, re: re ? 1 : 0, host: MP.role === 'host' && MP.started ? 1 : 0, ep: MP.ep }); }
 function mpMsg(m) {
   if (m.k === 'full') { MP.want = false; mpStatus('That room is full (4 players).'); mpLobby(); return; }
@@ -4084,7 +4118,7 @@ function mpMsg(m) {
     clearTimeout(MP.claimT);
     const me = (m.roster || []).indexOf(MP.pid);
     if (me < 0) { mpStatus('A match is already under way in this room. Wait here for the next one, or make a new room.'); return; }
-    Object.assign(MP, { roster: m.roster, ep: m.ep || 1, hostPid: m.roster[0], hostGone: 0, waitNew: false, started: true, role: 'client' });
+    Object.assign(MP, { roster: m.roster, ep: m.ep || 1, hostPid: m.roster[0], hostGone: 0, waitNew: false, started: true, role: 'client', snapUp: null });
     mpPersp(me, m.cols || [0, 1, 2, 3]); mpRec(true); mpSaveClear(); mpLobby();
     startGame({ role: 'client', seed: m.seed, nc: m.roster.length });
     if (m.rejoin) alertMsg('Back in the match.', 'good');
@@ -4142,7 +4176,8 @@ function mpHostSend(now, force) {
   if (MP.full) { s.full = 1; MP.last = { u: new Map(), b: new Map(), r: new Map([...MP.baseR].map(([k, v]) => [k, { ...v }])) }; MP.full = false; }
   s.ug = mpDiff(G.units, MP.last.u, s.u); s.bg = mpDiff(G.blds, MP.last.b, s.b); s.rg = mpDiff(G.res, MP.last.r, s.r);
   s.g = { time: G.time, clock: G.clock, day: G.day, dayT: G.dayT, season: G.season, winter: G.winter, bloodNight: G.bloodNight, dark: G.dark, snow: G.snow, bell: G.bell,
-    over: G.over, winner: G.over ? G.winner ?? (G.teams[0].tc ? 0 : 1) : null, out: G.out.map(o => o || null), hold: MP.hold };
+    over: G.over, winner: G.over ? G.winner ?? (G.teams[0].tc ? 0 : 1) : null, out: G.out.map(o => o || null), hold: MP.hold,
+    up: MP.upause ? { by: MP.upause.by, t: Math.floor(MP.upause.t), votes: MP.upause.votes, need: Math.floor(mpVoters(MP.upause.by).length / 2) + 1 } : null, ban: MP.ban };
   s.tm = [...Array(G.nc).keys()].map(i => { const t = G.teams[i]; return { res: t.res, era: t.era, pop: t.pop, cap: t.cap, techs: t.techs, busy: t.busy, atkB: t.atkB, armB: t.armB, upkeepMul: t.upkeepMul, gm: t.gm, stats: t.stats }; });
   s.p = G.proj.map(p => ({ x: mpVal(p.x), y: mpVal(p.y), sx: p.sx, sy: p.sy, tx: p.tx, ty: p.ty, t: p.t, dur: p.dur, kind: p.kind, ang: p.ang, team: p.team }));
   mpSend(s);
@@ -4201,6 +4236,8 @@ function mpApply(s) {
   G.bell = g.bell.map((v, i) => g.bell[swT(i)]);
   const out = []; (g.out || []).forEach((o, i) => { if (o) out[swT(i)] = o; });
   const wasOut = !!G.out[0]; G.out = out; MP.snapHold = g.hold || {};
+  const hadUp = !!MP.snapUp; MP.snapUp = g.up || null; MP.snapBan = Math.max(0, ((g.ban || {})[MP.me] || 0) - g.time);
+  if (hadUp !== !!MP.snapUp) { mpHoldUI(); if (MP.snapUp) alertMsg(MP.snapUp.by === MP.me ? 'You paused the match.' : `${clanName(MP.snapUp.by)} clan paused the match.`); else alertMsg('The match goes on.', 'good'); }
   if (Math.abs(G.time - g.time) > 1) G.time = g.time;
   if (G.day > oldDay && !s.full) banner(`Day ${G.day}`, G.winter ? 'Winter · fields grow slowly' : SEASONS[G.season]);
   G.proj = s.p.map(p => ({ ...p, team: swT(p.team) }));
@@ -4257,6 +4294,7 @@ function mpAsRemote(team, sel, fn) {
 function mpCommand(m) {
   const team = m.from | 0;
   if (G.over || team < 1 || team >= G.nc || G.out[team]) return;
+  if (m.c === 'pause' || m.c === 'resume' || m.c === 'vote') { mpPauseCmd(team, m.c); return; }
   const sel = (m.sel || []).map(id => getE(id)).filter(e => e && !e.dead && e.team === team);
   mpAsRemote(team, sel, () => {
     switch (m.c) {
@@ -4341,7 +4379,15 @@ const fullSync = () => { $('bFull').textContent = document.fullscreenElement || 
 document.addEventListener('fullscreenchange', fullSync); document.addEventListener('webkitfullscreenchange', fullSync);
 $('bFull').onclick = e => { e.stopPropagation(); toggleFull(); };
 $('bLook').onclick = () => { $('end').hidden = true; UI.looking = true; };
-$('bMenu').onclick = () => { if (!G.started) return; paused = !MP.role; $('pause').hidden = false; };
+$('bMenu').onclick = () => {
+  if (!G.started) return; paused = !MP.role; $('pause').hidden = false;
+  // online the menu does not stop the match; it offers a pause for everyone instead
+  const on = !!(MP.started && G.mp && !G.over), up = mpUp(), ban = on && MP.role === 'host' ? (MP.ban[0] || 0) - G.time : on ? (MP.snapBan || 0) : 0;
+  $('pauseH').textContent = on ? 'Menu' : 'Paused'; $('bResume').textContent = on ? 'Back to the game' : 'Resume';
+  $('bMpPause').hidden = !on || !!up || G.out[0]; $('bMpPause').disabled = ban > 0;
+  $('mpPauseNote').hidden = !on || !(ban > 0); $('mpPauseNote').textContent = ban > 0 ? `Your last pause was voted down. You can pause again in ${Math.ceil(ban)} s.` : '';
+};
+$('bMpPause').onclick = () => { $('bResume').click(); mpPauseAct('pause'); };
 $('bResume').onclick = () => { paused = false; $('pause').hidden = true; rebinding = null; $('keysBox').hidden = true; };
 $('bRestart').onclick = () => { mpLeave(); $('pause').hidden = true; $('menu').hidden = false; menuWorld(); G.started = false; paused = false; };
 $('bKeys').onclick = () => { const b = $('keysBox'); b.hidden = !b.hidden; rebinding = null; if (!b.hidden) { $('helpText').hidden = true; renderKeys(); } };
