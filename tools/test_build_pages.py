@@ -16,7 +16,8 @@ class PagesTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        for name in ('index.html', 'arcade.css', 'arcade.js', '.nojekyll', 'privacy.html'):
+        self.byte_exact_payload = b'\xef\xbb\xbf<!doctype html>\r\n<title>Byte exact</title>\n<body>mixed newlines</body>'
+        for name in ('index.html', 'arcade.css', 'arcade.js', '.nojekyll', 'privacy.html', '_headers'):
             shutil.copyfile(ROOT / name, self.root / name)
         for name in ('favicon.ico', 'favicon.svg', 'favicon-48.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'site.webmanifest'):
             shutil.copyfile(ROOT / name, self.root / name)
@@ -28,7 +29,10 @@ class PagesTests(unittest.TestCase):
         for destination in builder.PROMOTED_EXPERIMENTS:
             source = self.root / destination
             source.parent.mkdir(parents=True, exist_ok=True)
-            source.write_text('<!doctype html><title>Promoted experiment</title>', encoding='utf-8')
+            if destination in builder.BYTE_EXACT_EXPERIMENTS:
+                source.write_bytes(self.byte_exact_payload)
+            else:
+                source.write_text('<!doctype html><title>Promoted experiment</title>', encoding='utf-8')
         opus = self.root / 'experiments' / 'opus'
         opus.mkdir(parents=True, exist_ok=True)
         (opus / 'opus.html').write_text('<!doctype html><title>Not promoted</title>', encoding='utf-8')
@@ -58,12 +62,27 @@ class PagesTests(unittest.TestCase):
         for name in builder.CURATED:
             self.assertEqual((out / name / (name + '.html')).read_text(encoding='utf-8').count('id="arcade-home"'), 1)
         for destination in builder.PROMOTED_EXPERIMENTS:
-            self.assertIn('href="../../index.html"', (out / destination).read_text(encoding='utf-8'))
+            page = (out / destination).read_text(encoding='utf-8-sig')
+            if destination in builder.BYTE_EXACT_EXPERIMENTS:
+                self.assertNotIn('arcade-home', page)
+            else:
+                self.assertIn('href="../../index.html"', page)
         self.assertNotIn('arcade-home', (out / 'index.html').read_text(encoding='utf-8'))
         for name in ('favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-512.png', 'site.webmanifest', 'assets/brand/share-card.jpg'):
             self.assertTrue((out / name).is_file(), name)
         builder.build(self.root)
         self.assertEqual((out / 'littles/littles.html').read_text(encoding='utf-8').count('id="arcade-home"'), 1)
+
+    def test_byte_exact_experiment_and_no_transform_headers(self):
+        destination = builder.BYTE_EXACT_EXPERIMENTS[0]
+        source = self.root / destination
+        source.write_bytes(self.byte_exact_payload)
+        out = builder.build(self.root)
+        self.assertEqual((out / destination).read_bytes(), self.byte_exact_payload)
+        self.assertNotIn(b'arcade-home', (out / destination).read_bytes())
+        headers = (out / '_headers').read_text(encoding='utf-8')
+        for path in ('/experiments/rain-dragon-express/fable', '/experiments/rain-dragon-express/fable.html'):
+            self.assertRegex(headers, re.escape(path) + r'\r?\n  Cache-Control: public, no-transform')
     def test_games_with_their_own_home_link_get_no_tab(self):
         game = self.root / 'homey'
         game.mkdir()
@@ -90,18 +109,18 @@ class PagesTests(unittest.TestCase):
         self.assertIn('Clouds &lt;&amp;&gt; &quot;Sky&quot;', lobby)
         self.assertIn('future%20fields/launch.html', lobby)
         self.assertIn('data-filter="puzzle"', lobby)
-        self.assertIn('SHOWING ALL 14 GAMES', lobby)
-        self.assertIn('THE ARCADE SHELF · 14 PLAYABLE WORLDS', lobby)
+        self.assertIn('SHOWING ALL 15 GAMES', lobby)
+        self.assertIn('THE ARCADE SHELF · 15 PLAYABLE WORLDS', lobby)
         self.assertIn('<title>The Arcade Shelf</title>', lobby)
         self.assertIn('href="privacy.html"', lobby)
         self.assertTrue((out / 'privacy.html').exists())
         self.assertIn('aria-label="The Arcade Shelf home"', lobby)
         self.assertIn('https://thearcadeshelf.com/', lobby)
-        self.assertIn('content="Explore 14 free browser games at The Arcade Shelf."', lobby)
+        self.assertIn('content="Explore 15 free browser games at The Arcade Shelf."', lobby)
         self.assertIn('Littoral — Astra 6.2', lobby)
         self.assertIn('Beach to Cave — Fable 5.2', lobby)
         self.assertIn('data-filter="experiments"', lobby)
-        self.assertIn('14 · PUZZLE', lobby)
+        self.assertIn('15 · PUZZLE', lobby)
         self.assertLess(lobby.index('Beach to Cave — Fable 5.2'), lobby.index('Clouds &lt;&amp;&gt; &quot;Sky&quot;'))
         self.assertNotIn('Not an arcade game', lobby)
         self.assertTrue((out / 'future fields/nested/game.js').exists())
@@ -125,7 +144,7 @@ class PagesTests(unittest.TestCase):
         shutil.rmtree(game)
         builder.build(self.root)
         self.assertFalse((out / 'future fields').exists())
-        self.assertIn('SHOWING ALL 13 GAMES', (out / 'index.html').read_text(encoding='utf-8'))
+        self.assertIn('SHOWING ALL 14 GAMES', (out / 'index.html').read_text(encoding='utf-8'))
 
     def test_repository_castle_output_has_no_keytrain(self):
         out = builder.build(ROOT)
