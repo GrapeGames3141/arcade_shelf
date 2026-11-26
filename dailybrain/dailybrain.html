@@ -338,7 +338,7 @@ function estMake(kind, R) {
   const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
   switch (kind) {
     case 'dots': { const n = ri(18, 160), pts = []; for (let i = 0; i < n; i++) pts.push([R(), R(), .6 + R() * .6]); const max = niceUp(n * 1.7);
-      return { kind, q: 'How many dots? You get two seconds.', ans: n, rel: .45, slider: { min: 0, max, step: 1, labels: [0, max / 4, max / 2, max * 3 / 4, max], fmt: v => nf(v) }, pts, label: v => nf(v), tip: 'Count one small patch, then multiply by how many patches fit. Most people guess low on big crowds.' }; }
+      return { kind, q: 'How many dots? Tap the box when you\'re ready: you get one 3-second look.', ans: n, rel: .45, slider: { min: 0, max, step: 1, labels: [0, max / 4, max / 2, max * 3 / 4, max], fmt: v => nf(v) }, pts, label: v => nf(v), tip: 'Count one small patch, then multiply by how many patches fit. Most people guess low on big crowds.' }; }
     case 'shade': { const p = ri(4, 96), pie = R() < .5;
       return { kind, q: `What percent of the ${pie ? 'circle' : 'bar'} is shaded?`, ans: p, abs: 30, slider: { min: 0, max: 100, step: 1, labels: [0, 25, 50, 75, 100], fmt: v => v + '%' }, p, pie, rot: R() * 6.28, label: v => v + '%', tip: 'Find half first, then halve again: quarters are 25% and 75%. Pies are hard because our eyes judge area, not angle.' }; }
     case 'angle': { const a = ri(8, 172);
@@ -356,12 +356,26 @@ function estRound() {
   const r = RUN.rounds[RUN.i]; $('#pBar').style.width = (RUN.i / 5 * 100) + '%';
   $('#stage').innerHTML = `<div class="card"><div class="tag">Estimate · ${RUN.i + 1} of 5</div><div class="q">${r.q}</div>${r.time ? '' : '<canvas class="vis" id="vis"></canvas>'}<div id="ctl"></div><div class="msg" id="msg"></div><div class="tip" id="tip"></div></div><div id="foot"></div>`;
   if (r.time) return estTime(r);
-  const cv = $('#vis'); drawEst(cv, r, true);
-  const sl = slider($('#ctl'), r.slider, () => { $('#bCheck').disabled = false; });
-  $('#foot').innerHTML = '<button class="checkb" id="bCheck" disabled>Check</button>';
-  if (r.kind === 'dots') setTimeout(() => { if (RUN && RUN.rounds[RUN.i] === r) drawEst(cv, r, false); }, 2000);
-  $('#bCheck').onclick = () => { if (sl.v == null) return; estReveal(r, sl.v, () => { sl.truth(r.ans, r.label(r.ans)); if (r.kind === 'dots') drawEst(cv, r, true); }); };
-  RUN.keys = e => { if (e.key === 'Enter' && !$('#bCheck').disabled) $('#bCheck').click(); else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') sl.set((sl.v ?? (r.slider.min + r.slider.max) / 2) + (e.key === 'ArrowLeft' ? -1 : 1) * r.slider.step * (e.shiftKey ? 10 : 1)); };
+  const cv = $('#vis'), dots = r.kind === 'dots'; drawEst(cv, r, !dots);
+  const sl = slider($('#ctl'), r.slider, () => { if ($('#bCheck')) $('#bCheck').disabled = false; });
+  const wireCheck = () => {
+    $('#foot').innerHTML = '<button class="checkb" id="bCheck"' + (sl.v == null ? ' disabled' : '') + '>Check</button>';
+    $('#bCheck').onclick = () => { if (sl.v == null) return; estReveal(r, sl.v, () => { sl.truth(r.ans, r.label(r.ans)); if (dots) drawEst(cv, r, true); }); };
+  };
+  if (dots) {
+    // the dots wait until you're ready, then show for three seconds with a countdown bar
+    const bar = document.createElement('div'); bar.style.cssText = 'height:6px;border-radius:6px;background:#5fa8ff;width:100%;margin:6px 0 2px;opacity:0;transition:none';
+    cv.after(bar);
+    $('#foot').innerHTML = '<button class="checkb" id="bShow">👀 Show the dots · 3 s</button>';
+    { const g = cv.getContext('2d'), W = cv.clientWidth || 360, H = W * .78; g.fillStyle = '#9ccaff'; g.font = `700 ${Math.max(15, W * .055)}px system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('👀 Tap to show the dots', W / 2, H * .82); }
+    cv.style.cursor = 'pointer'; cv.onclick = () => { if ($('#bShow')) $('#bShow').click(); };
+    $('#bShow').onclick = () => {
+      cv.onclick = null; cv.style.cursor = ''; $('#foot').innerHTML = ''; drawEst(cv, r, true); bar.style.opacity = '1';
+      requestAnimationFrame(() => { bar.style.transition = 'width 3s linear'; bar.style.width = '0%'; });
+      setTimeout(() => { if (RUN && RUN.rounds[RUN.i] === r) { drawEst(cv, r, false); bar.remove(); wireCheck(); } }, 3000);
+    };
+  } else wireCheck();
+  RUN.keys = e => { if (e.key === 'Enter' && $('#bShow')) $('#bShow').click(); else if (e.key === 'Enter' && $('#bCheck') && !$('#bCheck').disabled) $('#bCheck').click(); else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') sl.set((sl.v ?? (r.slider.min + r.slider.max) / 2) + (e.key === 'ArrowLeft' ? -1 : 1) * r.slider.step * (e.shiftKey ? 10 : 1)); };
 }
 function estTime(r) {
   $('#ctl').innerHTML = '<div class="readrow"><div class="readout" id="tRead">Ready</div></div>';
