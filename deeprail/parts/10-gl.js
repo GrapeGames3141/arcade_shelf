@@ -11,7 +11,7 @@ const CFMT = HDR ? gl.RGBA16F : gl.RGBA8;
 const UB_FIELDS = [
   ['mat4', 'uVP'], ['mat4', 'uView'], ['mat4', 'uInvVP'],
   ['vec4', 'uCam'],     // camera pos, unused
-  ['vec4', 'uTime'],    // time, light count, noise octaves, flash
+  ['vec4', 'uTime'],    // time, light count, noise octaves, shadow filter taps
   ['vec4', 'uFog'],     // fog rgb, density
   ['vec4', 'uAmb'],     // ambient rgb, unused
   ['vec4', 'uClip'],    // near, far, viewport w, h
@@ -19,6 +19,7 @@ const UB_FIELDS = [
   ['vec4', 'uHeadD'],   // headlamp dir, cos(cutoff)
   ['vec4', 'uRiver'],   // river centre (y = water level), yaw
   ['vec4', 'uRiverR'],  // river half sizes x, z, enabled, flow speed
+  ['vec4', 'uShd', 4],  // per shadow slot: strength, near, far (the light's range), cube resolution
   ['vec4', 'uLP', MAXL],// light pos, range
   ['vec4', 'uLC', MAXL],// light colour * intensity, kind
 ];
@@ -33,7 +34,8 @@ const UB = (() => {
 })();
 
 // fixed texture units for every sampler (set once at link time)
-const TU = { uScene: 1, uDepth: 2, uSrc: 3, uBloom: 4, uDepthS: 5 };
+const TU = { uScene: 1, uDepth: 2, uSrc: 3, uBloom: 4, uDepthS: 5, uSh0: 6, uSh1: 7, uSh2: 8, uSh3: 9 };
+const NSH = 4;   // shadow-casting light slots (always the first lights in the list)
 
 function compile(type, src) {
   const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
@@ -41,7 +43,7 @@ function compile(type, src) {
   return s;
 }
 function program(vs, fs, defs) {
-  const head = '#version 300 es\nprecision highp float;\nprecision highp int;\n' + (defs || '') + '\n' + UB.glsl + GLSL_COMMON;
+  const head = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp samplerCubeShadow;\n' + (defs || '') + '\n' + UB.glsl + GLSL_COMMON;
   const p = gl.createProgram();
   gl.attachShader(p, compile(gl.VERTEX_SHADER, head + vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, head + fs));
   gl.linkProgram(p);
@@ -57,13 +59,50 @@ function program(vs, fs, defs) {
   return { p, u };
 }
 
-// ---------- GLSL shared by every program: noise, lights, fog ----------
+// ---------- GLSL shared by every program: noise, lights with cube shadows, fog ----------
+// Programs built with NOLIGHT (the shadow depth passes) leave out the lighting code and its shadow samplers:
+// a program that renders into a shadow map must not have that map as an active sampler.
 const GLSL_COMMON = `
 float hash13(vec3 p){ p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
 float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
   return mix(mix(mix(hash13(i), hash13(i + vec3(1,0,0)), f.x), mix(hash13(i + vec3(0,1,0)), hash13(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(hash13(i + vec3(0,0,1)), hash13(i + vec3(1,0,1)), f.x), mix(hash13(i + vec3(0,1,1)), hash13(i + vec3(1,1,1)), f.x), f.y), f.z); }
-vec3 gIrr;  // diffuse light that reached the last shaded point (caustics reuse it)
+// value noise with its analytic gradient (x = value, yzw = d/dp): smooth bump mapping without screen-space derivatives
+vec4 vnd(vec3 x){ vec3 i = floor(x), f = fract(x); vec3 u = f * f * (3. - 2. * f), du = 6. * f * (1. - f);
+  float a = hash13(i), b = hash13(i + vec3(1,0,0)), c = hash13(i + vec3(0,1,0)), d = hash13(i + vec3(1,1,0));
+  float e = hash13(i + vec3(0,0,1)), g = hash13(i + vec3(1,0,1)), h = hash13(i + vec3(0,1,1)), k = hash13(i + vec3(1,1,1));
+  float k1 = b - a, k2 = c - a, k3 = e - a, k4 = a - b - c + d, k5 = a - c - e + h, k6 = a - b - e + g, k7 = -a + b + c - d + e - g - h + k;
+  return vec4(a + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z,
+    du * vec3(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z, k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x, k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y)); }
+float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(.06711056, .00583715)))); }
+vec3 fogit(vec3 c, float d){ return mix(c, uFog.rgb, 1. - exp(-d * uFog.w)); }
+#ifndef NOLIGHT
+uniform samplerCubeShadow uSh0; uniform samplerCubeShadow uSh1; uniform samplerCubeShadow uSh2; uniform samplerCubeShadow uSh3;
+float shTap(int k, vec4 c){ if (k == 0) return texture(uSh0, c); if (k == 1) return texture(uSh1, c); if (k == 2) return texture(uSh2, c); return texture(uSh3, c); }
+// depth a cube face stores for a point at major-axis distance m (near .1, far = the light's range)
+float shDepth(float m, float f){ const float n = .1; return ((f + n) / (f - n) - (2. * f * n / (f - n)) / max(m, n)) * .5 + .5; }
+float shadowAt(int k, vec3 P, vec3 Ng, vec3 lp, float jit){
+  vec4 sp = uShd[k]; if (sp.x <= .001) return 1.;
+  vec3 v = P - lp; float m0 = max(max(abs(v.x), abs(v.y)), abs(v.z));
+  if (m0 > sp.z) return 1.;
+  float tex = m0 * 2. / sp.w;                       // world size of one shadow texel at this distance
+  v += Ng * (tex * 1.8 + .02);                      // normal offset against acne
+  float m = max(max(abs(v.x), abs(v.y)), abs(v.z)) - (tex * 1.4 + .025);
+  float d = shDepth(m, sp.z), s = shTap(k, vec4(v, d));
+  int taps = int(uTime.w);
+  if (taps > 1) {
+    vec3 vd = normalize(v), t1 = normalize(cross(vd, abs(vd.y) < .9 ? vec3(0., 1., 0.) : vec3(1., 0., 0.))), t2 = cross(vd, t1);
+    float r = tex * 2.4 + m0 * .006, a = jit * 6.2832;
+    for (int j = 0; j < 8; j++) { if (j >= taps - 1) break;
+      float an = a + float(j) * 2.3999, rr = r * sqrt((float(j) + .5) / float(taps - 1));
+      s += shTap(k, vec4(v + (t1 * cos(an) + t2 * sin(an)) * rr, d)); }
+    s /= float(taps);
+  }
+  return mix(1., s, sp.x);
+}
+vec3 gIrr;          // diffuse light that reached the last shaded point (caustics and rim light reuse it)
+vec3 gNg;           // geometric normal (shadow offset)
+float gJit, gWrap;  // per-pixel jitter, diffuse wrap
 vec3 lightAll(vec3 P, vec3 N, vec3 Vd, vec3 alb, float shin, float spec, float ao){
   vec3 dif = uAmb.rgb * ao, sp = vec3(0.);
   { vec3 L = uHeadP.xyz - P; float d2 = max(dot(L, L), 1e-4); vec3 l = L * inversesqrt(d2);
@@ -76,15 +115,30 @@ vec3 lightAll(vec3 P, vec3 N, vec3 Vd, vec3 alb, float shin, float spec, float a
     vec4 lp = uLP[i]; vec3 L = lp.xyz - P; float d2 = dot(L, L); float r2 = lp.w * lp.w;
     if (d2 > r2) continue;
     vec3 l = L * inversesqrt(max(d2, 1e-4)); float w = 1. - d2 / r2; float att = uLC[i].w > .5 ? w * w * .05 : w * w / (1. + d2);
+    if (i < ${NSH}) att *= shadowAt(i, P, gNg, lp.xyz, gJit);
     vec3 c = uLC[i].rgb * att;
-    dif += c * max(dot(N, l) * .9 + .1, 0.);
+    dif += c * max((dot(N, l) + gWrap) / (1. + gWrap), 0.);
     sp += c * pow(max(dot(N, normalize(l + Vd)), 0.), shin);
   }
   gIrr = dif;
   return alb * dif + sp * spec;
 }
-vec3 fogit(vec3 c, float d){ return mix(c, uFog.rgb, 1. - exp(-d * uFog.w)); }
+#endif
 `;
+
+// the cave is a union of tubes and chambers: each rock chunk discards the part of itself that lies inside its neighbours' openings
+const ROCK_CUT_DECL = `
+uniform vec4 uCutA[6]; uniform vec4 uCutB[6]; uniform int uNCut;
+uniform vec4 uEll[3]; uniform vec4 uEllR[3]; uniform int uNEll;
+void rockCut(vec3 P){
+  for (int i = 0; i < 6; i++) { if (i >= uNCut) break;
+    vec3 a = uCutA[i].xyz, ba = uCutB[i].xyz - a, pa = P - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+    if (length(pa - ba * h) < uCutA[i].w && P.y > uCutB[i].w) discard; }
+  for (int i = 0; i < 3; i++) { if (i >= uNEll) break;
+    vec3 d = P - uEll[i].xyz; float c = cos(uEll[i].w), s = sin(uEll[i].w);
+    vec3 l = vec3(c * d.x - s * d.z, d.y, -s * d.x - c * d.z) / uEllR[i].xyz;
+    if (dot(l, l) < 1. && P.y > uEllR[i].w) discard; }
+}`;
 
 // ---------- lit opaque geometry (props, creatures, track; ROCK variant for cave walls) ----------
 const LIT_VS = `
@@ -93,23 +147,26 @@ layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(locatio
 layout(location=3) in vec4 aM0; layout(location=4) in vec4 aM1; layout(location=5) in vec4 aM2; layout(location=6) in vec4 aM3;
 layout(location=7) in vec4 aTint; layout(location=8) in vec4 aEmi;
 #endif
-out vec3 vP; out vec3 vN; out vec4 vCol; out vec4 vEmi; out vec3 vLoc;
+out vec3 vP; out vec3 vN; out vec4 vCol; out vec4 vEmi; out vec3 vLoc; flat out vec4 vSc;
 void main(){
 #ifdef ROCK
-  vP = aPos; vN = aNrm; vCol = aCol; vEmi = vec4(0.); vLoc = aPos;
+  vP = aPos; vN = aNrm; vCol = aCol; vEmi = vec4(0.); vLoc = aPos; vSc = vec4(1.);
 #else
   mat4 M = mat4(aM0, aM1, aM2, aM3); vec4 wp = M * vec4(aPos, 1.); vP = wp.xyz;
-  mat3 m3 = mat3(M); vN = normalize(transpose(inverse(m3)) * aNrm);
-  vCol = vec4(aCol.rgb * aTint.rgb, max(aCol.a, aTint.a)); vEmi = aEmi; vLoc = aPos;
+  vec3 sc = vec3(length(aM0.xyz), length(aM1.xyz), length(aM2.xyz));
+  vN = normalize(mat3(M) * (aNrm / max(sc * sc, vec3(1e-9))));        // inverse transpose of rotation * scale
+  vCol = vec4(aCol.rgb * aTint.rgb, max(aCol.a, aTint.a)); vEmi = aEmi;
+  vLoc = aPos * sc;                                                   // local position in metres
+  vSc = vec4(sc, fract(dot(aM3.xyz, vec3(.137, .291, .173))) * 37.);  // scale and a per-instance seed
 #endif
   gl_Position = uVP * vec4(vP, 1.);
 }`;
 const LIT_FS = `
-in vec3 vP; in vec3 vN; in vec4 vCol; in vec4 vEmi; in vec3 vLoc;
+in vec3 vP; in vec3 vN; in vec4 vCol; in vec4 vEmi; in vec3 vLoc; flat in vec4 vSc;
 out vec4 o;
+vec3 bump(vec3 N, vec3 g){ return normalize(N - (g - dot(g, N) * N)); }
 #ifdef ROCK
-uniform vec4 uCutA[6]; uniform vec4 uCutB[6]; uniform int uNCut;
-uniform vec4 uEll[3]; uniform vec4 uEllR[3]; uniform int uNEll;
+${ROCK_CUT_DECL}
 float caust(vec2 p, float t){
   vec2 q = p; float c = 0.;
   for (int i = 0; i < 3; i++) {
@@ -122,40 +179,66 @@ float caust(vec2 p, float t){
 #endif
 void main(){
 #ifdef ROCK
-  for (int i = 0; i < 6; i++) { if (i >= uNCut) break;
-    vec3 a = uCutA[i].xyz, ba = uCutB[i].xyz - a, pa = vP - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
-    if (length(pa - ba * h) < uCutA[i].w && vP.y > uCutB[i].w) discard; }
-  for (int i = 0; i < 3; i++) { if (i >= uNEll) break;
-    vec3 d = vP - uEll[i].xyz; float c = cos(uEll[i].w), s = sin(uEll[i].w);
-    vec3 l = vec3(c * d.x - s * d.z, d.y, -s * d.x - c * d.z) / uEllR[i].xyz;
-    if (dot(l, l) < 1. && vP.y > uEllR[i].w) discard; }
+  rockCut(vP);
 #endif
   vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
   vec3 toC = uCam.xyz - vP; float dist = length(toC); vec3 Vd = toC / max(dist, 1e-4);
-  vec3 alb = vCol.rgb; float shin = 18., spec = .05, ao = 1.;
+  gNg = N; gJit = ign(gl_FragCoord.xy); gWrap = .1;
+  vec3 alb = vCol.rgb, emi = vEmi.rgb; float shin = 18., spec = .05, ao = 1., rim = 0.;
 #ifdef ROCK
-  ao = vCol.a;
-  // procedural rock: strata bands, speckle, and bump from screen-space derivatives of a height noise
-  float oct = uTime.z;
-  float h = vn(vP * 2.3) * .45;
-  if (oct > 1.5) h += vn(vP * 6.1 + 7.) * .3;
-  if (oct > 2.5) h += vn(vP * 15.3 + 3.) * .18;
-  float band = vn(vec3(vP.x * .08, vP.y * 2.6, vP.z * .08)), fine = vn(vP * vec3(9., 22., 9.));
-  alb *= .8 + .32 * (band - .5) + .3 * (h - .45) + .12 * (fine - .5);
-  float wet = smoothstep(.62, .78, vn(vP * vec3(.7, .15, .7)));
-  spec = .05 + .45 * wet; shin = 22. + 50. * wet; alb *= 1. - .3 * wet;
-  vec3 dpx = dFdx(vP), dpy = dFdy(vP); float dhx = dFdx(h), dhy = dFdy(h);
-  vec3 r1 = cross(dpy, N), r2 = cross(N, dpx); float det = dot(dpx, r1);
-  vec3 g = sign(det) * (dhx * r1 + dhy * r2);
-  N = normalize(abs(det) * N - g * .55);
+  // procedural rock: warped sedimentary beds with dark seams, body noise with an analytic-gradient bump, cracks,
+  // wet streaks, mineral flecks, and dusty gravel on the floor
+  ao = vCol.a; float oct = uTime.z;
+  float floorK = smoothstep(.6, .88, N.y);
+  float warp = vn(vP * .31 + 11.);
+  float bedY = vP.y * 1.7 + (warp - .5) * 1.8 + vn(vP * 1.3 + 5.) * .6 + vP.x * .1 + vP.z * .07, bf = fract(bedY);
+  float bedTone = mix(hash13(vec3(floor(bedY), 3., 7.)), hash13(vec3(floor(bedY) + 1., 3., 7.)), smoothstep(.7, 1., bf));
+  float aa = clamp(abs(dot(N, Vd)) * 3.5, .2, 1.);   // less fine bump where the wall is seen edge-on
+  vec4 n1 = vnd(vP * 1.6); vec3 g = n1.yzw * (1.6 * .42); float h = n1.x * .42, hi = .5;
+  if (oct > 1.5) { vec4 n2 = vnd(vP * 4.7 + 7.); g += n2.yzw * (4.7 * .26 * clamp(1.8 - dist * .06, 0., 1.) * aa); h += n2.x * .26; hi = n2.x; }
+  if (oct > 2.5) {   // fine grit fades out with distance, where it would only alias
+    float f3 = clamp(1.3 - dist * .1, 0., 1.) * aa, f4 = clamp(1.4 - dist * .16, 0., 1.) * aa;
+    vec4 n3 = vnd(vP * 12. + 3.); g += n3.yzw * (12. * .13 * f3); h += n3.x * .13; hi = n3.x;
+    if (f4 > 0.) { vec4 n4 = vnd(vP * 31. + 9.); g += n4.yzw * (31. * .05 * f4); h += n4.x * .05; hi = mix(hi, n4.x, .5 * f4); } else h += .025; }
+  g.y += (smoothstep(.7, 1., bf + .04) - smoothstep(.7, 1., bf)) * 9. * (bedTone - .5) * (1. - floorK);   // faint steps between beds
+  N = bump(N, g * mix(.2, .24, floorK));
+  alb *= (.6 + .36 * bedTone) * (.62 + .78 * h);
+  alb = mix(alb, alb * vec3(1.16, 1.08, .97) + .015, smoothstep(.25, .75, N.y) * .3 * (1. - floorK));   // dust settles on ledges
+  vec3 gravel = vCol.rgb * vec3(.6, .58, .56) * (.5 + .75 * hi) * (.75 + .5 * hash13(floor(vP * 26.)));
+  alb = mix(alb, gravel, floorK);
+  ao *= .62 + .38 * smoothstep(.2, .65, h);
+  float wet = smoothstep(.62, .8, vn(vP * vec3(.7, .15, .7))) * (1. - floorK);
+  spec = .04 + .5 * wet; shin = 24. + 70. * wet; alb *= 1. - .35 * wet;
+  if (oct > 2.5) { float fl = step(.9965, hash13(floor(vP * 85.))) * clamp(1.5 - dist * .12, 0., 1.); spec += fl * 1.4; shin = mix(shin, 140., fl); }
 #else
-  float mat = floor(vCol.a * 4. + .5);
-  if (mat == 1.) { float gr = vn(vec3(vLoc.x * 3., vLoc.y * 3., vLoc.z * 40.) + vP * .2); alb *= .7 + .5 * gr; spec = .03; }
-  else if (mat == 2.) { spec = .7; shin = 70.; alb *= .9 + .2 * vn(vP * 9.); }
-  else if (mat == 3.) { spec = .3; shin = 36.; }
-  else if (mat == 4.) { spec = .9; shin = 110.; }
+  float mat = floor(vCol.a * 4. + .5), seed = vSc.w;
+  if (mat == 0.) {                      // stone and plain painted things
+    vec4 n = vnd(vP * 4.2); alb *= .78 + .42 * n.x; N = bump(N, n.yzw * .22); spec = .07;
+  } else if (mat == 1.) {               // wood: grain runs along the longest side of the piece
+    float mx = max(vSc.x, max(vSc.y, vSc.z)); vec3 fr = mix(vec3(34.), vec3(1.4), step(mx - 1e-4, vSc.xyz));
+    vec3 q = vLoc * fr + seed;
+    float gr = vn(q), fine = vn(q * 3.1 + 5.), band = .5 + .5 * sin(gr * 28. + fine * 3.);
+    alb *= (.6 + .45 * gr) * (.82 + .26 * band) * (.9 + .2 * fine);
+    alb = mix(alb, alb * vec3(.55, .5, .5), smoothstep(.72, .95, vn(vLoc * 2.3 + seed * 1.7)));   // old stains
+    spec = .05; shin = 14.;
+  } else if (mat == 2.) {               // iron and steel with rust blooms
+    float r = smoothstep(.44, .7, vn(vLoc * 7. + seed) * .65 + vn(vLoc * 23. + seed) * .35);
+    alb = mix(alb, mix(alb, vec3(.21, .1, .05), .65) * (.7 + .6 * vn(vLoc * 31. + seed)), r * .8);
+    alb *= .85 + .3 * vn(vLoc * 40. + seed);
+    spec = mix(.8, .1, r); shin = mix(70., 14., r);
+  } else if (mat == 3.) {               // creature skin: mottled, soft wrap light, a little sheen, rim light
+    float mo = vn(vLoc * 5.5 + seed), mo2 = vn(vLoc * 17. + seed);
+    alb *= (.74 + .4 * mo) * (.9 + .2 * mo2);
+    spec = .4; shin = 42.; gWrap = .45; rim = .55;
+  } else {                              // crystal: hard highlights, glow strongest at the core and tip, sparkle
+    float f = pow(1. - max(dot(N, Vd), 0.), 2.5);
+    emi *= .5 + 1.1 * f + .9 * smoothstep(.3, 1., vLoc.y / max(vSc.y, 1e-4));
+    spec = 1.2; shin = 120.; rim = .8; alb *= .7;
+    spec += 3. * step(.985, hash13(floor(vLoc * 60.) + seed));
+  }
 #endif
   vec3 col = lightAll(vP, N, Vd, alb, shin, spec, ao);
+  col += gIrr * alb * rim * pow(1. - max(dot(N, Vd), 0.), 3.);
 #ifdef ROCK
   if (uRiverR.z > .5) {
     vec3 d = vP - uRiver.xyz; float c = cos(uRiver.w), s = sin(uRiver.w);
@@ -169,8 +252,34 @@ void main(){
     }
   }
 #endif
-  col += vEmi.rgb;
+  col += emi;
   o = vec4(fogit(col, dist), 1.);
+}`;
+
+// ---------- shadow depth pass (cube faces): position only, same cuts as the lit rock, lamps flagged as non-casters ----------
+const SH_VS = `
+layout(location=0) in vec3 aPos;
+#ifndef ROCK
+layout(location=3) in vec4 aM0; layout(location=4) in vec4 aM1; layout(location=5) in vec4 aM2; layout(location=6) in vec4 aM3;
+layout(location=8) in vec4 aEmi;
+#endif
+uniform mat4 uSVP; out vec3 vP;
+void main(){
+#ifdef ROCK
+  vP = aPos; gl_Position = uSVP * vec4(vP, 1.);
+#else
+  vP = (mat4(aM0, aM1, aM2, aM3) * vec4(aPos, 1.)).xyz; gl_Position = aEmi.w > .5 ? vec4(2., 2., 2., 1.) : uSVP * vec4(vP, 1.);
+#endif
+}`;
+const SH_FS = `
+in vec3 vP;
+#ifdef ROCK
+${ROCK_CUT_DECL}
+#endif
+void main(){
+#ifdef ROCK
+  rockCut(vP);
+#endif
 }`;
 
 // ---------- water surface: refraction of a copy of the opaque frame, absorption by thickness, light glints ----------
@@ -186,11 +295,8 @@ float linz(float d){ float n = uClip.x, f = uClip.y; float z = d * 2. - 1.; retu
 void main(){
   float t = uTime.x, fl = uRiverR.w;
   vec2 q1 = vL * .45 + vec2(0., t * fl * .55), q2 = vL * 1.3 + vec2(t * .07, t * fl * 1.1);
-  float e = .04;
-  float h1 = vn(vec3(q1, t * .2)) + .5 * vn(vec3(q2, t * .35));
-  float hx = vn(vec3(q1 + vec2(e, 0.), t * .2)) + .5 * vn(vec3(q2 + vec2(e * 2.9, 0.), t * .35));
-  float hz = vn(vec3(q1 + vec2(0., e), t * .2)) + .5 * vn(vec3(q2 + vec2(0., e * 2.9), t * .35));
-  vec3 N = normalize(vec3(-(hx - h1) / e * .09, 1., -(hz - h1) / e * .09));
+  vec4 a = vnd(vec3(q1, t * .2)), b = vnd(vec3(q2, t * .35));
+  vec3 N = normalize(vec3(-(a.y * .45 + b.y * .65) * .2, 1., -(a.z * .45 + b.z * .65) * .2));
   vec3 toC = uCam.xyz - vP; float dist = length(toC); vec3 Vd = toC / dist;
   vec2 uv = gl_FragCoord.xy / uClip.zw;
   vec3 under = vec3(.004, .012, .016);
@@ -200,7 +306,6 @@ void main(){
     float zs2 = linz(texture(uDepth, uv2).r); if (zs2 < zw) uv2 = uv; else zs = zs2;
     float th = max(zs - zw, 0.);
     vec3 bed = texture(uScene, uv2).rgb;
-    bed = mix(bed, vec3(0.), clamp(1. - exp(-dist * uFog.w), 0., 1.) * 0.);
     under = bed * exp(-th * vec3(.55, .22, .14)) + vec3(.003, .01, .013) * (1. - exp(-th * .5));
   }
   float fr = .02 + .98 * pow(1. - max(dot(N, Vd), 0.), 5.);
@@ -218,7 +323,7 @@ void main(){
     refl += uHeadP.w * vec3(1., .84, .62) * pow(max(dot(N, H), 0.), 200.) * 4. / (1. + d2 * .1); }
   vec3 R = reflect(-Vd, N);
   float worms = step(.9965, hash13(floor(R * 140.))) * (.5 + .5 * sin(t * 1.3 + hash13(floor(R * 140.) + 7.) * 40.));
-  refl += vec3(.008, .028, .032) + worms * vec3(.4, 1.6, 1.3) * smoothstep(.1, .5, R.y);
+  refl += uAmb.rgb * 1.6 + worms * vec3(.4, 1.6, 1.3) * smoothstep(.1, .5, R.y);
   vec3 col = mix(under, refl * 3., fr) + refl * .5;
   o = vec4(fogit(col, dist), 1.);
 }`;
@@ -250,6 +355,7 @@ void main(){
   else if (sh < 1.5) a = exp(-vUV.x * vUV.x * 5.) * (1. - vUV.y * vUV.y) ;
   else if (sh < 2.5) a = exp(-pow(sqrt(r2) - .72, 2.) * 70.);
   else if (sh < 3.5) a = smoothstep(1., .55, r2) + exp(-r2 * 2.) * .4;
+  else if (sh < 4.5) a = exp(-vUV.y * vUV.y * 260.) * pow(max(1. - abs(vUV.x), 0.), 2.5);      // lens streak
   else a = smoothstep(1., 0., r2) * (.6 + .4 * hash13(vec3(floor(vUV * 3.), sh)));
   float f = exp(-vD * uFog.w * .8);
   if (uAlpha > .5) o = vec4(vB.rgb * a * f, a * clamp(sh - 4., 0., 1.));
@@ -277,17 +383,31 @@ void main(){
   s += texture(uSrc, vUV + d).rgb + texture(uSrc, vUV - d).rgb + texture(uSrc, vUV + vec2(d.x, -d.y)).rgb + texture(uSrc, vUV + vec2(-d.x, d.y)).rgb;
   o = vec4(s / 16. * uW, 1.);
 }`;
+// light scattered toward the eye by dust: a closed-form integral per light, and for the shadow-casting lights the lit
+// fraction of the ray is measured by marching it through their shadow cubes, which gives shafts between the timbers
 const SCAT_FS = `
-in vec2 vUV; out vec4 o; uniform sampler2D uDepthS; uniform int uNS; uniform float uDen;
+in vec2 vUV; out vec4 o; uniform sampler2D uDepthS; uniform int uNS; uniform float uDen; uniform int uSteps;
 void main(){
   float d = texture(uDepthS, vUV).r;
   vec4 wp = uInvVP * vec4(vUV * 2. - 1., d * 2. - 1., 1.); vec3 P = wp.xyz / wp.w;
   vec3 ro = uCam.xyz, rd = P - ro; float T = length(rd); rd /= T; T = min(T, 90.);
+  float jit = ign(gl_FragCoord.xy);
   vec3 s = vec3(0.);
   for (int i = 0; i < 16; i++) { if (i >= uNS) break; if (uLC[i].w > .5) continue;
-    vec3 lp = uLP[i].xyz; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float h = max(length(lp - cp), .25);
-    float I = (atan((T - s0) / h) - atan(-s0 / h)) / h;
-    s += uLC[i].rgb * I * min(1., uLP[i].w / 12.);
+    vec3 lp = uLP[i].xyz; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float hh = length(lp - cp), h = max(hh, .25);
+    float I = (atan((T - s0) / h) - atan(-s0 / h)) / h, vis = 1.;
+    if (i < ${NSH} && uSteps > 0 && uShd[i].x > .001) {
+      float R = uShd[i].z, b = sqrt(max(R * R - hh * hh, 0.)), t0 = max(s0 - b, 0.), t1 = min(s0 + b, T);
+      if (t1 > t0) {
+        float dt = (t1 - t0) / float(uSteps), acc = 0., tot = 0.;
+        for (int j = 0; j < 24; j++) { if (j >= uSteps) break;
+          vec3 v = ro + rd * (t0 + (float(j) + jit) * dt) - lp; float w = 1. / (dot(v, v) + .1);
+          float m = max(max(abs(v.x), abs(v.y)), abs(v.z)) - .04;
+          acc += w * shTap(i, vec4(v, shDepth(m, R))); tot += w; }
+        vis = mix(1., acc / max(tot, 1e-5), uShd[i].x) * (1. + 1.8 * uShd[i].x);   // key lights get denser air so their beams read
+      }
+    }
+    s += uLC[i].rgb * I * vis * min(1., uLP[i].w / 12.) * .7;
   }
   { vec3 lp = uHeadP.xyz + uHeadD.xyz * 3.; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float h = max(length(lp - cp), .4);
     s += uHeadP.w * vec3(1., .84, .62) * (atan((T - s0) / h) - atan(-s0 / h)) / h * .25; }
@@ -295,17 +415,24 @@ void main(){
 }`;
 const COMP_FS = `
 in vec2 vUV; out vec4 o; uniform sampler2D uScene; uniform sampler2D uBloom;
-uniform float uExpo, uBloomK, uHurt, uFade, uGrain; uniform vec3 uFadeCol;
+uniform float uExpo, uBloomK, uHurt, uFade, uGrain, uCA; uniform vec3 uFadeCol;
 vec3 aces(vec3 x){ return clamp((x * (2.51 * x + .03)) / (x * (2.43 * x + .59) + .14), 0., 1.); }
+vec3 clean(vec3 c){ return (any(isnan(c)) || any(isinf(c))) ? vec3(0.) : c; }
 void main(){
-  vec3 c = texture(uScene, vUV).rgb; if (any(isnan(c)) || any(isinf(c))) c = vec3(0.);
-  vec3 b = texture(uBloom, vUV).rgb; if (any(isnan(b)) || any(isinf(b))) b = vec3(0.);
-  c = c + b * uBloomK;
-  c *= uExpo;
-  vec2 q = vUV - .5; float vig = 1. - dot(q, q) * 1.1;
-  c *= vig;
+  vec2 q = vUV - .5; float r2 = dot(q, q);
+  vec3 c = clean(texture(uScene, vUV).rgb);
+  if (uCA > 0.) {                                   // a little lateral chromatic aberration toward the corners
+    vec2 off = q * r2 * uCA;
+    c.r = clean(texture(uScene, vUV + off).rgb).r; c.b = clean(texture(uScene, vUV - off).rgb).b;
+  }
+  vec3 b = clean(texture(uBloom, vUV).rgb);
+  c = (c + b * uBloomK) * uExpo;
+  c *= 1. - smoothstep(.12, .78, r2) * .62;         // vignette
   c = aces(c);
   c = pow(c, vec3(1. / 2.2));
+  float l = dot(c, vec3(.3, .59, .11));
+  c = mix(vec3(l), c, 1.08);                        // grade: a touch more colour, cool shadows, warm highlights
+  c += vec3(-.006, .002, .012) * (1. - smoothstep(0., .35, l)) + vec3(.012, .004, -.012) * smoothstep(.5, 1., l);
   float hr = uHurt * smoothstep(.15, .75, length(q * vec2(1.4, 1.)));
   c = mix(c, vec3(.55, .02, .02), hr * .65);
   c += (hash13(vec3(gl_FragCoord.xy, uTime.x * 60.)) - .5) * uGrain;
@@ -318,12 +445,46 @@ const PROG = {};
 function buildPrograms() {
   PROG.lit = program(LIT_VS, LIT_FS, '');
   PROG.rock = program(LIT_VS, LIT_FS, '#define ROCK');
+  PROG.shLit = program(SH_VS, SH_FS, '#define NOLIGHT');
+  PROG.shRock = program(SH_VS, SH_FS, '#define NOLIGHT\n#define ROCK');
   PROG.water = program(WATER_VS, WATER_FS, '');
   PROG.glow = program(GLOW_VS, GLOW_FS, '');
   PROG.down = program(FS_VS, DOWN_FS, '');
   PROG.up = program(FS_VS, UP_FS, '');
   PROG.scat = program(FS_VS, SCAT_FS, '');
   PROG.comp = program(FS_VS, COMP_FS, '');
+}
+
+// ---------- shadow cubes: one depth cube map per shadow slot, six framebuffers each ----------
+const SH = { n: -1, res: 0, slots: [], dummy: null };
+const CUBE_FACES = [[[1, 0, 0], [0, -1, 0]], [[-1, 0, 0], [0, -1, 0]], [[0, 1, 0], [0, 0, 1]], [[0, -1, 0], [0, 0, -1]], [[0, 0, 1], [0, -1, 0]], [[0, 0, -1], [0, -1, 0]]]
+  .map(([f, u]) => ({ f, u, r: V.cross(f, u) }));
+function mkCube(res) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+  gl.texStorage2D(gl.TEXTURE_CUBE_MAP, 1, gl.DEPTH_COMPONENT24, res, res);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  const fbs = [];
+  for (let i = 0; i < 6; i++) {
+    const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, t, 0);
+    gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE); fbs.push(f);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+  return { t, fbs };
+}
+function setupShadows(q) {
+  if (SH.n === q.sh && SH.res === q.shRes) return;
+  bindShadowCubes(true);
+  for (const s of SH.slots) if (s.own) { gl.deleteTexture(s.t); for (const f of s.fbs) gl.deleteFramebuffer(f); }
+  if (!SH.dummy) SH.dummy = mkCube(1);
+  SH.n = q.sh; SH.res = q.shRes; SH.slots = [];
+  for (let k = 0; k < NSH; k++) { const c = k < q.sh ? mkCube(q.shRes) : SH.dummy; SH.slots.push({ t: c.t, fbs: c.fbs, own: k < q.sh, key: null, light: null, k: 0 }); }
+}
+function bindShadowCubes(none) {
+  for (let k = 0; k < SH.slots.length; k++) { gl.activeTexture(gl.TEXTURE0 + TU.uSh0 + k); gl.bindTexture(gl.TEXTURE_CUBE_MAP, none ? null : SH.slots[k].t); }
+  gl.activeTexture(gl.TEXTURE0);
 }
 
 // ---------- meshes ----------
@@ -450,7 +611,7 @@ class Batch {
     M4.basis(f, o, F.p, F.x, F.y, F.z, sx, sy, sz);
     f[o + 16] = col[0]; f[o + 17] = col[1]; f[o + 18] = col[2]; f[o + 19] = col[3] || 0;
     if (emi) { f[o + 20] = emi[0]; f[o + 21] = emi[1]; f[o + 22] = emi[2]; } else { f[o + 20] = f[o + 21] = f[o + 22] = 0; }
-    f[o + 23] = 0;
+    f[o + 23] = Batch.noShadow;
   }
   // segment-aligned primitive (cylinder/box/leg) from a to b with radius r (local y runs along a->b)
   addSeg(a, b, r, col, emi, up, rz) {
@@ -463,6 +624,7 @@ class Batch {
   draw() { if (!this.n) return; gl.bindVertexArray(this.vao); gl.drawElementsInstanced(gl.TRIANGLES, this.mesh.n, this.mesh.type, 0, this.n); }
   free() { gl.deleteVertexArray(this.vao); gl.deleteBuffer(this.ib); }
 }
+Batch.noShadow = 0;   // set to 1 while adding lamp geometry: the light sits inside it, so it must not cast
 // draw a plain (non-instanced) mesh with the lit program: identity instance attributes
 function drawPlain(m) {
   gl.bindVertexArray(m.vao);
@@ -516,9 +678,9 @@ function setupTargets(W, H, q) {
   const ns = HDR ? q.msaa : Math.min(q.msaa, 4);
   if (RT.W === W && RT.H === H && RT.samples === ns && RT.nb === q.bloom) return;
   // free old
-  for (const k of ['msFB', 'sceneFB', 'depthFB', 'copyFB']) if (RT[k]) gl.deleteFramebuffer(RT[k]);
+  for (const k of ['msFB', 'sceneFB', 'depthFB', 'copyFB', 'scatFB']) if (RT[k]) gl.deleteFramebuffer(RT[k]);
   for (const k of ['msCol', 'msDep']) if (RT[k]) gl.deleteRenderbuffer(RT[k]);
-  for (const k of ['sceneTex', 'depthTex', 'copyTex', 'copyDep']) if (RT[k]) gl.deleteTexture(RT[k]);
+  for (const k of ['sceneTex', 'depthTex', 'copyTex', 'copyDep', 'scatTex']) if (RT[k]) gl.deleteTexture(RT[k]);
   for (const b of RT.bloom) { gl.deleteFramebuffer(b.fb); gl.deleteTexture(b.t); }
   RT.W = W; RT.H = H; RT.nb = q.bloom;
   let maxS = 0; try { const s = gl.getInternalformatParameter(gl.RENDERBUFFER, CFMT, gl.SAMPLES); maxS = s && s.length ? Math.max(...s) : 0; } catch (e) {}
@@ -533,6 +695,8 @@ function setupTargets(W, H, q) {
   RT.depthTex = mkTex(W, H, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.NEAREST); RT.depthFB = mkFB(null, RT.depthTex);
   RT.copyTex = mkTex(W, H, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR);
   RT.copyDep = mkTex(W, H, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.NEAREST); RT.copyFB = mkFB(RT.copyTex, RT.copyDep);
+  RT.scatW = Math.max(1, W >> 1); RT.scatH = Math.max(1, H >> 1);
+  RT.scatTex = mkTex(RT.scatW, RT.scatH, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR); RT.scatFB = mkFB(RT.scatTex, null);
   RT.bloom = []; let w = W, h = H;
   for (let i = 0; i < q.bloom; i++) { w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); const t = mkTex(w, h, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR); RT.bloom.push({ t, fb: mkFB(t, null), w, h }); }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);

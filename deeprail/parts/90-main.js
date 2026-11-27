@@ -1,5 +1,5 @@
 // ===== Main: drawing the world, HUD and menus, the frame loop, quality, window.DR test API =====
-let QI = clamp(+(URLP.get('q') !== null ? ({ low: 0, medium: 1, med: 1, high: 2, max: 3 }[URLP.get('q')] ?? 2) : SAVE.get('quality', 2)), 0, 3);
+let QI = clamp(+(URLP.get('q') !== null ? ({ low: 0, medium: 1, med: 1, high: 2, max: 3 }[URLP.get('q')] ?? 2) : SAVE.get('quality', TOUCH ? 1 : 2)), 0, 3);   // phones start on MEDIUM
 const DB = {}, GLB = new GlowBatch(2048), SMB = new GlowBatch(512), VMB = {};
 let dynScale = 1, frameMs = 16, perfAcc = 0;
 const PERF = { fps: 0, ms: 0, w: 0, h: 0, draws: 0, lights: 0 };
@@ -19,6 +19,7 @@ function init() {
 const IDF = (p) => ({ p, x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] });
 function drawLamps(B, GL) {
   const cp = G.cam.p, t = G.time;
+  Batch.noShadow = 1;   // the light sits inside this geometry
   for (const L of LV.lamps) {
     if (V.dist2(L.p, cp) > 90 * 90) continue;
     const lit = L.lit, c = L.col;
@@ -49,6 +50,7 @@ function drawLamps(B, GL) {
       if (G.cart.seg.id === 'exit') { const k = smooth(80, 230, G.cart.s); GL.add(L.p, 9, 5 * k, 4.7 * k, 4.2 * k, 0); GL.add(L.p, 3, 20 * k, 19 * k, 17 * k, 0); }
     }
   }
+  Batch.noShadow = 0;
 }
 function drawLevers(B, GL) {
   for (const L of LV.levers) {
@@ -65,7 +67,7 @@ function drawLevers(B, GL) {
       if (on) GL.add(fpt(S, sd * .62, 0, .1), .35, 1.4, 1, .2, 0);
     }
     GL.add(fpt(A, 0, .72, 0), .25, .6, .1, .05, 0);
-    B.cone.add(IDF(V.add(L.base, [0, 2.75, 0])), .16, .12, .16, IRON); GL.add(V.add(L.base, [0, 2.6, 0]), .5, 1.6, 1.2, .5, 0); GL.add(V.add(L.base, [0, 2.6, 0]), .07, 9, 7, 3.5, 0);
+    Batch.noShadow = 1; B.cone.add(IDF(V.add(L.base, [0, 2.75, 0])), .16, .12, .16, IRON); Batch.noShadow = 0; GL.add(V.add(L.base, [0, 2.6, 0]), .5, 1.6, 1.2, .5, 0); GL.add(V.add(L.base, [0, 2.6, 0]), .07, 9, 7, 3.5, 0);
   }
 }
 function drawProps(B, GL) {
@@ -106,25 +108,90 @@ function drawProps(B, GL) {
 }
 function drawCart(B) {
   const c = G.cart, f = c.f || c.seg.at(c.s); if (G.camLock) return;
-  const F = { p: c.p, x: f.R, y: f.U, z: f.T }, iron = [.26, .13, .08, .5], band = [.16, .15, .14, .5];
-  B.box.add(fmove(F, 0, .6, .8), 1.16, .74, .07, iron); B.box.add(fmove(F, 0, .98, .82), 1.22, .07, .12, band);
-  for (const sd of [-1, 1]) { B.box.add(fmove(F, sd * .58, .6, -.1), .07, .74, 1.9, iron); B.box.add(fmove(F, sd * .6, .98, -.1), .12, .07, 1.96, band); }
-  B.box.add(fmove(F, 0, .26, -.15), 1.1, .06, 1.9, [.1, .07, .05, .5]);
-  for (const sd of [-1, 1]) for (const dz of [-.6, .45]) B.cyl.add(frot(fmove(F, sd * .56, .14, dz), 'z', Math.PI / 2), .17, .08, .17, band);
+  const F = { p: c.p, x: f.R, y: f.U, z: f.T }, iron = [.3, .17, .12, .5], band = [.2, .19, .18, .5], dark = [.13, .12, .115, .5], plank = [.3, .21, .13, .25];
+  const zc = -.1, L = 1.9, zf = zc + L / 2, zb = zc - L / 2, yb = .28, yt = .98, hw = .6;
+  // tub: flared sides, front and back walls
+  for (const sd of [-1, 1]) {
+    const W = frot(fmove(F, sd * (hw - .04), (yb + yt) / 2, zc), 'z', -sd * .09);
+    B.box.add(W, .05, yt - yb + .02, L, iron);
+    for (let k = 0; k < 4; k++) B.box.add(fmove(W, -sd * .03, 0, -L / 2 + .25 + k * (L - .5) / 3), .035, yt - yb, .06, band);          // inner ribs
+    B.cyl.add(frot(fmove(F, sd * hw, yt, zc), 'x', Math.PI / 2), .04, L + .08, .04, band);                                             // rolled rim
+    for (let k = 0; k < 9; k++) B.sph.add(fmove(W, -sd * .028, (yt - yb) / 2 - .09, -L / 2 + .12 + k * (L - .24) / 8), .017, .017, .017, dark);   // rivets
+  }
+  for (const [z, sg] of [[zf, 1], [zb, -1]]) {
+    B.box.add(fmove(F, 0, (yb + yt) / 2, z), hw * 2 - .06, yt - yb + .02, .05, iron);
+    B.cyl.add(frot(fmove(F, 0, yt, z), 'z', Math.PI / 2), .04, hw * 2 + .08, .04, band);
+    for (const x of [-.3, 0, .3]) B.box.add(fmove(F, x, (yb + yt) / 2, z - sg * .03), .06, yt - yb, .035, band);
+    for (let k = 0; k < 6; k++) B.sph.add(fmove(F, -.5 + k * .2, yt - .09, z - sg * .03), .017, .017, .017, dark);
+  }
+  for (const sx of [-1, 1]) for (const z of [zf, zb]) B.sph.add(fmove(F, sx * hw, yt, z), .055, .055, .055, band);                     // rim corners
+  // plank floor, with a little cargo: a box of flares and a coil of rope
+  for (let k = 0; k < 4; k++) B.box.add(fmove(F, -.42 + k * .28, yb, zc), .265, .05, L - .08, [plank[0] * (.85 + .1 * (k % 2)), plank[1] * (.85 + .1 * (k % 2)), plank[2], .25]);
+  const cb = fmove(F, -.33, yb + .11, zf - .2);
+  B.box.add(cb, .3, .16, .2, [.36, .26, .16, .25]); B.box.add(fmove(cb, 0, .085, 0), .31, .012, .21, dark);
+  for (let k = 0; k < 3; k++) B.cyl.add(frot(fmove(cb, -.08 + k * .08, .11, 0), 'x', Math.PI / 2), .016, .17, .016, [.55, .13, .07, 0], k < G.flares ? [.12, .02, .01] : null);
+  for (let k = 0; k < 3; k++) B.cyl.add(fmove(F, .34, yb + .05 + k * .04, zf - .26), .13 - k * .008, .04, .13 - k * .008, [.42, .36, .25, .25]);
+  // undercarriage and wheels
+  B.box.add(fmove(F, 0, .2, zc), .9, .08, L - .2, dark);
+  for (const sd of [-1, 1]) for (const dz of [-.6, .45]) { B.cyl.add(frot(fmove(F, sd * .56, .15, dz), 'z', Math.PI / 2), .17, .07, .17, band); B.cyl.add(frot(fmove(F, sd * .6, .15, dz), 'z', Math.PI / 2), .06, .05, .06, dark); }
+  // hooded headlamp on the front wall
+  Batch.noShadow = 1;
+  const hl = fmove(F, -.36, yt - .02, zf + .1);
+  B.cyl.add(frot(hl, 'x', Math.PI / 2), .07, .14, .07, [.5, .36, .16, .5]); B.cone.add(frot(fmove(hl, 0, .06, 0), 'x', 0), .09, .05, .09, dark);
+  Batch.noShadow = 0;
 }
 function drawGun(B, GL) {
   if (G.camLock || G.phase === 'results') return;
   const C = G.cam, d = aimRay(G.aim.x, G.aim.y), rc = G.recoil || 0, k = .95;
   const base = V.add(C.p, V.add(V.add(V.scl(C.r, .29), V.scl(C.u, -.27 + rc * .008)), V.scl(C.f, .56 - rc * .04)));
-  const F = frameLook(base, V.norm(V.add(d, V.scl(C.u, rc * .06))), C.u), brass = [.7, .5, .24, .5], steel = [.16, .16, .17, .5], wood = [.3, .16, .08, .25];
-  const S = (lx, ly, lz) => fmove(F, lx * k, ly * k, lz * k), cylZ = (lx, ly, lz, r, L, col, e) => B.cyl.add(frot(S(lx, ly, lz), 'x', Math.PI / 2), r * k, L * k, r * k, col, e);
-  B.box.add(S(0, 0, -.03), .07 * k, .08 * k, .19 * k, steel);
-  cylZ(0, .012, .16, .02, .24, steel);
-  cylZ(0, -.042, .1, .028, .15, [.45, .1, .05, .5], G.flares > 0 ? [.18, .03, .01] : null);
-  for (const z of [.08, .18, .26]) cylZ(0, .012, z, .027, .014, brass, G.muzzle > 0 ? [.9, .3, .06] : null);
-  B.box.add(frot(S(0, -.095, -.085), 'x', .35), .05 * k, .15 * k, .065 * k, wood);
-  B.box.add(S(0, .05, -.07), .018 * k, .022 * k, .06 * k, brass);
-  if (G.muzzle > 0) { const m = fpt(F, 0, .012 * k, .3 * k); GL.add(m, .1, 10, 6, 2, 0); GL.add(m, .035, 26, 20, 12, 0); }
+  const F = frameLook(base, V.norm(V.add(d, V.scl(C.u, rc * .06))), C.u);
+  const brass = [.78, .56, .26, .5], steel = [.2, .2, .215, .5], blue = [.11, .115, .13, .5], wood = [.36, .2, .1, .25], glove = [.2, .14, .09, .75], cloth = [.16, .13, .11, 0];
+  const S = (lx, ly, lz) => fmove(F, lx * k, ly * k, lz * k), pt = (lx, ly, lz) => fpt(F, lx * k, ly * k, lz * k);
+  const cylZ = (lx, ly, lz, r, L, col, e) => B.cyl.add(frot(S(lx, ly, lz), 'x', Math.PI / 2), r * k, L * k, r * k, col, e);
+  const hot = G.muzzle > 0 ? [.9, .3, .06] : null;
+  // barrel with brass bands, crown and front sight
+  cylZ(0, .014, .17, .016, .27, blue);
+  for (const z of [.075, .17, .265]) cylZ(0, .014, z, .0215, .012, brass, hot);
+  cylZ(0, .014, .305, .02, .016, steel, hot); B.box.add(S(0, .036, .295), .005 * k, .012 * k, .014 * k, brass);
+  // flare tube under the barrel
+  cylZ(0, -.036, .125, .026, .16, [.5, .11, .06, .5]); cylZ(0, -.036, .208, .028, .012, brass); cylZ(0, -.036, .04, .028, .012, brass);
+  if (G.flares > 0) cylZ(0, -.036, .216, .017, .008, [.9, .5, .3, 0], [.5, .1, .03]);
+  // receiver, top strap, rear sight, hammer
+  B.box.add(S(0, .002, -.03), .05 * k, .076 * k, .17 * k, steel);
+  B.box.add(S(0, .043, -.035), .03 * k, .012 * k, .15 * k, blue);
+  for (const sx of [-1, 1]) B.box.add(S(sx * .011, .055, -.1), .006 * k, .012 * k, .01 * k, blue);
+  B.box.add(frot(S(0, .05, -.125), 'x', -.5 - rc * .5), .012 * k, .034 * k, .014 * k, steel);
+  for (const sx of [-1, 1]) B.cyl.add(frot(S(sx * .027, .005, -.02), 'z', Math.PI / 2), .012 * k, .006 * k, .012 * k, brass);   // side plates' screws
+  // grip, butt cap, trigger guard
+  B.box.add(frot(S(0, -.092, -.088), 'x', .35), .044 * k, .14 * k, .058 * k, wood);
+  B.box.add(frot(S(0, -.158, -.112), 'x', .35), .047 * k, .014 * k, .06 * k, brass);
+  B.box.add(S(0, -.07, -.012), .008 * k, .006 * k, .07 * k, steel); B.box.add(S(0, -.052, .022), .008 * k, .036 * k, .006 * k, steel);
+  B.box.add(frot(S(0, -.05, -.02), 'x', .3), .006 * k, .03 * k, .008 * k, steel);
+  // gloved hand and sleeve
+  B.sph.add(frot(S(.004, -.095, -.092), 'x', .35), .04 * k, .062 * k, .05 * k, glove);
+  for (let i = 0; i < 3; i++) B.sph.add(frot(S(-.004, -.075 - i * .026, -.06 - i * .009), 'x', .35), .034 * k, .0145 * k, .03 * k, glove);   // fingers wrapped round the front
+  B.cyl.addSeg(pt(-.027, -.07, -.1), pt(-.03, -.035, -.045), .012 * k, glove);                                                             // thumb
+  B.cyl.addSeg(pt(.01, -.14, -.12), pt(.07, -.42, -.33), .042 * k, cloth, null, C.u); B.cyl.addSeg(pt(.008, -.13, -.115), pt(.02, -.19, -.16), .046 * k, glove, null, C.u);
+  if (G.muzzle > 0) { const m = pt(0, .014, .32); GL.add(m, .1, 10, 6, 2, 0); GL.add(m, .035, 26, 20, 12, 0); GL.add(m, .22, 3, 1.6, .5, 4); }
+}
+// dust motes hanging in the air around the camera, lit on the CPU by the headlamp and the nearest lights
+const DUST = [];
+function drawDust(GL, q) {
+  const n = q.dust; if (!n || !G.headP) return;
+  while (DUST.length < n) DUST.push({ o: [Math.random() * 14, Math.random() * 8, Math.random() * 14], ph: Math.random() * TAU, s: .005 + Math.random() * .009 });
+  const C = G.cam, cp = C.p, t = G.time, BX = 14, BY = 8, hp = G.headP, hd = G.headD, cosC = Math.cos(36 * DEG);
+  const Ls = []; for (const L of LOUT) if (L && !L.fill && Ls.length < 8) Ls.push(L);
+  const wrap = (v, c, b) => c + (((v - c) % b + b) % b) - b / 2;
+  for (let i = 0; i < n; i++) {
+    const m = DUST[i], p = [wrap(m.o[0] + Math.sin(t * .23 + m.ph) * .4, cp[0], BX), wrap(m.o[1] + Math.sin(t * .17 + m.ph * 2) * .25 - t * .02, cp[1], BY), wrap(m.o[2] + Math.cos(t * .19 + m.ph) * .4, cp[2], BX)];
+    const rel = V.sub(p, cp), z = V.dot(rel, C.f); if (z < .6) continue;
+    let r = 0, g = 0, b = 0;
+    { const d = V.sub(p, hp), d2 = V.dot(d, d), cs = V.dot(d, hd) / Math.sqrt(d2 + 1e-6), k = 15 * smooth(cosC, cosC + .14, cs) / (1 + d2); r += k; g += k * .84; b += k * .62; }
+    for (const L of Ls) { const d2 = V.dist2(p, L.p), r2 = L.range * L.range; if (d2 > r2) continue; const w = 1 - d2 / r2, k = L.I * w * w / (1 + d2); r += L.col[0] * k; g += L.col[1] * k; b += L.col[2] * k; }
+    const lum = r + g + b; if (lum < .02) continue;
+    const k = .22 * Math.min(1, z / 1.5) * (.6 + .4 * Math.sin(t * 1.7 + m.ph * 5));
+    GL.add(p, m.s * (1 + .12 * z), r * k, g * k, b * k, 0);
+  }
 }
 // ---------- the frame ----------
 function resize() {
@@ -144,46 +211,83 @@ function sphereVisible(c, r) {
   const kx = Math.sqrt(1 + th * th), ky = Math.sqrt(1 + tv * tv);
   return Math.abs(x) - z * th < r * kx && Math.abs(y) - z * tv < r * ky;
 }
+function rockUniforms(P, r) {
+  if (!r.uni) {
+    const A = new Float32Array(24), B = new Float32Array(24), E = new Float32Array(12), R = new Float32Array(12);
+    r.cuts.forEach((c, i) => { A.set([c.a[0], c.a[1], c.a[2], c.r], i * 4); B.set([c.b[0], c.b[1], c.b[2], c.floor], i * 4); });
+    r.ells.forEach((ch, i) => { E.set([ch.c[0], ch.c[1], ch.c[2], ch.yaw], i * 4); R.set([ch.r[0] * .96, ch.r[1] * .96, ch.r[2] * .96, ch.floor + .15], i * 4); });
+    r.uni = { A, B, E, R };
+  }
+  gl.uniform1i(P.u.uNCut, r.cuts.length); if (r.cuts.length) { gl.uniform4fv(P.u.uCutA, r.uni.A); gl.uniform4fv(P.u.uCutB, r.uni.B); }
+  gl.uniform1i(P.u.uNEll, r.ells.length); if (r.ells.length) { gl.uniform4fv(P.u.uEll, r.uni.E); gl.uniform4fv(P.u.uEllR, r.uni.R); }
+}
+// one depth cube per shadow slot: the cave walls, static props and everything dynamic, drawn six times from the light
+function renderShadows(q) {
+  let draws = 0; if (!q.sh) return 0;
+  bindShadowCubes(true);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND); gl.colorMask(false, false, false, false);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.5, 3); gl.viewport(0, 0, q.shRes, q.shRes);
+  const RS = PROG.shRock, LS = PROG.shLit;
+  const vis = (c, R, lp, F) => { const dx = c[0] - lp[0], dy = c[1] - lp[1], dz = c[2] - lp[2], z = dx * F.f[0] + dy * F.f[1] + dz * F.f[2]; if (z < -R) return false; const k = R * 1.415; return Math.abs(dx * F.r[0] + dy * F.r[1] + dz * F.r[2]) - z < k && Math.abs(dx * F.u[0] + dy * F.u[1] + dz * F.u[2]) - z < k; };
+  for (let k = 0; k < q.sh; k++) {
+    const s = SH.slots[k]; if (!s.light || s.k <= 0) continue;
+    const L = s.light, lp = L.p, far = L.range, proj = M4.persp(Math.PI / 2, 1, .1, far);
+    const rocks = WORLD.rock.filter(r => V.dist(r.c, lp) < r.r + far), cells = []; for (const c of WORLD.statics.values()) if (V.dist(c.c, lp) < c.r * 1.2 + far) cells.push(c);
+    for (let fi = 0; fi < 6; fi++) {
+      const F = CUBE_FACES[fi], vp = M4.mul(proj, M4.view(lp, F.r, F.u, F.f));
+      gl.bindFramebuffer(gl.FRAMEBUFFER, s.fbs[fi]); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(RS.p); gl.uniformMatrix4fv(RS.u.uSVP, false, vp); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+      for (const r of rocks) if (vis(r.c, r.r, lp, F)) { rockUniforms(RS, r); drawPlain(r.mesh); draws++; }
+      gl.disable(gl.CULL_FACE); gl.useProgram(LS.p); gl.uniformMatrix4fv(LS.u.uSVP, false, vp);
+      for (const c of cells) if (vis(c.c, c.r * 1.2, lp, F)) for (const b of c.b.values()) { b.draw(); draws++; }
+      for (const kk in DB) { DB[kk].draw(); draws++; }
+    }
+  }
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true, true, true, true); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return draws;
+}
+let lastRender = 0, expo = 1;
 function render() {
-  const q = QUALITY[QI], [W, H] = resize(); setupTargets(W, H, q);
-  const C = G.cam;
+  const q = QUALITY[QI], [W, H] = resize(); setupTargets(W, H, q); setupShadows(q);
+  const C = G.cam, nowR = performance.now(), dtR = TEST ? 1 : Math.min(.05, (nowR - lastRender) / 1000); lastRender = nowR;
   if (C.asp !== C._asp) { C._asp = C.asp; updateCamera(0); }
-  const nL = gatherLights(q); PERF.lights = nL;
+  const nL = gatherLights(q, dtR); PERF.lights = nL;
+  // zone mood: the big caverns tint the ambient light and the haze
+  let amb = [.011, .012, .017], fog = [.0035, .003, .0028], den = .024;
+  for (const ch of TRACK.chambers) { if (!ch.mood) continue; const w = 1 - smooth(.85, 1.5, chNorm(ch, C.p)); if (w > 0) { amb = V.lerp(amb, ch.mood.amb, w); fog = V.lerp(fog, ch.mood.fog, w); den = lerp(den, ch.mood.den, w); } }
+  // eye adaptation from the light reaching the camera: dark stretches open up, a flare in your face stops down
+  const wantE = 1.35 / Math.pow(1 + .5 * (lightE + (G.phase === 'menu' ? .4 : 0)), .8);
+  expo = TEST ? wantE : expo + (wantE - expo) * (1 - Math.exp(-dtR * (wantE < expo ? 3.5 : 1.2)));
   UB.set('uVP', C.vp); UB.set('uView', C.view); UB.set('uInvVP', M4.inv(C.vp)); UB.set('uCam', [C.p[0], C.p[1], C.p[2], 0]);
-  UB.set('uTime', [G.time, nL, q.octaves, 0]);
-  UB.set('uFog', [.0035, .003, .0028, G.cart.seg && G.cart.seg.id === 'exit' ? lerp(.024, .008, smooth(100, 230, G.cart.s)) : .024]);
-  UB.set('uAmb', [.011, .012, .017, 0]); UB.set('uClip', [.05, 240, W, H]);
+  UB.set('uTime', [G.time, nL, q.octaves, q.pcf]);
+  UB.set('uFog', [fog[0], fog[1], fog[2], G.cart.seg && G.cart.seg.id === 'exit' ? lerp(.024, .008, smooth(100, 230, G.cart.s)) : den]);
+  UB.set('uAmb', [amb[0], amb[1], amb[2], 0]); UB.set('uClip', [.05, 240, W, H]);
   const cf = G.cart.f || (G.cart.seg && G.cart.seg.at(G.cart.s));
-  if (cf) { const hp = V.add(V.madd(G.cart.p, cf.U, 1.12), V.scl(cf.T, .8)), hd = V.norm(V.add(V.scl(C.f, .6), V.scl(cf.T, .4))); UB.set('uHeadP', [hp[0], hp[1], hp[2], G.phase === 'menu' ? 9 : 15]); UB.set('uHeadD', [hd[0], hd[1] - .08, hd[2], Math.cos(36 * DEG)]); }
+  if (cf) { const hp = V.add(V.madd(G.cart.p, cf.U, 1.12), V.scl(cf.T, .8)), hd = V.norm(V.add(V.scl(C.f, .6), V.scl(cf.T, .4))); G.headP = hp; G.headD = V.norm([hd[0], hd[1] - .08, hd[2]]); UB.set('uHeadP', [hp[0], hp[1], hp[2], G.phase === 'menu' ? 9 : 15]); UB.set('uHeadD', [hd[0], hd[1] - .08, hd[2], Math.cos(36 * DEG)]); }
   const rc = TRACK.riverCh, riverOn = rc && chNorm(rc, C.p) < 1.9;
   UB.set('uRiver', rc ? [rc.c[0], rc.water, rc.c[2], rc.yaw] : [0, 0, 0, 0]); UB.set('uRiverR', rc ? [rc.r[0] * 1.05, rc.r[2] * 1.02, riverOn ? 1 : 0, 1.2] : [0, 0, 0, 0]);
   UB.upload();
-  let draws = 0;
+  // dynamic objects are gathered first: the shadow pass needs them too
+  for (const k in DB) DB[k].clear(); GLB.clear(); SMB.clear();
+  drawLamps(DB, GLB); drawLevers(DB, GLB); drawProps(DB, GLB); drawEnemies(DB, GLB); drawBoss(DB, GLB); drawFlares(DB, GLB); drawParticles(DB, GLB, SMB); drawCart(DB); drawDust(GLB, q);
+  for (const k in VMB) VMB[k].clear(); drawGun(VMB, GLB);
+  for (const k in DB) DB[k].upload();
+  let draws = renderShadows(q);
+  bindShadowCubes(false);
   gl.bindFramebuffer(gl.FRAMEBUFFER, RT.msFB); gl.viewport(0, 0, W, H);
   gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND); gl.depthMask(true);
   // cave walls
   gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
   const RP = PROG.rock; gl.useProgram(RP.p);
-  for (const r of WORLD.rock) {
-    if (!sphereVisible(r.c, r.r)) continue;
-    gl.uniform1i(RP.u.uNCut, r.cuts.length);
-    if (r.cuts.length) { const A = new Float32Array(24), Bb = new Float32Array(24); r.cuts.forEach((c, i) => { A.set([c.a[0], c.a[1], c.a[2], c.r], i * 4); Bb.set([c.b[0], c.b[1], c.b[2], c.floor], i * 4); }); gl.uniform4fv(RP.u.uCutA, A); gl.uniform4fv(RP.u.uCutB, Bb); }
-    gl.uniform1i(RP.u.uNEll, r.ells.length);
-    if (r.ells.length) { const A = new Float32Array(12), Bb = new Float32Array(12); r.ells.forEach((ch, i) => { A.set([ch.c[0], ch.c[1], ch.c[2], ch.yaw], i * 4); Bb.set([ch.r[0] * .96, ch.r[1] * .96, ch.r[2] * .96, ch.floor + .15], i * 4); }); gl.uniform4fv(RP.u.uEll, A); gl.uniform4fv(RP.u.uEllR, Bb); }
-    drawPlain(r.mesh); draws++;
-  }
+  for (const r of WORLD.rock) { if (!sphereVisible(r.c, r.r)) continue; rockUniforms(RP, r); drawPlain(r.mesh); draws++; }
   gl.disable(gl.CULL_FACE);
-  // rails, static props
+  // rails, static props, dynamic objects
   const LP = PROG.lit; gl.useProgram(LP.p);
   for (const r of WORLD.rails) if (sphereVisible(r.c, r.r)) { drawPlain(r.mesh); draws++; }
   for (const c of WORLD.statics.values()) { if (!sphereVisible(c.c, c.r * 1.2)) continue; for (const b of c.b.values()) { b.draw(); draws++; } }
-  // dynamic objects
-  for (const k in DB) DB[k].clear(); GLB.clear(); SMB.clear();
-  drawLamps(DB, GLB); drawLevers(DB, GLB); drawProps(DB, GLB); drawEnemies(DB, GLB); drawBoss(DB, GLB); drawFlares(DB, GLB); drawParticles(DB, GLB, SMB); drawCart(DB);
-  for (const k in DB) { DB[k].upload(); DB[k].draw(); draws++; }
+  for (const k in DB) { DB[k].draw(); draws++; }
   // viewmodel gun, in front of everything
-  for (const k in VMB) VMB[k].clear(); drawGun(VMB, GLB);
   gl.depthRange(0, .04); for (const k in VMB) { VMB[k].upload(); VMB[k].draw(); } gl.depthRange(0, 1);
   // river surface: refraction samples a copy of the opaque frame
   if (riverOn) {
@@ -204,9 +308,12 @@ function render() {
   blit(RT.msFB, RT.sceneFB, W, H, gl.COLOR_BUFFER_BIT);
   if (q.scatter) {
     blit(RT.msFB, RT.depthFB, W, H, gl.DEPTH_BUFFER_BIT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, RT.scatFB); gl.viewport(0, 0, RT.scatW, RT.scatH);
+    const SP = PROG.scat; gl.useProgram(SP.p); bindTex(TU.uDepthS, RT.depthTex); gl.uniform1i(SP.u.uNS, Math.min(q.scatter, nL)); gl.uniform1f(SP.u.uDen, .0013); gl.uniform1i(SP.u.uSteps, q.vol);
+    gl.bindVertexArray(null); gl.drawArrays(gl.TRIANGLES, 0, 3); unbindTex(TU.uDepthS);
     gl.bindFramebuffer(gl.FRAMEBUFFER, RT.sceneFB); gl.viewport(0, 0, W, H); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-    const SP = PROG.scat; gl.useProgram(SP.p); bindTex(TU.uDepthS, RT.depthTex); gl.uniform1i(SP.u.uNS, Math.min(q.scatter, nL)); gl.uniform1f(SP.u.uDen, .0013);
-    gl.bindVertexArray(null); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disable(gl.BLEND); unbindTex(TU.uDepthS);
+    const AP = PROG.up; gl.useProgram(AP.p); bindTex(TU.uSrc, RT.scatTex); gl.uniform2f(AP.u.uTexel, 1 / RT.scatW, 1 / RT.scatH); gl.uniform1f(AP.u.uW, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disable(gl.BLEND);
   }
   // bloom
   const DP = PROG.down, UP = PROG.up; gl.useProgram(DP.p); gl.bindVertexArray(null);
@@ -222,7 +329,7 @@ function render() {
   // composite
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
   const CP = PROG.comp; gl.useProgram(CP.p); bindTex(TU.uScene, RT.sceneTex); bindTex(TU.uBloom, RT.bloom[0].t);
-  gl.uniform1f(CP.u.uExpo, HDR ? .9 : 1); gl.uniform1f(CP.u.uBloomK, .06 + .015 * (6 - RT.bloom.length)); gl.uniform1f(CP.u.uHurt, G.hurtT); gl.uniform1f(CP.u.uGrain, .025);
+  gl.uniform1f(CP.u.uExpo, HDR ? expo : Math.min(1, expo)); gl.uniform1f(CP.u.uCA, q.ca); gl.uniform1f(CP.u.uBloomK, .06 + .015 * (6 - RT.bloom.length)); gl.uniform1f(CP.u.uHurt, G.hurtT); gl.uniform1f(CP.u.uGrain, .025);
   gl.uniform1f(CP.u.uFade, G.phase === 'menu' ? 0 : G.fade); gl.uniform3fv(CP.u.uFadeCol, G.fadeCol);
   gl.drawArrays(gl.TRIANGLES, 0, 3); unbindTex(TU.uScene); unbindTex(TU.uBloom);
   PERF.draws = draws; PERF.w = W; PERF.h = H;

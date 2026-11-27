@@ -377,7 +377,11 @@ function drawBoss(B, GL) {
       B.sph.add(Fs, r, r * .9, r * 1.1, skin, sk);
       B.sph.add(fmove(Fs, 0, -r * .35, 0), r * .82, r * .6, r * 1.05, belly, bel);
       if (i % 2 === 0) for (const sd of [-1, 0, 1]) B.cone.add(frot(fmove(Fs, sd * r * .45, r * .8, 0), 'z', -sd * .4), r * .22, r * .5, r * .22, plate);
-      if (i % 3 === 0) for (const sd of [-1, 1]) GL.add(fpt(Fs, sd * r * .9, r * .2, 0), .12, .2, 1.2, 1.4, 0);
+      for (const sd of [-1, 1]) {   // rows of glowing sacs down its flanks
+        const pu = S.state === 'dying' ? .2 : (.55 + .45 * Math.sin(S.t * 2.2 - i * .7)) * (.25 + .75 * S.rise), q = fpt(Fs, sd * r * .93, r * .12, 0);
+        B.sph.add({ p: q, x: Fs.x, y: Fs.y, z: Fs.z }, r * .1, r * .13, r * .1, [.25, .7, .62, .75], [.25 * pu, 1.5 * pu, 1.2 * pu]);
+        GL.add(q, r * .32, .1 * pu, .55 * pu, .45 * pu, 0);
+      }
     }
     prev = p;
   }

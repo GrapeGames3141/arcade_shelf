@@ -98,7 +98,7 @@ function buildChamber(ch) {
     if (!up && p[1] < ch.floor) p[1] = ch.floor;
     if (!up && ch.water !== undefined) continue;
     if (nearTrack(p, 3.2)) continue;
-    const h = up ? R.range(1, 4.5) : R.range(.8, 3), w = h * R.range(.12, .22), col = [ch.tint[0] * 1.1, ch.tint[1] * 1.08, ch.tint[2] * 1.05, 3 / 4];
+    const h = up ? R.range(1, 4.5) : R.range(.8, 3), w = h * R.range(.12, .22), col = [ch.tint[0] * 1.1, ch.tint[1] * 1.08, ch.tint[2] * 1.05, 0];
     sAdd('cone', { p, x: [1, 0, 0], y: [0, up ? -1 : 1, 0], z: [0, 0, up ? -1 : 1] }, w, h, w, col);
   }
 }
@@ -216,8 +216,9 @@ function buildWorldGeometry() {
   for (const ch of TRACK.chambers) {
     ch.fill = [];
     const col = ch.name === 'river' ? [.25, .7, .65] : ch.name === 'crystal' ? [.5, .35, .9] : ch.name === 'hollow' ? [.3, .55, .5] : null; if (!col) continue;
+    ch.mood = ch.name === 'river' ? { amb: [.006, .02, .022], fog: [.002, .0065, .0075], den: .0095 } : ch.name === 'crystal' ? { amb: [.016, .01, .027], fog: [.0045, .0025, .0075], den: .009 } : { amb: [.012, .015, .012], fog: [.004, .0045, .0035], den: .011 };
     const n = ch.name === 'river' ? 4 : 3;
-    for (let i = 0; i < n; i++) { const z = (i / (n - 1) - .5) * 1.2; ch.fill.push({ p: V.add(V.add(ch.c, V.scl(ch.fw, z * ch.r[2])), [0, ch.r[1] * .2, 0]), col, I: ch.name === 'crystal' ? 6 : 4, range: ch.rmax * 1.1 }); }
+    for (let i = 0; i < n; i++) { const z = (i / (n - 1) - .5) * 1.2; ch.fill.push({ p: V.add(V.add(ch.c, V.scl(ch.fw, z * ch.r[2])), [0, ch.r[1] * .2, 0]), col, I: ch.name === 'crystal' ? 5 : ch.name === 'river' ? 2.4 : 3.4, range: ch.rmax * 1.1 }); }
   }
   for (const c of WORLD.statics.values()) for (const b of c.b.values()) b.upload();
 }

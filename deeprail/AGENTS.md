@@ -16,16 +16,16 @@ Design notes are in `notes.md`; the arcade card is `game.json` + `art/deeprail-c
 |---|---|
 | `shell.html`, `style.css` | page skeleton: HUD, touch buttons, menu, pause, results (CSS + markup). Every setting has an in-page button. |
 | `00-util.js` | math (vec3, mat4, frames), seeded RNG, value noise + `rockN` (the same noise drives mesh displacement and wall hit tests), `SAVE` (localStorage in try/catch), `QUALITY` tiers |
-| `10-gl.js` | WebGL2 core: std140 uniform block generated from one field list, fixed texture units, all GLSL (lit/rock, water, glow, bloom down/up, scattering, composite), meshes, `MB` mesh builder, instanced `Batch`, `GlowBatch`, render targets |
+| `10-gl.js` | WebGL2 core: std140 uniform block generated from one field list, fixed texture units, all GLSL (lights with cube shadows, lit/rock materials, shadow depth, water, glow, bloom, scattering with shafts, composite), meshes, `MB` mesh builder, instanced `Batch`, `GlowBatch`, render targets, shadow cubes (`SH`) |
 | `20-track.js` | the route: turtle-integrated segments (`Seg`), solved sibling branches, the boss loop (analytic circle), chambers (yawed rocky ellipsoids), tunnel profiles, tube on/off, chamber cut capsules, spatial grid, `insideWorld` / `rayWall` / `waterAt` |
 | `25-cave.js` | geometry: tunnel tubes (chunked 40 m), chamber meshes, rails and sleepers, trestle bents, timber sets, stalactites, crystal dressing, glow worms, cavern fill lights; static instanced props bucketed in 36 m cells (`sAdd`) |
 | `30-level.js` | level content from track frames with a fixed seed: lamps (`LAMP_KIND`), levers, crates, lurking eyes (`lurk`), webs, egg sacs, set dressing, distance triggers per segment |
 | `40-actors.js` | bats, cave spiders, burrowers, collapsing scaffold beams, falling rock (big ones split), thrown boulders; the Sleeper (`BOSS`, `updateBoss`, `drawBoss`) |
-| `50-fx.js` | particle pool, flares, flashes, tracers, `isLit` / `dazzleAt`, per-frame light gathering (top-N by I / distance, last slots faded) |
+| `50-fx.js` | particle pool, flares, flashes, tracers, `isLit` / `dazzleAt`, per-frame light gathering (shadow slots first, then top-N by I / distance, last slots faded), exposure estimate |
 | `60-game.js` | state `G`, run start/reset, cart speed profile and segment switching, camera (look-ahead, aim parallax, banking, boss look), hitscan gun, scoring/combo, health, lurker logic, results, autopilot `botThink` |
 | `70-audio.js` | procedural WebAudio: gun, flares, creatures, creaks, rumbles, rail clatter, drips, cave reverb (generated impulse response), drone that changes for the boss |
 | `80-input.js` | mouse (absolute aim, left fire, right flare), keyboard, touch (relative drag aim + FIRE / FLARE / AUTO buttons), gamepad |
-| `90-main.js` | drawing of lamps/levers/props/eyes/cart/viewmodel gun, the frame (`render`), HUD and menus, loop, `window.DR` |
+| `90-main.js` | drawing of lamps/levers/props/eyes/cart/viewmodel pistol/dust, the shadow pass (`renderShadows`) and the frame (`render`), HUD and menus, loop, `window.DR` |
 
 ## Route (fixed; the same ride every time)
 `intro` Shaft 9 (384 m: loading platform, timbered drifts, hoist-room chamber) → lever A → `river` Flooded Gallery (390 m, trestle over an
@@ -69,27 +69,44 @@ sometimes wrecks on Deep Seam + Rockfall Run; skill 0.1 takes 70-165 damage. Bur
 before the Sleeper.
 
 ## Renderer
-- Pass order: opaque HDR pass into an MSAA RGBA16F renderbuffer (rock with back-face culling, then rails, static instanced props,
-  dynamic instanced props/creatures/particles, viewmodel gun with `depthRange(0, .04)`) → when the river is near: blit colour + depth
-  to a copy target and draw the water sampling the copy (refraction, thickness absorption, light glints, foam, glow-worm sparkle) →
-  additive glow billboards and premultiplied smoke (no depth writes) → resolve colour (and depth on HIGH/MAX) → analytic light
-  in-scattering pass (per light: `(atan((T - s0) / h) - atan(-s0 / h)) / h`) added into the resolved colour → bloom (Karis-weighted first
-  downsample, 3-6 levels, tent upsample) → composite (exposure, ACES, gamma, vignette, grain, hurt tint, fade).
-- One `std140` block (`F`) with camera, time, headlamp, river and up to 32 lights; GLSL text and offsets come from one JS list.
-  Samplers have fixed units (`TU`) set at link time.
-- Lights: lanterns etc. use `w² / (1 + d²)` with a smooth range window. Big caverns also get a few **fill** lights (`uLC.w = 1`) that use
-  `w² x 0.05` with no inverse square: with inverse-square lights alone, a 60 m cavern stayed black around a few lit crystals. Fill lights
-  are skipped by the scattering pass.
-- Cave as a union of shapes: tunnel tubes (rings every 1 m, 30 around, superellipse-ish profile with a flat floor, displaced by `rockN`)
-  and chambers (yawed ellipsoids with a flat floor). Tube rings whose centre lies inside a chamber are not emitted. Each tube chunk
-  discards fragments inside nearby chambers (ellipsoid test, radii x 0.96, above the chamber floor); each chamber discards fragments
-  inside a capsule where a tunnel crosses its wall (above rail level). That gives clean tunnel mouths at junctions, merges and caverns
-  without boolean meshing. Black gaps where the two noisy walls disagree are invisible in a dark cave.
-- Rock detail in the fragment shader: value-noise strata, speckle and wet streaks, plus a derivative bump (`dFdx/dFdy` of a height
-  noise); octaves 1/2/3/3 by tier. Caustics are drawn on rock near the river from the light that reached the point.
-- Quality: LOW (no MSAA, 0.7 scale, 8 lights, 3 bloom levels, no scattering, simple water), MEDIUM (MSAA 2, 0.85 scale, DPR ≤ 1.25,
-  14 lights, refraction), HIGH (MSAA 4, DPR ≤ 2, 24 lights, 6 scattering lights, adaptive render scale under a 2.6 MP budget),
-  MAX (MSAA 4, native DPR, 32 lights, 16 scattering lights, 6 bloom levels, nothing traded away). Quality changes take effect at once.
+- Pass order: gather lights and fill the dynamic batches → **shadow pass** (a depth cube per shadow slot, six faces: cave walls with
+  the same cuts as the lit pass, static props, every dynamic batch) → opaque HDR pass into an MSAA RGBA16F renderbuffer (rock with
+  back-face culling, rails, static props, dynamic props/creatures/particles, viewmodel pistol with `depthRange(0, .04)`) → when the
+  river is near: blit colour + depth to a copy target and draw the water sampling the copy (refraction, thickness absorption, glints,
+  foam, glow-worm sparkle) → additive glow billboards and premultiplied smoke → resolve colour (and depth on HIGH/MAX) → **light
+  scattering at half resolution** (closed form per light; for the shadow slots the lit fraction of the view ray is measured by
+  marching their cubes, which gives shafts and dark wedges behind timbers), added back with a tent filter → bloom (Karis first
+  downsample, 3-6 levels) → composite (exposure, chromatic aberration, vignette, ACES, gamma, grade, grain, hurt tint, fade).
+- One `std140` block (`F`): camera, time, headlamp, river, four shadow slots (`uShd`: strength, near, far, cube size) and up to 32
+  lights. GLSL text and offsets come from one JS list. Samplers have fixed units (`TU`); the four cube shadow samplers are units 6-9.
+- **Shadow slots** (`gatherLights` in `50-fx.js`, `SH` in `10-gl.js`): the first four lights in the list are the slots. Candidates are
+  scored by weight x priority (flares 5, daylight 3, lamps 1, lever lamp 0.7); a light already in a slot gets x1.4 so shadows do
+  not hop between lamps, and a slot fades in and out over 0.25 s. Cube faces use near 0.1 and far = the light's range; the shader
+  rebuilds the stored depth from the largest axis of the light vector, offsets along the geometric normal by 1.8 texels, and takes
+  1 / 5 / 9 rotated taps (MEDIUM / HIGH / MAX) through `samplerCubeShadow` (hardware 2x2 on top). Lamp geometry is flagged
+  (`Batch.noShadow`, instance float 23) and collapsed in the depth pass, because the light sits inside it.
+  The depth programs are built with `NOLIGHT` so they contain no shadow samplers (a program that renders into a cube must not
+  have it as an active sampler). Unused slots bind a 1 px dummy cube.
+- Lights: `w² / (1 + d²)` with a smooth range window. Big caverns get **fill** lights (`uLC.w = 1`, `w² x 0.05`, no inverse square,
+  no scattering); each lit brazier adds one over the whole hollow, so lighting them visibly lights the cavern and the Sleeper.
+  A small cab light keeps the tub, the pistol and the hand readable. The big caverns also tint ambient and haze and thin the fog
+  (`ch.mood`). Exposure follows an estimate of the light reaching the eye (`lightE`; flashes are left out), 1.35 in the dark
+  down to about 0.6 next to a flare, faster down than up.
+- Cave as a union of shapes: tunnel tubes (rings every 1 m, 30 around, flat floor, displaced by `rockN`) and chambers (yawed
+  ellipsoids with a flat floor). Tube rings whose centre lies inside a chamber are not emitted. Each tube chunk discards fragments
+  inside nearby chambers; each chamber discards fragments inside a capsule where a tunnel crosses its wall (`rockCut`, shared by
+  the lit and depth shaders).
+- Rock in the fragment shader: warped sedimentary beds (tone per bed, faint steps), four octaves of value noise **with analytic
+  gradient** (`vnd`) for the bump, dust on ledges, dusty gravel on the floor, wet streaks, mineral flecks. Fine octaves fade with
+  distance and at grazing angles. Octaves 1 / 2 / 4 / 4 by tier.
+- Prop materials by instance tint alpha: 0 stone/paint (noise + bump), 0.25 wood (grain along the piece's longest side, from the
+  instance scale), 0.5 iron (rust blooms), 0.75 creature skin (mottling, wrap light, rim light), 1 crystal (glow at core and tip,
+  sparkle). The vertex shader derives the instance scale and a seed from the matrix; no extra attributes.
+- Dust motes near the camera are lit on the CPU from the headlamp and the eight strongest lights (`drawDust`).
+- Quality: LOW (no MSAA, 0.7 scale, 8 lights, no shadows, no scattering, 1 rock octave), MEDIUM (MSAA 2, 0.85 scale, DPR ≤ 1.25,
+  14 lights, 1 shadow light at 384 px, refraction; the default on touch devices), HIGH (MSAA 4, DPR ≤ 2, 24 lights, 2 shadow
+  lights at 512 px with 5 taps, 10 shaft steps, adaptive render scale under a 2.6 MP budget), MAX (MSAA 4, native DPR, 32 lights,
+  4 shadow lights at 1024 px with 9 taps, 20 shaft steps, 6 bloom levels, nothing traded away). Changes take effect at once.
 
 ## Test recipe
 ```
@@ -97,9 +114,9 @@ python build.py
 python test/shot.py basic     # menu, start, tutorial, shooting, flare, bats, hoist room, junction, river, crystal, falls, boss, results
 python test/shot.py mobile    # 390x844 touch: menu, FIRE / FLARE / AUTO buttons and drag aim with real pointer events, pause, landscape
 python test/shot.py run .8 4  # full autopilot rides (skill, number of branch combinations), prints balance stats and damage by source
-python test/shot.py quality   # the crystal cavern at LOW / MEDIUM / HIGH / MAX
+python test/shot.py quality   # a flare-lit timbered tunnel at LOW / MEDIUM / HIGH / MAX
 python test/shot.py tour      # every set piece (headlamp only)
-python test/shot.py card      # arcade card candidates (800x560, HUD hidden)
+python test/shot.py card      # arcade card candidates at MAX (800x560, HUD hidden); card-c is the one in art/
 python test/shot.py js "DR.start({seg:'river', s:250, calm:true})" "DR.lightAll('river')" "DR.step(.5)" "shot:river"
 python test/artifact.py out.html   # copy shaped for a claude.ai artifact (no document wrapper, no Arcade Shelf button)
 ```
@@ -120,3 +137,12 @@ URL flags for tests only: `?test`, `&scale=1` (pin render scale), `&q=low|medium
   ellipsoid surface (`d · 1 / |d / radii|`) and hit-test the head as an ellipsoid, not a sphere.
 - A pale, faintly emissive skin keeps a huge creature readable in a dark cave; a dark realistic skin vanished.
 - Inverse-square point lights alone cannot light a large cavern; see fill lights above.
+- Graphics pass (2026-11-27): a bump from `dFdx`/`dFdy` of a noise is constant per 2x2 pixel quad and looked blocky; value noise
+  with its analytic gradient is smooth and costs one evaluation. Thin "crack" and "seam" lines from thresholded noise read as
+  scribbles on the walls, so the rock has none.
+- A light that sits 12 cm off a wall grazes it: every bump throws a long blobby shadow and the wall behind the light goes black.
+  Flares now come to rest 40 cm clear of the surface.
+- With real shadows the cart and pistol were lost in their own shade; a weak, short-range cab light fixed it.
+- Exposure that follows flashes dims the screen for a second after every lantern is lit. Leave flashes and the muzzle light out.
+- Chromatic aberration scaled as `q * r² * k`: k = 0.05 gave 12 px fringes at 960 px wide; 0.006 is enough.
+- In `?test` mode shadow slots and exposure settle at once (the frame delta is treated as 1 s), so screenshots do not catch a fade.

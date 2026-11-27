@@ -117,11 +117,12 @@ const SAVE = {
   set(k, v) { if (TEST) return; try { localStorage.setItem('deeprail.' + k, JSON.stringify(v)); } catch (e) {} },
 };
 
-// --- quality tiers. MAX trades nothing away; HIGH carries the smoothing measures (pixel budget, fewer scattering lights).
+// --- quality tiers. MAX trades nothing away; HIGH carries the smoothing measures (pixel budget, fewer scattering lights,
+// two shadow-casting lights at 512 px in place of four at 1024, half the shaft steps).
 const QUALITY = [
-  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, lights: 8, bloom: 3, scatter: 0, octaves: 1, refract: false, budget: 0 },
-  { name: 'MEDIUM', dpr: 1.25, scale: 0.85, msaa: 2, lights: 14, bloom: 4, scatter: 0, octaves: 2, refract: true, budget: 0 },
-  { name: 'HIGH', dpr: 2, scale: 1, msaa: 4, lights: 24, bloom: 5, scatter: 6, octaves: 3, refract: true, budget: 2.6e6 },
-  { name: 'MAX', dpr: 8, scale: 1, msaa: 4, lights: 32, bloom: 6, scatter: 16, octaves: 3, refract: true, budget: 0 },
+  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, lights: 8, bloom: 3, scatter: 0, octaves: 1, refract: false, budget: 0, sh: 0, shRes: 0, pcf: 0, vol: 0, dust: 0, ca: 0 },
+  { name: 'MEDIUM', dpr: 1.25, scale: 0.85, msaa: 2, lights: 14, bloom: 4, scatter: 0, octaves: 2, refract: true, budget: 0, sh: 1, shRes: 384, pcf: 1, vol: 0, dust: 36, ca: 0 },
+  { name: 'HIGH', dpr: 2, scale: 1, msaa: 4, lights: 24, bloom: 5, scatter: 6, octaves: 3, refract: true, budget: 2.6e6, sh: 2, shRes: 512, pcf: 5, vol: 10, dust: 70, ca: .006 },
+  { name: 'MAX', dpr: 8, scale: 1, msaa: 4, lights: 32, bloom: 6, scatter: 16, octaves: 3, refract: true, budget: 0, sh: 4, shRes: 1024, pcf: 9, vol: 20, dust: 110, ca: .006 },
 ];
 const MAXL = 32;   // light slots in the uniform block (loops break at the tier's count)

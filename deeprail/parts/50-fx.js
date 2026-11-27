@@ -62,7 +62,8 @@ function updateFlares(dt) {
       if (wy !== null && np[1] < wy) { f.state = 'out'; f.t = 0; FX.splash([np[0], wy, np[2]], 14); FX.smoke([np[0], wy + .2, np[2]], 6, .8); SND.fizz(); f.p = [np[0], wy, np[2]]; continue; }
       if (!insideWorld(np) || f.t > 3) {
         let a = 0, b = 1; for (let k = 0; k < 6; k++) { const m = (a + b) / 2; if (insideWorld(V.lerp(f.p, np, m))) a = m; else b = m; }
-        f.p = V.madd(V.lerp(f.p, np, a), V.norm(f.v), -.12); f.state = 'burn'; f.t = 0; SND.flareIgnite(f.p);
+        // Keep the flare clear of the wall, so its light does not graze it.
+        f.p = V.madd(V.lerp(f.p, np, a), V.norm(f.v), -.4); f.state = 'burn'; f.t = 0; SND.flareIgnite(f.p);
         FLASHES.push({ p: V.copy(f.p), col: [1, .45, .2], I: 160, range: 20, t: 0, dur: .35 });
       } else f.p = np;
       emit(f.p, rv(.3), .35, .05, [6, 1.6, .5], 1, 0, 2);
@@ -83,7 +84,7 @@ function updateFlares(dt) {
 function drawFlares(B, GL) {
   for (const f of FLARES) {
     if (f.state === 'fly') { GL.add(f.p, .35, 8, 2.4, .8, 0); B.cyl.add(frameLook(f.p, f.v, [0, 1, 0]), .03, .25, .03, [.8, .2, .1, 0], [1, .2, .05]); }
-    else if (f.state === 'burn') { const k = f.I / FLARE.I; GL.add(f.p, 1.1 * k + .2, 10 * k, 3.2 * k, 1.1 * k, 0); GL.add(f.p, .22, 30 * k, 18 * k, 10 * k, 0); GL.add(f.p, 2.6 * k, .7 * k, .2 * k, .06 * k, 2, null, f.t); }
+    else if (f.state === 'burn') { const k = f.I / FLARE.I; GL.add(f.p, 4.5 * k, 2.2 * k, .7 * k, .22 * k, 4); GL.add(f.p, 1.1 * k + .2, 10 * k, 3.2 * k, 1.1 * k, 0); GL.add(f.p, .22, 30 * k, 18 * k, 10 * k, 0); GL.add(f.p, 2.6 * k, .7 * k, .2 * k, .06 * k, 2, null, f.t); }
   }
   for (const t of TRACERS) { const a = 1 - t.t / .07; GL.add(t.a, .022, 9 * a, 5 * a, 2 * a, 1, t.b); }
 }
@@ -98,29 +99,62 @@ function isLit(p) {
 }
 function dazzleAt(p, r) { const rr = (r || FLARE.dazzle) ** 2; for (const f of FLARES) if (f.state === 'burn' && f.t < FLARE.burn - .5 && V.dist2(f.p, p) < rr) return true; return false; }
 
-// gather lights for this frame: the brightest by I / distance, capped by the quality tier
-const LIGHTS = [];
-function gatherLights(q) {
+// gather lights for this frame: the brightest by I / distance, capped by the quality tier.
+// The first NSH entries are the shadow slots: flares first, then the lamps that matter most here. A slot keeps its light
+// (so its shadow does not jump between lights) and fades in and out over a quarter of a second.
+const LIGHTS = [], LOUT = [];
+let lightE = 0;   // light reaching the eye, for exposure
+function gatherLights(q, dtR) {
   LIGHTS.length = 0; const cp = G.cam.p, t = G.time;
-  const push = (p, col, I, range, fill) => { const d2 = V.dist2(p, cp); if (d2 > (range + 75) ** 2) return; LIGHTS.push({ p, col, I, range, fill: fill ? 1 : 0, w: (fill ? I * 6 : I) / (1 + d2 / (range * range * .6)) }); };
+  const push = (p, col, I, range, fill, key, pri) => { const d2 = V.dist2(p, cp); if (d2 > (range + 75) ** 2) return null; const L = { p, col, I, range, fill: fill ? 1 : 0, key: key || null, pri: pri || 0, d2, w: (fill ? I * 6 : I) / (1 + d2 / (range * range * .6)) }; LIGHTS.push(L); return L; };
   for (const L of LV.lamps) {
     if (!L.lit) continue;
     const age = t - L.litT, boot = L.preLit ? 1 : smooth(0, .5, age) * (1 + 1.5 * Math.exp(-age * 5));
     let fl = 1; if (L.kind === 'lantern' || L.kind === 'oil') fl = .88 + .12 * Math.sin(t * 9 + L.ph) * Math.sin(t * 5.3 + L.ph * 2); else if (L.kind === 'brazier') fl = .8 + .2 * Math.sin(t * 13 + L.ph) * Math.sin(t * 7.1);
     else if (L.kind === 'crystal') fl = .92 + .08 * Math.sin(t * 1.3 + L.ph);
-    push(L.p, L.col, L.I * fl * boot, L.range);
+    push(L.p, L.col, L.I * fl * boot, L.range, false, L, L.kind === 'sun' ? 3 : 1);   // daylight casts shadows down the exit tunnel
+    if (L.kind === 'brazier') push(V.add(L.p, [0, 1.5, 0]), L.col, 5.5 * fl * Math.min(1, boot), 62, true);   // each lit brazier also warms the whole hollow
   }
   for (const ch of TRACK.chambers) if (ch.fill && V.dist2(ch.c, cp) < (ch.rmax + 40) ** 2) for (const L of ch.fill) push(L.p, L.col, L.I, L.range, true);
-  for (const L of LV.levers) push(V.add(L.base, [0, 2.6, 0]), [1, .78, .4], 7, 9);   // a work lamp over each junction lever
-  for (const f of FLARES) if (f.state === 'burn') push(f.p, [1, .3, .12], f.I, FLARE.range); else if (f.state === 'fly') push(f.p, [1, .3, .12], 18, 8);
-  for (const f of FLASHES) { const k = 1 - f.t / f.dur; push(f.p, f.col, f.I * k * k, f.range); }
-  if (BOSS.state !== 'off' && BOSS.state !== 'gone' && BOSS.state !== 'sleep') { const F = bossHeadFrame(); push(fpt(F, 0, .6, 3.6), [1, .55, .15], 22 * BOSS.eyes.filter(e => e.alive).length / 8 * (BOSS.dazzle > 0 ? 1.6 : 1), 9); }
-  if (G.muzzle > 0) push(V.madd(G.muzzleP, G.cam.f, 1.4), [1, .7, .4], 9 * G.muzzle / .05, 7);
+  for (const L of LV.levers) push(V.add(L.base, [0, 2.6, 0]), [1, .78, .4], 7, 9, false, L, .7);   // a work lamp over each junction lever
+  for (const f of FLARES) if (f.state === 'burn') push(f.p, [1, .4, .19], f.I, FLARE.range, false, f, 5); else if (f.state === 'fly') push(f.p, [1, .4, .19], 18, 8, false, f, 5);
+  for (const f of FLASHES) { const k = 1 - f.t / f.dur; const L = push(f.p, f.col, f.I * k * k, f.range); if (L) L.tr = 1; }
+  if (BOSS.state !== 'off' && BOSS.state !== 'gone' && BOSS.state !== 'sleep') { const F = bossHeadFrame(); push(fpt(F, 0, .2, 6), [1, .6, .22], (10 + 18 * BOSS.eyes.filter(e => e.alive).length / 8) * (BOSS.dazzle > 0 ? 1.5 : 1) * (.3 + .7 * BOSS.rise), 19); }
+  if (G.muzzle > 0) { const L = push(V.madd(G.muzzleP, G.cam.f, 1.4), [1, .7, .4], 9 * G.muzzle / .05, 7); if (L) L.tr = 1; }
+  // spill from the cart's own lamp: keeps the tub, the pistol and your hand readable when everything ahead is brighter
+  if (G.cart.f && !G.camLock) { const cf = G.cart.f, L = push(V.add(V.madd(G.cart.p, cf.U, 1.22), V.scl(cf.T, .5)), [1, .8, .56], .75, 3.2); if (L) { L.w = 1e6; L.tr = 1; } }
   LIGHTS.sort((a, b) => b.w - a.w);
-  const n = Math.min(LIGHTS.length, q.lights);
+  // exposure estimate
+  let E = 0; for (const L of LIGHTS) { if (L.tr) continue;   // flashes are too brief for the eye to follow
+    const w = Math.max(0, 1 - L.d2 / (L.range * L.range)); E += L.fill ? L.I * .05 * w * w : L.I * w * w / (1 + .15 * L.d2); }   // lit walls stay bright at a distance, they only shrink
+  lightE = E;
+  // shadow slots
+  const S = q.sh || 0, slots = SH.slots;
+  if (S) {
+    const cand = LIGHTS.filter(L => L.pri > 0 && L.d2 < 70 * 70).map(L => { L.sc = L.w * L.pri * (slots.some(s => s.key === L.key) ? 1.4 : 1); return L; }).sort((a, b) => b.sc - a.sc).slice(0, S);
+    for (let k = 0; k < S; k++) {
+      const s = slots[k]; if (!s.key) continue;
+      const L = cand.find(c => c.key === s.key);
+      if (L) { s.light = L; s.k = Math.min(1, s.k + dtR * 4); }
+      else { const still = LIGHTS.find(c => c.key === s.key); s.light = still || null; s.k -= dtR * 4; if (s.k <= 0 || !still) { s.key = null; s.light = null; s.k = 0; } }
+    }
+    for (const L of cand) if (!slots.some((s, k) => k < S && s.key === L.key)) { const s = slots.find((s, k) => k < S && !s.key); if (s) { s.key = L.key; s.light = L; s.k = dtR >= 1 ? 1 : 0; } }
+  }
+  for (let k = S; k < slots.length; k++) { slots[k].key = null; slots[k].light = null; slots[k].k = 0; }
+  LOUT.length = 0; const used = new Set();
+  for (let k = 0; k < NSH; k++) {
+    const s = slots[k];
+    if (s && s.light) { LOUT.push(s.light); used.add(s.light); UB.set('uShd', [s.k, .1, s.light.range, q.shRes], k); }
+    else { LOUT.push(null); UB.set('uShd', [0, .1, 1, 1], k); }
+  }
+  const rest = LIGHTS.filter(L => !used.has(L)); let ri = 0;
+  for (let k = 0; k < NSH; k++) if (!LOUT[k] && ri < rest.length) LOUT[k] = rest[ri++];
+  while (LOUT.length < q.lights && ri < rest.length) LOUT.push(rest[ri++]);
+  const n = Math.min(LOUT.length, q.lights), over = ri < rest.length;
   // fade the last couple of slots so lights don't pop when they swap in and out
   for (let i = 0; i < n; i++) {
-    const L = LIGHTS[i]; let k = 1; if (LIGHTS.length > q.lights && i >= n - 2) k = .5 + .25 * (n - i);
+    const L = LOUT[i]; if (!L) { UB.set('uLP', [0, -9999, 0, .01], i); UB.set('uLC', [0, 0, 0, 0], i); continue; }
+    let k = 1; if (over && i >= n - 2) k = .5 + .25 * (n - i);
     UB.set('uLP', [L.p[0], L.p[1], L.p[2], L.range], i); UB.set('uLC', [L.col[0] * L.I * k, L.col[1] * L.I * k, L.col[2] * L.I * k, L.fill], i);
   }
   return n;

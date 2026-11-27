@@ -266,12 +266,13 @@ const SAVE = {
   set(k, v) { if (TEST) return; try { localStorage.setItem('deeprail.' + k, JSON.stringify(v)); } catch (e) {} },
 };
 
-// --- quality tiers. MAX trades nothing away; HIGH carries the smoothing measures (pixel budget, fewer scattering lights).
+// --- quality tiers. MAX trades nothing away; HIGH carries the smoothing measures (pixel budget, fewer scattering lights,
+// two shadow-casting lights at 512 px in place of four at 1024, half the shaft steps).
 const QUALITY = [
-  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, lights: 8, bloom: 3, scatter: 0, octaves: 1, refract: false, budget: 0 },
-  { name: 'MEDIUM', dpr: 1.25, scale: 0.85, msaa: 2, lights: 14, bloom: 4, scatter: 0, octaves: 2, refract: true, budget: 0 },
-  { name: 'HIGH', dpr: 2, scale: 1, msaa: 4, lights: 24, bloom: 5, scatter: 6, octaves: 3, refract: true, budget: 2.6e6 },
-  { name: 'MAX', dpr: 8, scale: 1, msaa: 4, lights: 32, bloom: 6, scatter: 16, octaves: 3, refract: true, budget: 0 },
+  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, lights: 8, bloom: 3, scatter: 0, octaves: 1, refract: false, budget: 0, sh: 0, shRes: 0, pcf: 0, vol: 0, dust: 0, ca: 0 },
+  { name: 'MEDIUM', dpr: 1.25, scale: 0.85, msaa: 2, lights: 14, bloom: 4, scatter: 0, octaves: 2, refract: true, budget: 0, sh: 1, shRes: 384, pcf: 1, vol: 0, dust: 36, ca: 0 },
+  { name: 'HIGH', dpr: 2, scale: 1, msaa: 4, lights: 24, bloom: 5, scatter: 6, octaves: 3, refract: true, budget: 2.6e6, sh: 2, shRes: 512, pcf: 5, vol: 10, dust: 70, ca: .006 },
+  { name: 'MAX', dpr: 8, scale: 1, msaa: 4, lights: 32, bloom: 6, scatter: 16, octaves: 3, refract: true, budget: 0, sh: 4, shRes: 1024, pcf: 9, vol: 20, dust: 110, ca: .006 },
 ];
 const MAXL = 32;   // light slots in the uniform block (loops break at the tier's count)
 
@@ -289,7 +290,7 @@ const CFMT = HDR ? gl.RGBA16F : gl.RGBA8;
 const UB_FIELDS = [
   ['mat4', 'uVP'], ['mat4', 'uView'], ['mat4', 'uInvVP'],
   ['vec4', 'uCam'],     // camera pos, unused
-  ['vec4', 'uTime'],    // time, light count, noise octaves, flash
+  ['vec4', 'uTime'],    // time, light count, noise octaves, shadow filter taps
   ['vec4', 'uFog'],     // fog rgb, density
   ['vec4', 'uAmb'],     // ambient rgb, unused
   ['vec4', 'uClip'],    // near, far, viewport w, h
@@ -297,6 +298,7 @@ const UB_FIELDS = [
   ['vec4', 'uHeadD'],   // headlamp dir, cos(cutoff)
   ['vec4', 'uRiver'],   // river centre (y = water level), yaw
   ['vec4', 'uRiverR'],  // river half sizes x, z, enabled, flow speed
+  ['vec4', 'uShd', 4],  // per shadow slot: strength, near, far (the light's range), cube resolution
   ['vec4', 'uLP', MAXL],// light pos, range
   ['vec4', 'uLC', MAXL],// light colour * intensity, kind
 ];
@@ -311,7 +313,8 @@ const UB = (() => {
 })();
 
 // fixed texture units for every sampler (set once at link time)
-const TU = { uScene: 1, uDepth: 2, uSrc: 3, uBloom: 4, uDepthS: 5 };
+const TU = { uScene: 1, uDepth: 2, uSrc: 3, uBloom: 4, uDepthS: 5, uSh0: 6, uSh1: 7, uSh2: 8, uSh3: 9 };
+const NSH = 4;   // shadow-casting light slots (always the first lights in the list)
 
 function compile(type, src) {
   const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
@@ -319,7 +322,7 @@ function compile(type, src) {
   return s;
 }
 function program(vs, fs, defs) {
-  const head = '#version 300 es\nprecision highp float;\nprecision highp int;\n' + (defs || '') + '\n' + UB.glsl + GLSL_COMMON;
+  const head = '#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp samplerCubeShadow;\n' + (defs || '') + '\n' + UB.glsl + GLSL_COMMON;
   const p = gl.createProgram();
   gl.attachShader(p, compile(gl.VERTEX_SHADER, head + vs)); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, head + fs));
   gl.linkProgram(p);
@@ -335,13 +338,50 @@ function program(vs, fs, defs) {
   return { p, u };
 }
 
-// ---------- GLSL shared by every program: noise, lights, fog ----------
+// ---------- GLSL shared by every program: noise, lights with cube shadows, fog ----------
+// Programs built with NOLIGHT (the shadow depth passes) leave out the lighting code and its shadow samplers:
+// a program that renders into a shadow map must not have that map as an active sampler.
 const GLSL_COMMON = `
 float hash13(vec3 p){ p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
 float vn(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3. - 2. * f);
   return mix(mix(mix(hash13(i), hash13(i + vec3(1,0,0)), f.x), mix(hash13(i + vec3(0,1,0)), hash13(i + vec3(1,1,0)), f.x), f.y),
              mix(mix(hash13(i + vec3(0,0,1)), hash13(i + vec3(1,0,1)), f.x), mix(hash13(i + vec3(0,1,1)), hash13(i + vec3(1,1,1)), f.x), f.y), f.z); }
-vec3 gIrr;  // diffuse light that reached the last shaded point (caustics reuse it)
+// value noise with its analytic gradient (x = value, yzw = d/dp): smooth bump mapping without screen-space derivatives
+vec4 vnd(vec3 x){ vec3 i = floor(x), f = fract(x); vec3 u = f * f * (3. - 2. * f), du = 6. * f * (1. - f);
+  float a = hash13(i), b = hash13(i + vec3(1,0,0)), c = hash13(i + vec3(0,1,0)), d = hash13(i + vec3(1,1,0));
+  float e = hash13(i + vec3(0,0,1)), g = hash13(i + vec3(1,0,1)), h = hash13(i + vec3(0,1,1)), k = hash13(i + vec3(1,1,1));
+  float k1 = b - a, k2 = c - a, k3 = e - a, k4 = a - b - c + d, k5 = a - c - e + h, k6 = a - b - e + g, k7 = -a + b + c - d + e - g - h + k;
+  return vec4(a + k1 * u.x + k2 * u.y + k3 * u.z + k4 * u.x * u.y + k5 * u.y * u.z + k6 * u.z * u.x + k7 * u.x * u.y * u.z,
+    du * vec3(k1 + k4 * u.y + k6 * u.z + k7 * u.y * u.z, k2 + k5 * u.z + k4 * u.x + k7 * u.z * u.x, k3 + k6 * u.x + k5 * u.y + k7 * u.x * u.y)); }
+float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(.06711056, .00583715)))); }
+vec3 fogit(vec3 c, float d){ return mix(c, uFog.rgb, 1. - exp(-d * uFog.w)); }
+#ifndef NOLIGHT
+uniform samplerCubeShadow uSh0; uniform samplerCubeShadow uSh1; uniform samplerCubeShadow uSh2; uniform samplerCubeShadow uSh3;
+float shTap(int k, vec4 c){ if (k == 0) return texture(uSh0, c); if (k == 1) return texture(uSh1, c); if (k == 2) return texture(uSh2, c); return texture(uSh3, c); }
+// depth a cube face stores for a point at major-axis distance m (near .1, far = the light's range)
+float shDepth(float m, float f){ const float n = .1; return ((f + n) / (f - n) - (2. * f * n / (f - n)) / max(m, n)) * .5 + .5; }
+float shadowAt(int k, vec3 P, vec3 Ng, vec3 lp, float jit){
+  vec4 sp = uShd[k]; if (sp.x <= .001) return 1.;
+  vec3 v = P - lp; float m0 = max(max(abs(v.x), abs(v.y)), abs(v.z));
+  if (m0 > sp.z) return 1.;
+  float tex = m0 * 2. / sp.w;                       // world size of one shadow texel at this distance
+  v += Ng * (tex * 1.8 + .02);                      // normal offset against acne
+  float m = max(max(abs(v.x), abs(v.y)), abs(v.z)) - (tex * 1.4 + .025);
+  float d = shDepth(m, sp.z), s = shTap(k, vec4(v, d));
+  int taps = int(uTime.w);
+  if (taps > 1) {
+    vec3 vd = normalize(v), t1 = normalize(cross(vd, abs(vd.y) < .9 ? vec3(0., 1., 0.) : vec3(1., 0., 0.))), t2 = cross(vd, t1);
+    float r = tex * 2.4 + m0 * .006, a = jit * 6.2832;
+    for (int j = 0; j < 8; j++) { if (j >= taps - 1) break;
+      float an = a + float(j) * 2.3999, rr = r * sqrt((float(j) + .5) / float(taps - 1));
+      s += shTap(k, vec4(v + (t1 * cos(an) + t2 * sin(an)) * rr, d)); }
+    s /= float(taps);
+  }
+  return mix(1., s, sp.x);
+}
+vec3 gIrr;          // diffuse light that reached the last shaded point (caustics and rim light reuse it)
+vec3 gNg;           // geometric normal (shadow offset)
+float gJit, gWrap;  // per-pixel jitter, diffuse wrap
 vec3 lightAll(vec3 P, vec3 N, vec3 Vd, vec3 alb, float shin, float spec, float ao){
   vec3 dif = uAmb.rgb * ao, sp = vec3(0.);
   { vec3 L = uHeadP.xyz - P; float d2 = max(dot(L, L), 1e-4); vec3 l = L * inversesqrt(d2);
@@ -354,15 +394,30 @@ vec3 lightAll(vec3 P, vec3 N, vec3 Vd, vec3 alb, float shin, float spec, float a
     vec4 lp = uLP[i]; vec3 L = lp.xyz - P; float d2 = dot(L, L); float r2 = lp.w * lp.w;
     if (d2 > r2) continue;
     vec3 l = L * inversesqrt(max(d2, 1e-4)); float w = 1. - d2 / r2; float att = uLC[i].w > .5 ? w * w * .05 : w * w / (1. + d2);
+    if (i < ${NSH}) att *= shadowAt(i, P, gNg, lp.xyz, gJit);
     vec3 c = uLC[i].rgb * att;
-    dif += c * max(dot(N, l) * .9 + .1, 0.);
+    dif += c * max((dot(N, l) + gWrap) / (1. + gWrap), 0.);
     sp += c * pow(max(dot(N, normalize(l + Vd)), 0.), shin);
   }
   gIrr = dif;
   return alb * dif + sp * spec;
 }
-vec3 fogit(vec3 c, float d){ return mix(c, uFog.rgb, 1. - exp(-d * uFog.w)); }
+#endif
 `;
+
+// the cave is a union of tubes and chambers: each rock chunk discards the part of itself that lies inside its neighbours' openings
+const ROCK_CUT_DECL = `
+uniform vec4 uCutA[6]; uniform vec4 uCutB[6]; uniform int uNCut;
+uniform vec4 uEll[3]; uniform vec4 uEllR[3]; uniform int uNEll;
+void rockCut(vec3 P){
+  for (int i = 0; i < 6; i++) { if (i >= uNCut) break;
+    vec3 a = uCutA[i].xyz, ba = uCutB[i].xyz - a, pa = P - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+    if (length(pa - ba * h) < uCutA[i].w && P.y > uCutB[i].w) discard; }
+  for (int i = 0; i < 3; i++) { if (i >= uNEll) break;
+    vec3 d = P - uEll[i].xyz; float c = cos(uEll[i].w), s = sin(uEll[i].w);
+    vec3 l = vec3(c * d.x - s * d.z, d.y, -s * d.x - c * d.z) / uEllR[i].xyz;
+    if (dot(l, l) < 1. && P.y > uEllR[i].w) discard; }
+}`;
 
 // ---------- lit opaque geometry (props, creatures, track; ROCK variant for cave walls) ----------
 const LIT_VS = `
@@ -371,23 +426,26 @@ layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(locatio
 layout(location=3) in vec4 aM0; layout(location=4) in vec4 aM1; layout(location=5) in vec4 aM2; layout(location=6) in vec4 aM3;
 layout(location=7) in vec4 aTint; layout(location=8) in vec4 aEmi;
 #endif
-out vec3 vP; out vec3 vN; out vec4 vCol; out vec4 vEmi; out vec3 vLoc;
+out vec3 vP; out vec3 vN; out vec4 vCol; out vec4 vEmi; out vec3 vLoc; flat out vec4 vSc;
 void main(){
 #ifdef ROCK
-  vP = aPos; vN = aNrm; vCol = aCol; vEmi = vec4(0.); vLoc = aPos;
+  vP = aPos; vN = aNrm; vCol = aCol; vEmi = vec4(0.); vLoc = aPos; vSc = vec4(1.);
 #else
   mat4 M = mat4(aM0, aM1, aM2, aM3); vec4 wp = M * vec4(aPos, 1.); vP = wp.xyz;
-  mat3 m3 = mat3(M); vN = normalize(transpose(inverse(m3)) * aNrm);
-  vCol = vec4(aCol.rgb * aTint.rgb, max(aCol.a, aTint.a)); vEmi = aEmi; vLoc = aPos;
+  vec3 sc = vec3(length(aM0.xyz), length(aM1.xyz), length(aM2.xyz));
+  vN = normalize(mat3(M) * (aNrm / max(sc * sc, vec3(1e-9))));        // inverse transpose of rotation * scale
+  vCol = vec4(aCol.rgb * aTint.rgb, max(aCol.a, aTint.a)); vEmi = aEmi;
+  vLoc = aPos * sc;                                                   // local position in metres
+  vSc = vec4(sc, fract(dot(aM3.xyz, vec3(.137, .291, .173))) * 37.);  // scale and a per-instance seed
 #endif
   gl_Position = uVP * vec4(vP, 1.);
 }`;
 const LIT_FS = `
-in vec3 vP; in vec3 vN; in vec4 vCol; in vec4 vEmi; in vec3 vLoc;
+in vec3 vP; in vec3 vN; in vec4 vCol; in vec4 vEmi; in vec3 vLoc; flat in vec4 vSc;
 out vec4 o;
+vec3 bump(vec3 N, vec3 g){ return normalize(N - (g - dot(g, N) * N)); }
 #ifdef ROCK
-uniform vec4 uCutA[6]; uniform vec4 uCutB[6]; uniform int uNCut;
-uniform vec4 uEll[3]; uniform vec4 uEllR[3]; uniform int uNEll;
+${ROCK_CUT_DECL}
 float caust(vec2 p, float t){
   vec2 q = p; float c = 0.;
   for (int i = 0; i < 3; i++) {
@@ -400,40 +458,66 @@ float caust(vec2 p, float t){
 #endif
 void main(){
 #ifdef ROCK
-  for (int i = 0; i < 6; i++) { if (i >= uNCut) break;
-    vec3 a = uCutA[i].xyz, ba = uCutB[i].xyz - a, pa = vP - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
-    if (length(pa - ba * h) < uCutA[i].w && vP.y > uCutB[i].w) discard; }
-  for (int i = 0; i < 3; i++) { if (i >= uNEll) break;
-    vec3 d = vP - uEll[i].xyz; float c = cos(uEll[i].w), s = sin(uEll[i].w);
-    vec3 l = vec3(c * d.x - s * d.z, d.y, -s * d.x - c * d.z) / uEllR[i].xyz;
-    if (dot(l, l) < 1. && vP.y > uEllR[i].w) discard; }
+  rockCut(vP);
 #endif
   vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
   vec3 toC = uCam.xyz - vP; float dist = length(toC); vec3 Vd = toC / max(dist, 1e-4);
-  vec3 alb = vCol.rgb; float shin = 18., spec = .05, ao = 1.;
+  gNg = N; gJit = ign(gl_FragCoord.xy); gWrap = .1;
+  vec3 alb = vCol.rgb, emi = vEmi.rgb; float shin = 18., spec = .05, ao = 1., rim = 0.;
 #ifdef ROCK
-  ao = vCol.a;
-  // procedural rock: strata bands, speckle, and bump from screen-space derivatives of a height noise
-  float oct = uTime.z;
-  float h = vn(vP * 2.3) * .45;
-  if (oct > 1.5) h += vn(vP * 6.1 + 7.) * .3;
-  if (oct > 2.5) h += vn(vP * 15.3 + 3.) * .18;
-  float band = vn(vec3(vP.x * .08, vP.y * 2.6, vP.z * .08)), fine = vn(vP * vec3(9., 22., 9.));
-  alb *= .8 + .32 * (band - .5) + .3 * (h - .45) + .12 * (fine - .5);
-  float wet = smoothstep(.62, .78, vn(vP * vec3(.7, .15, .7)));
-  spec = .05 + .45 * wet; shin = 22. + 50. * wet; alb *= 1. - .3 * wet;
-  vec3 dpx = dFdx(vP), dpy = dFdy(vP); float dhx = dFdx(h), dhy = dFdy(h);
-  vec3 r1 = cross(dpy, N), r2 = cross(N, dpx); float det = dot(dpx, r1);
-  vec3 g = sign(det) * (dhx * r1 + dhy * r2);
-  N = normalize(abs(det) * N - g * .55);
+  // procedural rock: warped sedimentary beds with dark seams, body noise with an analytic-gradient bump, cracks,
+  // wet streaks, mineral flecks, and dusty gravel on the floor
+  ao = vCol.a; float oct = uTime.z;
+  float floorK = smoothstep(.6, .88, N.y);
+  float warp = vn(vP * .31 + 11.);
+  float bedY = vP.y * 1.7 + (warp - .5) * 1.8 + vn(vP * 1.3 + 5.) * .6 + vP.x * .1 + vP.z * .07, bf = fract(bedY);
+  float bedTone = mix(hash13(vec3(floor(bedY), 3., 7.)), hash13(vec3(floor(bedY) + 1., 3., 7.)), smoothstep(.7, 1., bf));
+  float aa = clamp(abs(dot(N, Vd)) * 3.5, .2, 1.);   // less fine bump where the wall is seen edge-on
+  vec4 n1 = vnd(vP * 1.6); vec3 g = n1.yzw * (1.6 * .42); float h = n1.x * .42, hi = .5;
+  if (oct > 1.5) { vec4 n2 = vnd(vP * 4.7 + 7.); g += n2.yzw * (4.7 * .26 * clamp(1.8 - dist * .06, 0., 1.) * aa); h += n2.x * .26; hi = n2.x; }
+  if (oct > 2.5) {   // fine grit fades out with distance, where it would only alias
+    float f3 = clamp(1.3 - dist * .1, 0., 1.) * aa, f4 = clamp(1.4 - dist * .16, 0., 1.) * aa;
+    vec4 n3 = vnd(vP * 12. + 3.); g += n3.yzw * (12. * .13 * f3); h += n3.x * .13; hi = n3.x;
+    if (f4 > 0.) { vec4 n4 = vnd(vP * 31. + 9.); g += n4.yzw * (31. * .05 * f4); h += n4.x * .05; hi = mix(hi, n4.x, .5 * f4); } else h += .025; }
+  g.y += (smoothstep(.7, 1., bf + .04) - smoothstep(.7, 1., bf)) * 9. * (bedTone - .5) * (1. - floorK);   // faint steps between beds
+  N = bump(N, g * mix(.2, .24, floorK));
+  alb *= (.6 + .36 * bedTone) * (.62 + .78 * h);
+  alb = mix(alb, alb * vec3(1.16, 1.08, .97) + .015, smoothstep(.25, .75, N.y) * .3 * (1. - floorK));   // dust settles on ledges
+  vec3 gravel = vCol.rgb * vec3(.6, .58, .56) * (.5 + .75 * hi) * (.75 + .5 * hash13(floor(vP * 26.)));
+  alb = mix(alb, gravel, floorK);
+  ao *= .62 + .38 * smoothstep(.2, .65, h);
+  float wet = smoothstep(.62, .8, vn(vP * vec3(.7, .15, .7))) * (1. - floorK);
+  spec = .04 + .5 * wet; shin = 24. + 70. * wet; alb *= 1. - .35 * wet;
+  if (oct > 2.5) { float fl = step(.9965, hash13(floor(vP * 85.))) * clamp(1.5 - dist * .12, 0., 1.); spec += fl * 1.4; shin = mix(shin, 140., fl); }
 #else
-  float mat = floor(vCol.a * 4. + .5);
-  if (mat == 1.) { float gr = vn(vec3(vLoc.x * 3., vLoc.y * 3., vLoc.z * 40.) + vP * .2); alb *= .7 + .5 * gr; spec = .03; }
-  else if (mat == 2.) { spec = .7; shin = 70.; alb *= .9 + .2 * vn(vP * 9.); }
-  else if (mat == 3.) { spec = .3; shin = 36.; }
-  else if (mat == 4.) { spec = .9; shin = 110.; }
+  float mat = floor(vCol.a * 4. + .5), seed = vSc.w;
+  if (mat == 0.) {                      // stone and plain painted things
+    vec4 n = vnd(vP * 4.2); alb *= .78 + .42 * n.x; N = bump(N, n.yzw * .22); spec = .07;
+  } else if (mat == 1.) {               // wood: grain runs along the longest side of the piece
+    float mx = max(vSc.x, max(vSc.y, vSc.z)); vec3 fr = mix(vec3(34.), vec3(1.4), step(mx - 1e-4, vSc.xyz));
+    vec3 q = vLoc * fr + seed;
+    float gr = vn(q), fine = vn(q * 3.1 + 5.), band = .5 + .5 * sin(gr * 28. + fine * 3.);
+    alb *= (.6 + .45 * gr) * (.82 + .26 * band) * (.9 + .2 * fine);
+    alb = mix(alb, alb * vec3(.55, .5, .5), smoothstep(.72, .95, vn(vLoc * 2.3 + seed * 1.7)));   // old stains
+    spec = .05; shin = 14.;
+  } else if (mat == 2.) {               // iron and steel with rust blooms
+    float r = smoothstep(.44, .7, vn(vLoc * 7. + seed) * .65 + vn(vLoc * 23. + seed) * .35);
+    alb = mix(alb, mix(alb, vec3(.21, .1, .05), .65) * (.7 + .6 * vn(vLoc * 31. + seed)), r * .8);
+    alb *= .85 + .3 * vn(vLoc * 40. + seed);
+    spec = mix(.8, .1, r); shin = mix(70., 14., r);
+  } else if (mat == 3.) {               // creature skin: mottled, soft wrap light, a little sheen, rim light
+    float mo = vn(vLoc * 5.5 + seed), mo2 = vn(vLoc * 17. + seed);
+    alb *= (.74 + .4 * mo) * (.9 + .2 * mo2);
+    spec = .4; shin = 42.; gWrap = .45; rim = .55;
+  } else {                              // crystal: hard highlights, glow strongest at the core and tip, sparkle
+    float f = pow(1. - max(dot(N, Vd), 0.), 2.5);
+    emi *= .5 + 1.1 * f + .9 * smoothstep(.3, 1., vLoc.y / max(vSc.y, 1e-4));
+    spec = 1.2; shin = 120.; rim = .8; alb *= .7;
+    spec += 3. * step(.985, hash13(floor(vLoc * 60.) + seed));
+  }
 #endif
   vec3 col = lightAll(vP, N, Vd, alb, shin, spec, ao);
+  col += gIrr * alb * rim * pow(1. - max(dot(N, Vd), 0.), 3.);
 #ifdef ROCK
   if (uRiverR.z > .5) {
     vec3 d = vP - uRiver.xyz; float c = cos(uRiver.w), s = sin(uRiver.w);
@@ -447,8 +531,34 @@ void main(){
     }
   }
 #endif
-  col += vEmi.rgb;
+  col += emi;
   o = vec4(fogit(col, dist), 1.);
+}`;
+
+// ---------- shadow depth pass (cube faces): position only, same cuts as the lit rock, lamps flagged as non-casters ----------
+const SH_VS = `
+layout(location=0) in vec3 aPos;
+#ifndef ROCK
+layout(location=3) in vec4 aM0; layout(location=4) in vec4 aM1; layout(location=5) in vec4 aM2; layout(location=6) in vec4 aM3;
+layout(location=8) in vec4 aEmi;
+#endif
+uniform mat4 uSVP; out vec3 vP;
+void main(){
+#ifdef ROCK
+  vP = aPos; gl_Position = uSVP * vec4(vP, 1.);
+#else
+  vP = (mat4(aM0, aM1, aM2, aM3) * vec4(aPos, 1.)).xyz; gl_Position = aEmi.w > .5 ? vec4(2., 2., 2., 1.) : uSVP * vec4(vP, 1.);
+#endif
+}`;
+const SH_FS = `
+in vec3 vP;
+#ifdef ROCK
+${ROCK_CUT_DECL}
+#endif
+void main(){
+#ifdef ROCK
+  rockCut(vP);
+#endif
 }`;
 
 // ---------- water surface: refraction of a copy of the opaque frame, absorption by thickness, light glints ----------
@@ -464,11 +574,8 @@ float linz(float d){ float n = uClip.x, f = uClip.y; float z = d * 2. - 1.; retu
 void main(){
   float t = uTime.x, fl = uRiverR.w;
   vec2 q1 = vL * .45 + vec2(0., t * fl * .55), q2 = vL * 1.3 + vec2(t * .07, t * fl * 1.1);
-  float e = .04;
-  float h1 = vn(vec3(q1, t * .2)) + .5 * vn(vec3(q2, t * .35));
-  float hx = vn(vec3(q1 + vec2(e, 0.), t * .2)) + .5 * vn(vec3(q2 + vec2(e * 2.9, 0.), t * .35));
-  float hz = vn(vec3(q1 + vec2(0., e), t * .2)) + .5 * vn(vec3(q2 + vec2(0., e * 2.9), t * .35));
-  vec3 N = normalize(vec3(-(hx - h1) / e * .09, 1., -(hz - h1) / e * .09));
+  vec4 a = vnd(vec3(q1, t * .2)), b = vnd(vec3(q2, t * .35));
+  vec3 N = normalize(vec3(-(a.y * .45 + b.y * .65) * .2, 1., -(a.z * .45 + b.z * .65) * .2));
   vec3 toC = uCam.xyz - vP; float dist = length(toC); vec3 Vd = toC / dist;
   vec2 uv = gl_FragCoord.xy / uClip.zw;
   vec3 under = vec3(.004, .012, .016);
@@ -478,7 +585,6 @@ void main(){
     float zs2 = linz(texture(uDepth, uv2).r); if (zs2 < zw) uv2 = uv; else zs = zs2;
     float th = max(zs - zw, 0.);
     vec3 bed = texture(uScene, uv2).rgb;
-    bed = mix(bed, vec3(0.), clamp(1. - exp(-dist * uFog.w), 0., 1.) * 0.);
     under = bed * exp(-th * vec3(.55, .22, .14)) + vec3(.003, .01, .013) * (1. - exp(-th * .5));
   }
   float fr = .02 + .98 * pow(1. - max(dot(N, Vd), 0.), 5.);
@@ -496,7 +602,7 @@ void main(){
     refl += uHeadP.w * vec3(1., .84, .62) * pow(max(dot(N, H), 0.), 200.) * 4. / (1. + d2 * .1); }
   vec3 R = reflect(-Vd, N);
   float worms = step(.9965, hash13(floor(R * 140.))) * (.5 + .5 * sin(t * 1.3 + hash13(floor(R * 140.) + 7.) * 40.));
-  refl += vec3(.008, .028, .032) + worms * vec3(.4, 1.6, 1.3) * smoothstep(.1, .5, R.y);
+  refl += uAmb.rgb * 1.6 + worms * vec3(.4, 1.6, 1.3) * smoothstep(.1, .5, R.y);
   vec3 col = mix(under, refl * 3., fr) + refl * .5;
   o = vec4(fogit(col, dist), 1.);
 }`;
@@ -528,6 +634,7 @@ void main(){
   else if (sh < 1.5) a = exp(-vUV.x * vUV.x * 5.) * (1. - vUV.y * vUV.y) ;
   else if (sh < 2.5) a = exp(-pow(sqrt(r2) - .72, 2.) * 70.);
   else if (sh < 3.5) a = smoothstep(1., .55, r2) + exp(-r2 * 2.) * .4;
+  else if (sh < 4.5) a = exp(-vUV.y * vUV.y * 260.) * pow(max(1. - abs(vUV.x), 0.), 2.5);      // lens streak
   else a = smoothstep(1., 0., r2) * (.6 + .4 * hash13(vec3(floor(vUV * 3.), sh)));
   float f = exp(-vD * uFog.w * .8);
   if (uAlpha > .5) o = vec4(vB.rgb * a * f, a * clamp(sh - 4., 0., 1.));
@@ -555,17 +662,31 @@ void main(){
   s += texture(uSrc, vUV + d).rgb + texture(uSrc, vUV - d).rgb + texture(uSrc, vUV + vec2(d.x, -d.y)).rgb + texture(uSrc, vUV + vec2(-d.x, d.y)).rgb;
   o = vec4(s / 16. * uW, 1.);
 }`;
+// light scattered toward the eye by dust: a closed-form integral per light, and for the shadow-casting lights the lit
+// fraction of the ray is measured by marching it through their shadow cubes, which gives shafts between the timbers
 const SCAT_FS = `
-in vec2 vUV; out vec4 o; uniform sampler2D uDepthS; uniform int uNS; uniform float uDen;
+in vec2 vUV; out vec4 o; uniform sampler2D uDepthS; uniform int uNS; uniform float uDen; uniform int uSteps;
 void main(){
   float d = texture(uDepthS, vUV).r;
   vec4 wp = uInvVP * vec4(vUV * 2. - 1., d * 2. - 1., 1.); vec3 P = wp.xyz / wp.w;
   vec3 ro = uCam.xyz, rd = P - ro; float T = length(rd); rd /= T; T = min(T, 90.);
+  float jit = ign(gl_FragCoord.xy);
   vec3 s = vec3(0.);
   for (int i = 0; i < 16; i++) { if (i >= uNS) break; if (uLC[i].w > .5) continue;
-    vec3 lp = uLP[i].xyz; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float h = max(length(lp - cp), .25);
-    float I = (atan((T - s0) / h) - atan(-s0 / h)) / h;
-    s += uLC[i].rgb * I * min(1., uLP[i].w / 12.);
+    vec3 lp = uLP[i].xyz; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float hh = length(lp - cp), h = max(hh, .25);
+    float I = (atan((T - s0) / h) - atan(-s0 / h)) / h, vis = 1.;
+    if (i < ${NSH} && uSteps > 0 && uShd[i].x > .001) {
+      float R = uShd[i].z, b = sqrt(max(R * R - hh * hh, 0.)), t0 = max(s0 - b, 0.), t1 = min(s0 + b, T);
+      if (t1 > t0) {
+        float dt = (t1 - t0) / float(uSteps), acc = 0., tot = 0.;
+        for (int j = 0; j < 24; j++) { if (j >= uSteps) break;
+          vec3 v = ro + rd * (t0 + (float(j) + jit) * dt) - lp; float w = 1. / (dot(v, v) + .1);
+          float m = max(max(abs(v.x), abs(v.y)), abs(v.z)) - .04;
+          acc += w * shTap(i, vec4(v, shDepth(m, R))); tot += w; }
+        vis = mix(1., acc / max(tot, 1e-5), uShd[i].x) * (1. + 1.8 * uShd[i].x);   // key lights get denser air so their beams read
+      }
+    }
+    s += uLC[i].rgb * I * vis * min(1., uLP[i].w / 12.) * .7;
   }
   { vec3 lp = uHeadP.xyz + uHeadD.xyz * 3.; float s0 = dot(lp - ro, rd); vec3 cp = ro + rd * s0; float h = max(length(lp - cp), .4);
     s += uHeadP.w * vec3(1., .84, .62) * (atan((T - s0) / h) - atan(-s0 / h)) / h * .25; }
@@ -573,17 +694,24 @@ void main(){
 }`;
 const COMP_FS = `
 in vec2 vUV; out vec4 o; uniform sampler2D uScene; uniform sampler2D uBloom;
-uniform float uExpo, uBloomK, uHurt, uFade, uGrain; uniform vec3 uFadeCol;
+uniform float uExpo, uBloomK, uHurt, uFade, uGrain, uCA; uniform vec3 uFadeCol;
 vec3 aces(vec3 x){ return clamp((x * (2.51 * x + .03)) / (x * (2.43 * x + .59) + .14), 0., 1.); }
+vec3 clean(vec3 c){ return (any(isnan(c)) || any(isinf(c))) ? vec3(0.) : c; }
 void main(){
-  vec3 c = texture(uScene, vUV).rgb; if (any(isnan(c)) || any(isinf(c))) c = vec3(0.);
-  vec3 b = texture(uBloom, vUV).rgb; if (any(isnan(b)) || any(isinf(b))) b = vec3(0.);
-  c = c + b * uBloomK;
-  c *= uExpo;
-  vec2 q = vUV - .5; float vig = 1. - dot(q, q) * 1.1;
-  c *= vig;
+  vec2 q = vUV - .5; float r2 = dot(q, q);
+  vec3 c = clean(texture(uScene, vUV).rgb);
+  if (uCA > 0.) {                                   // a little lateral chromatic aberration toward the corners
+    vec2 off = q * r2 * uCA;
+    c.r = clean(texture(uScene, vUV + off).rgb).r; c.b = clean(texture(uScene, vUV - off).rgb).b;
+  }
+  vec3 b = clean(texture(uBloom, vUV).rgb);
+  c = (c + b * uBloomK) * uExpo;
+  c *= 1. - smoothstep(.12, .78, r2) * .62;         // vignette
   c = aces(c);
   c = pow(c, vec3(1. / 2.2));
+  float l = dot(c, vec3(.3, .59, .11));
+  c = mix(vec3(l), c, 1.08);                        // grade: a touch more colour, cool shadows, warm highlights
+  c += vec3(-.006, .002, .012) * (1. - smoothstep(0., .35, l)) + vec3(.012, .004, -.012) * smoothstep(.5, 1., l);
   float hr = uHurt * smoothstep(.15, .75, length(q * vec2(1.4, 1.)));
   c = mix(c, vec3(.55, .02, .02), hr * .65);
   c += (hash13(vec3(gl_FragCoord.xy, uTime.x * 60.)) - .5) * uGrain;
@@ -596,12 +724,46 @@ const PROG = {};
 function buildPrograms() {
   PROG.lit = program(LIT_VS, LIT_FS, '');
   PROG.rock = program(LIT_VS, LIT_FS, '#define ROCK');
+  PROG.shLit = program(SH_VS, SH_FS, '#define NOLIGHT');
+  PROG.shRock = program(SH_VS, SH_FS, '#define NOLIGHT\n#define ROCK');
   PROG.water = program(WATER_VS, WATER_FS, '');
   PROG.glow = program(GLOW_VS, GLOW_FS, '');
   PROG.down = program(FS_VS, DOWN_FS, '');
   PROG.up = program(FS_VS, UP_FS, '');
   PROG.scat = program(FS_VS, SCAT_FS, '');
   PROG.comp = program(FS_VS, COMP_FS, '');
+}
+
+// ---------- shadow cubes: one depth cube map per shadow slot, six framebuffers each ----------
+const SH = { n: -1, res: 0, slots: [], dummy: null };
+const CUBE_FACES = [[[1, 0, 0], [0, -1, 0]], [[-1, 0, 0], [0, -1, 0]], [[0, 1, 0], [0, 0, 1]], [[0, -1, 0], [0, 0, -1]], [[0, 0, 1], [0, -1, 0]], [[0, 0, -1], [0, -1, 0]]]
+  .map(([f, u]) => ({ f, u, r: V.cross(f, u) }));
+function mkCube(res) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_CUBE_MAP, t);
+  gl.texStorage2D(gl.TEXTURE_CUBE_MAP, 1, gl.DEPTH_COMPONENT24, res, res);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  const fbs = [];
+  for (let i = 0; i < 6; i++) {
+    const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_CUBE_MAP_POSITIVE_X + i, t, 0);
+    gl.drawBuffers([gl.NONE]); gl.readBuffer(gl.NONE); fbs.push(f);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.bindTexture(gl.TEXTURE_CUBE_MAP, null);
+  return { t, fbs };
+}
+function setupShadows(q) {
+  if (SH.n === q.sh && SH.res === q.shRes) return;
+  bindShadowCubes(true);
+  for (const s of SH.slots) if (s.own) { gl.deleteTexture(s.t); for (const f of s.fbs) gl.deleteFramebuffer(f); }
+  if (!SH.dummy) SH.dummy = mkCube(1);
+  SH.n = q.sh; SH.res = q.shRes; SH.slots = [];
+  for (let k = 0; k < NSH; k++) { const c = k < q.sh ? mkCube(q.shRes) : SH.dummy; SH.slots.push({ t: c.t, fbs: c.fbs, own: k < q.sh, key: null, light: null, k: 0 }); }
+}
+function bindShadowCubes(none) {
+  for (let k = 0; k < SH.slots.length; k++) { gl.activeTexture(gl.TEXTURE0 + TU.uSh0 + k); gl.bindTexture(gl.TEXTURE_CUBE_MAP, none ? null : SH.slots[k].t); }
+  gl.activeTexture(gl.TEXTURE0);
 }
 
 // ---------- meshes ----------
@@ -728,7 +890,7 @@ class Batch {
     M4.basis(f, o, F.p, F.x, F.y, F.z, sx, sy, sz);
     f[o + 16] = col[0]; f[o + 17] = col[1]; f[o + 18] = col[2]; f[o + 19] = col[3] || 0;
     if (emi) { f[o + 20] = emi[0]; f[o + 21] = emi[1]; f[o + 22] = emi[2]; } else { f[o + 20] = f[o + 21] = f[o + 22] = 0; }
-    f[o + 23] = 0;
+    f[o + 23] = Batch.noShadow;
   }
   // segment-aligned primitive (cylinder/box/leg) from a to b with radius r (local y runs along a->b)
   addSeg(a, b, r, col, emi, up, rz) {
@@ -741,6 +903,7 @@ class Batch {
   draw() { if (!this.n) return; gl.bindVertexArray(this.vao); gl.drawElementsInstanced(gl.TRIANGLES, this.mesh.n, this.mesh.type, 0, this.n); }
   free() { gl.deleteVertexArray(this.vao); gl.deleteBuffer(this.ib); }
 }
+Batch.noShadow = 0;   // set to 1 while adding lamp geometry: the light sits inside it, so it must not cast
 // draw a plain (non-instanced) mesh with the lit program: identity instance attributes
 function drawPlain(m) {
   gl.bindVertexArray(m.vao);
@@ -794,9 +957,9 @@ function setupTargets(W, H, q) {
   const ns = HDR ? q.msaa : Math.min(q.msaa, 4);
   if (RT.W === W && RT.H === H && RT.samples === ns && RT.nb === q.bloom) return;
   // free old
-  for (const k of ['msFB', 'sceneFB', 'depthFB', 'copyFB']) if (RT[k]) gl.deleteFramebuffer(RT[k]);
+  for (const k of ['msFB', 'sceneFB', 'depthFB', 'copyFB', 'scatFB']) if (RT[k]) gl.deleteFramebuffer(RT[k]);
   for (const k of ['msCol', 'msDep']) if (RT[k]) gl.deleteRenderbuffer(RT[k]);
-  for (const k of ['sceneTex', 'depthTex', 'copyTex', 'copyDep']) if (RT[k]) gl.deleteTexture(RT[k]);
+  for (const k of ['sceneTex', 'depthTex', 'copyTex', 'copyDep', 'scatTex']) if (RT[k]) gl.deleteTexture(RT[k]);
   for (const b of RT.bloom) { gl.deleteFramebuffer(b.fb); gl.deleteTexture(b.t); }
   RT.W = W; RT.H = H; RT.nb = q.bloom;
   let maxS = 0; try { const s = gl.getInternalformatParameter(gl.RENDERBUFFER, CFMT, gl.SAMPLES); maxS = s && s.length ? Math.max(...s) : 0; } catch (e) {}
@@ -811,6 +974,8 @@ function setupTargets(W, H, q) {
   RT.depthTex = mkTex(W, H, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.NEAREST); RT.depthFB = mkFB(null, RT.depthTex);
   RT.copyTex = mkTex(W, H, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR);
   RT.copyDep = mkTex(W, H, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.NEAREST); RT.copyFB = mkFB(RT.copyTex, RT.copyDep);
+  RT.scatW = Math.max(1, W >> 1); RT.scatH = Math.max(1, H >> 1);
+  RT.scatTex = mkTex(RT.scatW, RT.scatH, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR); RT.scatFB = mkFB(RT.scatTex, null);
   RT.bloom = []; let w = W, h = H;
   for (let i = 0; i < q.bloom; i++) { w = Math.max(1, w >> 1); h = Math.max(1, h >> 1); const t = mkTex(w, h, CFMT, gl.RGBA, HDR ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, gl.LINEAR); RT.bloom.push({ t, fb: mkFB(t, null), w, h }); }
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -1159,7 +1324,7 @@ function buildChamber(ch) {
     if (!up && p[1] < ch.floor) p[1] = ch.floor;
     if (!up && ch.water !== undefined) continue;
     if (nearTrack(p, 3.2)) continue;
-    const h = up ? R.range(1, 4.5) : R.range(.8, 3), w = h * R.range(.12, .22), col = [ch.tint[0] * 1.1, ch.tint[1] * 1.08, ch.tint[2] * 1.05, 3 / 4];
+    const h = up ? R.range(1, 4.5) : R.range(.8, 3), w = h * R.range(.12, .22), col = [ch.tint[0] * 1.1, ch.tint[1] * 1.08, ch.tint[2] * 1.05, 0];
     sAdd('cone', { p, x: [1, 0, 0], y: [0, up ? -1 : 1, 0], z: [0, 0, up ? -1 : 1] }, w, h, w, col);
   }
 }
@@ -1277,8 +1442,9 @@ function buildWorldGeometry() {
   for (const ch of TRACK.chambers) {
     ch.fill = [];
     const col = ch.name === 'river' ? [.25, .7, .65] : ch.name === 'crystal' ? [.5, .35, .9] : ch.name === 'hollow' ? [.3, .55, .5] : null; if (!col) continue;
+    ch.mood = ch.name === 'river' ? { amb: [.006, .02, .022], fog: [.002, .0065, .0075], den: .0095 } : ch.name === 'crystal' ? { amb: [.016, .01, .027], fog: [.0045, .0025, .0075], den: .009 } : { amb: [.012, .015, .012], fog: [.004, .0045, .0035], den: .011 };
     const n = ch.name === 'river' ? 4 : 3;
-    for (let i = 0; i < n; i++) { const z = (i / (n - 1) - .5) * 1.2; ch.fill.push({ p: V.add(V.add(ch.c, V.scl(ch.fw, z * ch.r[2])), [0, ch.r[1] * .2, 0]), col, I: ch.name === 'crystal' ? 6 : 4, range: ch.rmax * 1.1 }); }
+    for (let i = 0; i < n; i++) { const z = (i / (n - 1) - .5) * 1.2; ch.fill.push({ p: V.add(V.add(ch.c, V.scl(ch.fw, z * ch.r[2])), [0, ch.r[1] * .2, 0]), col, I: ch.name === 'crystal' ? 5 : ch.name === 'river' ? 2.4 : 3.4, range: ch.rmax * 1.1 }); }
   }
   for (const c of WORLD.statics.values()) for (const b of c.b.values()) b.upload();
 }
@@ -1881,7 +2047,11 @@ function drawBoss(B, GL) {
       B.sph.add(Fs, r, r * .9, r * 1.1, skin, sk);
       B.sph.add(fmove(Fs, 0, -r * .35, 0), r * .82, r * .6, r * 1.05, belly, bel);
       if (i % 2 === 0) for (const sd of [-1, 0, 1]) B.cone.add(frot(fmove(Fs, sd * r * .45, r * .8, 0), 'z', -sd * .4), r * .22, r * .5, r * .22, plate);
-      if (i % 3 === 0) for (const sd of [-1, 1]) GL.add(fpt(Fs, sd * r * .9, r * .2, 0), .12, .2, 1.2, 1.4, 0);
+      for (const sd of [-1, 1]) {   // rows of glowing sacs down its flanks
+        const pu = S.state === 'dying' ? .2 : (.55 + .45 * Math.sin(S.t * 2.2 - i * .7)) * (.25 + .75 * S.rise), q = fpt(Fs, sd * r * .93, r * .12, 0);
+        B.sph.add({ p: q, x: Fs.x, y: Fs.y, z: Fs.z }, r * .1, r * .13, r * .1, [.25, .7, .62, .75], [.25 * pu, 1.5 * pu, 1.2 * pu]);
+        GL.add(q, r * .32, .1 * pu, .55 * pu, .45 * pu, 0);
+      }
     }
     prev = p;
   }
@@ -1979,7 +2149,8 @@ function updateFlares(dt) {
       if (wy !== null && np[1] < wy) { f.state = 'out'; f.t = 0; FX.splash([np[0], wy, np[2]], 14); FX.smoke([np[0], wy + .2, np[2]], 6, .8); SND.fizz(); f.p = [np[0], wy, np[2]]; continue; }
       if (!insideWorld(np) || f.t > 3) {
         let a = 0, b = 1; for (let k = 0; k < 6; k++) { const m = (a + b) / 2; if (insideWorld(V.lerp(f.p, np, m))) a = m; else b = m; }
-        f.p = V.madd(V.lerp(f.p, np, a), V.norm(f.v), -.12); f.state = 'burn'; f.t = 0; SND.flareIgnite(f.p);
+        // Keep the flare clear of the wall, so its light does not graze it.
+        f.p = V.madd(V.lerp(f.p, np, a), V.norm(f.v), -.4); f.state = 'burn'; f.t = 0; SND.flareIgnite(f.p);
         FLASHES.push({ p: V.copy(f.p), col: [1, .45, .2], I: 160, range: 20, t: 0, dur: .35 });
       } else f.p = np;
       emit(f.p, rv(.3), .35, .05, [6, 1.6, .5], 1, 0, 2);
@@ -2000,7 +2171,7 @@ function updateFlares(dt) {
 function drawFlares(B, GL) {
   for (const f of FLARES) {
     if (f.state === 'fly') { GL.add(f.p, .35, 8, 2.4, .8, 0); B.cyl.add(frameLook(f.p, f.v, [0, 1, 0]), .03, .25, .03, [.8, .2, .1, 0], [1, .2, .05]); }
-    else if (f.state === 'burn') { const k = f.I / FLARE.I; GL.add(f.p, 1.1 * k + .2, 10 * k, 3.2 * k, 1.1 * k, 0); GL.add(f.p, .22, 30 * k, 18 * k, 10 * k, 0); GL.add(f.p, 2.6 * k, .7 * k, .2 * k, .06 * k, 2, null, f.t); }
+    else if (f.state === 'burn') { const k = f.I / FLARE.I; GL.add(f.p, 4.5 * k, 2.2 * k, .7 * k, .22 * k, 4); GL.add(f.p, 1.1 * k + .2, 10 * k, 3.2 * k, 1.1 * k, 0); GL.add(f.p, .22, 30 * k, 18 * k, 10 * k, 0); GL.add(f.p, 2.6 * k, .7 * k, .2 * k, .06 * k, 2, null, f.t); }
   }
   for (const t of TRACERS) { const a = 1 - t.t / .07; GL.add(t.a, .022, 9 * a, 5 * a, 2 * a, 1, t.b); }
 }
@@ -2015,29 +2186,62 @@ function isLit(p) {
 }
 function dazzleAt(p, r) { const rr = (r || FLARE.dazzle) ** 2; for (const f of FLARES) if (f.state === 'burn' && f.t < FLARE.burn - .5 && V.dist2(f.p, p) < rr) return true; return false; }
 
-// gather lights for this frame: the brightest by I / distance, capped by the quality tier
-const LIGHTS = [];
-function gatherLights(q) {
+// gather lights for this frame: the brightest by I / distance, capped by the quality tier.
+// The first NSH entries are the shadow slots: flares first, then the lamps that matter most here. A slot keeps its light
+// (so its shadow does not jump between lights) and fades in and out over a quarter of a second.
+const LIGHTS = [], LOUT = [];
+let lightE = 0;   // light reaching the eye, for exposure
+function gatherLights(q, dtR) {
   LIGHTS.length = 0; const cp = G.cam.p, t = G.time;
-  const push = (p, col, I, range, fill) => { const d2 = V.dist2(p, cp); if (d2 > (range + 75) ** 2) return; LIGHTS.push({ p, col, I, range, fill: fill ? 1 : 0, w: (fill ? I * 6 : I) / (1 + d2 / (range * range * .6)) }); };
+  const push = (p, col, I, range, fill, key, pri) => { const d2 = V.dist2(p, cp); if (d2 > (range + 75) ** 2) return null; const L = { p, col, I, range, fill: fill ? 1 : 0, key: key || null, pri: pri || 0, d2, w: (fill ? I * 6 : I) / (1 + d2 / (range * range * .6)) }; LIGHTS.push(L); return L; };
   for (const L of LV.lamps) {
     if (!L.lit) continue;
     const age = t - L.litT, boot = L.preLit ? 1 : smooth(0, .5, age) * (1 + 1.5 * Math.exp(-age * 5));
     let fl = 1; if (L.kind === 'lantern' || L.kind === 'oil') fl = .88 + .12 * Math.sin(t * 9 + L.ph) * Math.sin(t * 5.3 + L.ph * 2); else if (L.kind === 'brazier') fl = .8 + .2 * Math.sin(t * 13 + L.ph) * Math.sin(t * 7.1);
     else if (L.kind === 'crystal') fl = .92 + .08 * Math.sin(t * 1.3 + L.ph);
-    push(L.p, L.col, L.I * fl * boot, L.range);
+    push(L.p, L.col, L.I * fl * boot, L.range, false, L, L.kind === 'sun' ? 3 : 1);   // daylight casts shadows down the exit tunnel
+    if (L.kind === 'brazier') push(V.add(L.p, [0, 1.5, 0]), L.col, 5.5 * fl * Math.min(1, boot), 62, true);   // each lit brazier also warms the whole hollow
   }
   for (const ch of TRACK.chambers) if (ch.fill && V.dist2(ch.c, cp) < (ch.rmax + 40) ** 2) for (const L of ch.fill) push(L.p, L.col, L.I, L.range, true);
-  for (const L of LV.levers) push(V.add(L.base, [0, 2.6, 0]), [1, .78, .4], 7, 9);   // a work lamp over each junction lever
-  for (const f of FLARES) if (f.state === 'burn') push(f.p, [1, .3, .12], f.I, FLARE.range); else if (f.state === 'fly') push(f.p, [1, .3, .12], 18, 8);
-  for (const f of FLASHES) { const k = 1 - f.t / f.dur; push(f.p, f.col, f.I * k * k, f.range); }
-  if (BOSS.state !== 'off' && BOSS.state !== 'gone' && BOSS.state !== 'sleep') { const F = bossHeadFrame(); push(fpt(F, 0, .6, 3.6), [1, .55, .15], 22 * BOSS.eyes.filter(e => e.alive).length / 8 * (BOSS.dazzle > 0 ? 1.6 : 1), 9); }
-  if (G.muzzle > 0) push(V.madd(G.muzzleP, G.cam.f, 1.4), [1, .7, .4], 9 * G.muzzle / .05, 7);
+  for (const L of LV.levers) push(V.add(L.base, [0, 2.6, 0]), [1, .78, .4], 7, 9, false, L, .7);   // a work lamp over each junction lever
+  for (const f of FLARES) if (f.state === 'burn') push(f.p, [1, .4, .19], f.I, FLARE.range, false, f, 5); else if (f.state === 'fly') push(f.p, [1, .4, .19], 18, 8, false, f, 5);
+  for (const f of FLASHES) { const k = 1 - f.t / f.dur; const L = push(f.p, f.col, f.I * k * k, f.range); if (L) L.tr = 1; }
+  if (BOSS.state !== 'off' && BOSS.state !== 'gone' && BOSS.state !== 'sleep') { const F = bossHeadFrame(); push(fpt(F, 0, .2, 6), [1, .6, .22], (10 + 18 * BOSS.eyes.filter(e => e.alive).length / 8) * (BOSS.dazzle > 0 ? 1.5 : 1) * (.3 + .7 * BOSS.rise), 19); }
+  if (G.muzzle > 0) { const L = push(V.madd(G.muzzleP, G.cam.f, 1.4), [1, .7, .4], 9 * G.muzzle / .05, 7); if (L) L.tr = 1; }
+  // spill from the cart's own lamp: keeps the tub, the pistol and your hand readable when everything ahead is brighter
+  if (G.cart.f && !G.camLock) { const cf = G.cart.f, L = push(V.add(V.madd(G.cart.p, cf.U, 1.22), V.scl(cf.T, .5)), [1, .8, .56], .75, 3.2); if (L) { L.w = 1e6; L.tr = 1; } }
   LIGHTS.sort((a, b) => b.w - a.w);
-  const n = Math.min(LIGHTS.length, q.lights);
+  // exposure estimate
+  let E = 0; for (const L of LIGHTS) { if (L.tr) continue;   // flashes are too brief for the eye to follow
+    const w = Math.max(0, 1 - L.d2 / (L.range * L.range)); E += L.fill ? L.I * .05 * w * w : L.I * w * w / (1 + .15 * L.d2); }   // lit walls stay bright at a distance, they only shrink
+  lightE = E;
+  // shadow slots
+  const S = q.sh || 0, slots = SH.slots;
+  if (S) {
+    const cand = LIGHTS.filter(L => L.pri > 0 && L.d2 < 70 * 70).map(L => { L.sc = L.w * L.pri * (slots.some(s => s.key === L.key) ? 1.4 : 1); return L; }).sort((a, b) => b.sc - a.sc).slice(0, S);
+    for (let k = 0; k < S; k++) {
+      const s = slots[k]; if (!s.key) continue;
+      const L = cand.find(c => c.key === s.key);
+      if (L) { s.light = L; s.k = Math.min(1, s.k + dtR * 4); }
+      else { const still = LIGHTS.find(c => c.key === s.key); s.light = still || null; s.k -= dtR * 4; if (s.k <= 0 || !still) { s.key = null; s.light = null; s.k = 0; } }
+    }
+    for (const L of cand) if (!slots.some((s, k) => k < S && s.key === L.key)) { const s = slots.find((s, k) => k < S && !s.key); if (s) { s.key = L.key; s.light = L; s.k = dtR >= 1 ? 1 : 0; } }
+  }
+  for (let k = S; k < slots.length; k++) { slots[k].key = null; slots[k].light = null; slots[k].k = 0; }
+  LOUT.length = 0; const used = new Set();
+  for (let k = 0; k < NSH; k++) {
+    const s = slots[k];
+    if (s && s.light) { LOUT.push(s.light); used.add(s.light); UB.set('uShd', [s.k, .1, s.light.range, q.shRes], k); }
+    else { LOUT.push(null); UB.set('uShd', [0, .1, 1, 1], k); }
+  }
+  const rest = LIGHTS.filter(L => !used.has(L)); let ri = 0;
+  for (let k = 0; k < NSH; k++) if (!LOUT[k] && ri < rest.length) LOUT[k] = rest[ri++];
+  while (LOUT.length < q.lights && ri < rest.length) LOUT.push(rest[ri++]);
+  const n = Math.min(LOUT.length, q.lights), over = ri < rest.length;
   // fade the last couple of slots so lights don't pop when they swap in and out
   for (let i = 0; i < n; i++) {
-    const L = LIGHTS[i]; let k = 1; if (LIGHTS.length > q.lights && i >= n - 2) k = .5 + .25 * (n - i);
+    const L = LOUT[i]; if (!L) { UB.set('uLP', [0, -9999, 0, .01], i); UB.set('uLC', [0, 0, 0, 0], i); continue; }
+    let k = 1; if (over && i >= n - 2) k = .5 + .25 * (n - i);
     UB.set('uLP', [L.p[0], L.p[1], L.p[2], L.range], i); UB.set('uLC', [L.col[0] * L.I * k, L.col[1] * L.I * k, L.col[2] * L.I * k, L.fill], i);
   }
   return n;
@@ -2533,7 +2737,7 @@ function pollInput(dt) {
 
 // ===== 90-main.js =====
 // ===== Main: drawing the world, HUD and menus, the frame loop, quality, window.DR test API =====
-let QI = clamp(+(URLP.get('q') !== null ? ({ low: 0, medium: 1, med: 1, high: 2, max: 3 }[URLP.get('q')] ?? 2) : SAVE.get('quality', 2)), 0, 3);
+let QI = clamp(+(URLP.get('q') !== null ? ({ low: 0, medium: 1, med: 1, high: 2, max: 3 }[URLP.get('q')] ?? 2) : SAVE.get('quality', TOUCH ? 1 : 2)), 0, 3);   // phones start on MEDIUM
 const DB = {}, GLB = new GlowBatch(2048), SMB = new GlowBatch(512), VMB = {};
 let dynScale = 1, frameMs = 16, perfAcc = 0;
 const PERF = { fps: 0, ms: 0, w: 0, h: 0, draws: 0, lights: 0 };
@@ -2553,6 +2757,7 @@ function init() {
 const IDF = (p) => ({ p, x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] });
 function drawLamps(B, GL) {
   const cp = G.cam.p, t = G.time;
+  Batch.noShadow = 1;   // the light sits inside this geometry
   for (const L of LV.lamps) {
     if (V.dist2(L.p, cp) > 90 * 90) continue;
     const lit = L.lit, c = L.col;
@@ -2583,6 +2788,7 @@ function drawLamps(B, GL) {
       if (G.cart.seg.id === 'exit') { const k = smooth(80, 230, G.cart.s); GL.add(L.p, 9, 5 * k, 4.7 * k, 4.2 * k, 0); GL.add(L.p, 3, 20 * k, 19 * k, 17 * k, 0); }
     }
   }
+  Batch.noShadow = 0;
 }
 function drawLevers(B, GL) {
   for (const L of LV.levers) {
@@ -2599,7 +2805,7 @@ function drawLevers(B, GL) {
       if (on) GL.add(fpt(S, sd * .62, 0, .1), .35, 1.4, 1, .2, 0);
     }
     GL.add(fpt(A, 0, .72, 0), .25, .6, .1, .05, 0);
-    B.cone.add(IDF(V.add(L.base, [0, 2.75, 0])), .16, .12, .16, IRON); GL.add(V.add(L.base, [0, 2.6, 0]), .5, 1.6, 1.2, .5, 0); GL.add(V.add(L.base, [0, 2.6, 0]), .07, 9, 7, 3.5, 0);
+    Batch.noShadow = 1; B.cone.add(IDF(V.add(L.base, [0, 2.75, 0])), .16, .12, .16, IRON); Batch.noShadow = 0; GL.add(V.add(L.base, [0, 2.6, 0]), .5, 1.6, 1.2, .5, 0); GL.add(V.add(L.base, [0, 2.6, 0]), .07, 9, 7, 3.5, 0);
   }
 }
 function drawProps(B, GL) {
@@ -2640,25 +2846,90 @@ function drawProps(B, GL) {
 }
 function drawCart(B) {
   const c = G.cart, f = c.f || c.seg.at(c.s); if (G.camLock) return;
-  const F = { p: c.p, x: f.R, y: f.U, z: f.T }, iron = [.26, .13, .08, .5], band = [.16, .15, .14, .5];
-  B.box.add(fmove(F, 0, .6, .8), 1.16, .74, .07, iron); B.box.add(fmove(F, 0, .98, .82), 1.22, .07, .12, band);
-  for (const sd of [-1, 1]) { B.box.add(fmove(F, sd * .58, .6, -.1), .07, .74, 1.9, iron); B.box.add(fmove(F, sd * .6, .98, -.1), .12, .07, 1.96, band); }
-  B.box.add(fmove(F, 0, .26, -.15), 1.1, .06, 1.9, [.1, .07, .05, .5]);
-  for (const sd of [-1, 1]) for (const dz of [-.6, .45]) B.cyl.add(frot(fmove(F, sd * .56, .14, dz), 'z', Math.PI / 2), .17, .08, .17, band);
+  const F = { p: c.p, x: f.R, y: f.U, z: f.T }, iron = [.3, .17, .12, .5], band = [.2, .19, .18, .5], dark = [.13, .12, .115, .5], plank = [.3, .21, .13, .25];
+  const zc = -.1, L = 1.9, zf = zc + L / 2, zb = zc - L / 2, yb = .28, yt = .98, hw = .6;
+  // tub: flared sides, front and back walls
+  for (const sd of [-1, 1]) {
+    const W = frot(fmove(F, sd * (hw - .04), (yb + yt) / 2, zc), 'z', -sd * .09);
+    B.box.add(W, .05, yt - yb + .02, L, iron);
+    for (let k = 0; k < 4; k++) B.box.add(fmove(W, -sd * .03, 0, -L / 2 + .25 + k * (L - .5) / 3), .035, yt - yb, .06, band);          // inner ribs
+    B.cyl.add(frot(fmove(F, sd * hw, yt, zc), 'x', Math.PI / 2), .04, L + .08, .04, band);                                             // rolled rim
+    for (let k = 0; k < 9; k++) B.sph.add(fmove(W, -sd * .028, (yt - yb) / 2 - .09, -L / 2 + .12 + k * (L - .24) / 8), .017, .017, .017, dark);   // rivets
+  }
+  for (const [z, sg] of [[zf, 1], [zb, -1]]) {
+    B.box.add(fmove(F, 0, (yb + yt) / 2, z), hw * 2 - .06, yt - yb + .02, .05, iron);
+    B.cyl.add(frot(fmove(F, 0, yt, z), 'z', Math.PI / 2), .04, hw * 2 + .08, .04, band);
+    for (const x of [-.3, 0, .3]) B.box.add(fmove(F, x, (yb + yt) / 2, z - sg * .03), .06, yt - yb, .035, band);
+    for (let k = 0; k < 6; k++) B.sph.add(fmove(F, -.5 + k * .2, yt - .09, z - sg * .03), .017, .017, .017, dark);
+  }
+  for (const sx of [-1, 1]) for (const z of [zf, zb]) B.sph.add(fmove(F, sx * hw, yt, z), .055, .055, .055, band);                     // rim corners
+  // plank floor, with a little cargo: a box of flares and a coil of rope
+  for (let k = 0; k < 4; k++) B.box.add(fmove(F, -.42 + k * .28, yb, zc), .265, .05, L - .08, [plank[0] * (.85 + .1 * (k % 2)), plank[1] * (.85 + .1 * (k % 2)), plank[2], .25]);
+  const cb = fmove(F, -.33, yb + .11, zf - .2);
+  B.box.add(cb, .3, .16, .2, [.36, .26, .16, .25]); B.box.add(fmove(cb, 0, .085, 0), .31, .012, .21, dark);
+  for (let k = 0; k < 3; k++) B.cyl.add(frot(fmove(cb, -.08 + k * .08, .11, 0), 'x', Math.PI / 2), .016, .17, .016, [.55, .13, .07, 0], k < G.flares ? [.12, .02, .01] : null);
+  for (let k = 0; k < 3; k++) B.cyl.add(fmove(F, .34, yb + .05 + k * .04, zf - .26), .13 - k * .008, .04, .13 - k * .008, [.42, .36, .25, .25]);
+  // undercarriage and wheels
+  B.box.add(fmove(F, 0, .2, zc), .9, .08, L - .2, dark);
+  for (const sd of [-1, 1]) for (const dz of [-.6, .45]) { B.cyl.add(frot(fmove(F, sd * .56, .15, dz), 'z', Math.PI / 2), .17, .07, .17, band); B.cyl.add(frot(fmove(F, sd * .6, .15, dz), 'z', Math.PI / 2), .06, .05, .06, dark); }
+  // hooded headlamp on the front wall
+  Batch.noShadow = 1;
+  const hl = fmove(F, -.36, yt - .02, zf + .1);
+  B.cyl.add(frot(hl, 'x', Math.PI / 2), .07, .14, .07, [.5, .36, .16, .5]); B.cone.add(frot(fmove(hl, 0, .06, 0), 'x', 0), .09, .05, .09, dark);
+  Batch.noShadow = 0;
 }
 function drawGun(B, GL) {
   if (G.camLock || G.phase === 'results') return;
   const C = G.cam, d = aimRay(G.aim.x, G.aim.y), rc = G.recoil || 0, k = .95;
   const base = V.add(C.p, V.add(V.add(V.scl(C.r, .29), V.scl(C.u, -.27 + rc * .008)), V.scl(C.f, .56 - rc * .04)));
-  const F = frameLook(base, V.norm(V.add(d, V.scl(C.u, rc * .06))), C.u), brass = [.7, .5, .24, .5], steel = [.16, .16, .17, .5], wood = [.3, .16, .08, .25];
-  const S = (lx, ly, lz) => fmove(F, lx * k, ly * k, lz * k), cylZ = (lx, ly, lz, r, L, col, e) => B.cyl.add(frot(S(lx, ly, lz), 'x', Math.PI / 2), r * k, L * k, r * k, col, e);
-  B.box.add(S(0, 0, -.03), .07 * k, .08 * k, .19 * k, steel);
-  cylZ(0, .012, .16, .02, .24, steel);
-  cylZ(0, -.042, .1, .028, .15, [.45, .1, .05, .5], G.flares > 0 ? [.18, .03, .01] : null);
-  for (const z of [.08, .18, .26]) cylZ(0, .012, z, .027, .014, brass, G.muzzle > 0 ? [.9, .3, .06] : null);
-  B.box.add(frot(S(0, -.095, -.085), 'x', .35), .05 * k, .15 * k, .065 * k, wood);
-  B.box.add(S(0, .05, -.07), .018 * k, .022 * k, .06 * k, brass);
-  if (G.muzzle > 0) { const m = fpt(F, 0, .012 * k, .3 * k); GL.add(m, .1, 10, 6, 2, 0); GL.add(m, .035, 26, 20, 12, 0); }
+  const F = frameLook(base, V.norm(V.add(d, V.scl(C.u, rc * .06))), C.u);
+  const brass = [.78, .56, .26, .5], steel = [.2, .2, .215, .5], blue = [.11, .115, .13, .5], wood = [.36, .2, .1, .25], glove = [.2, .14, .09, .75], cloth = [.16, .13, .11, 0];
+  const S = (lx, ly, lz) => fmove(F, lx * k, ly * k, lz * k), pt = (lx, ly, lz) => fpt(F, lx * k, ly * k, lz * k);
+  const cylZ = (lx, ly, lz, r, L, col, e) => B.cyl.add(frot(S(lx, ly, lz), 'x', Math.PI / 2), r * k, L * k, r * k, col, e);
+  const hot = G.muzzle > 0 ? [.9, .3, .06] : null;
+  // barrel with brass bands, crown and front sight
+  cylZ(0, .014, .17, .016, .27, blue);
+  for (const z of [.075, .17, .265]) cylZ(0, .014, z, .0215, .012, brass, hot);
+  cylZ(0, .014, .305, .02, .016, steel, hot); B.box.add(S(0, .036, .295), .005 * k, .012 * k, .014 * k, brass);
+  // flare tube under the barrel
+  cylZ(0, -.036, .125, .026, .16, [.5, .11, .06, .5]); cylZ(0, -.036, .208, .028, .012, brass); cylZ(0, -.036, .04, .028, .012, brass);
+  if (G.flares > 0) cylZ(0, -.036, .216, .017, .008, [.9, .5, .3, 0], [.5, .1, .03]);
+  // receiver, top strap, rear sight, hammer
+  B.box.add(S(0, .002, -.03), .05 * k, .076 * k, .17 * k, steel);
+  B.box.add(S(0, .043, -.035), .03 * k, .012 * k, .15 * k, blue);
+  for (const sx of [-1, 1]) B.box.add(S(sx * .011, .055, -.1), .006 * k, .012 * k, .01 * k, blue);
+  B.box.add(frot(S(0, .05, -.125), 'x', -.5 - rc * .5), .012 * k, .034 * k, .014 * k, steel);
+  for (const sx of [-1, 1]) B.cyl.add(frot(S(sx * .027, .005, -.02), 'z', Math.PI / 2), .012 * k, .006 * k, .012 * k, brass);   // side plates' screws
+  // grip, butt cap, trigger guard
+  B.box.add(frot(S(0, -.092, -.088), 'x', .35), .044 * k, .14 * k, .058 * k, wood);
+  B.box.add(frot(S(0, -.158, -.112), 'x', .35), .047 * k, .014 * k, .06 * k, brass);
+  B.box.add(S(0, -.07, -.012), .008 * k, .006 * k, .07 * k, steel); B.box.add(S(0, -.052, .022), .008 * k, .036 * k, .006 * k, steel);
+  B.box.add(frot(S(0, -.05, -.02), 'x', .3), .006 * k, .03 * k, .008 * k, steel);
+  // gloved hand and sleeve
+  B.sph.add(frot(S(.004, -.095, -.092), 'x', .35), .04 * k, .062 * k, .05 * k, glove);
+  for (let i = 0; i < 3; i++) B.sph.add(frot(S(-.004, -.075 - i * .026, -.06 - i * .009), 'x', .35), .034 * k, .0145 * k, .03 * k, glove);   // fingers wrapped round the front
+  B.cyl.addSeg(pt(-.027, -.07, -.1), pt(-.03, -.035, -.045), .012 * k, glove);                                                             // thumb
+  B.cyl.addSeg(pt(.01, -.14, -.12), pt(.07, -.42, -.33), .042 * k, cloth, null, C.u); B.cyl.addSeg(pt(.008, -.13, -.115), pt(.02, -.19, -.16), .046 * k, glove, null, C.u);
+  if (G.muzzle > 0) { const m = pt(0, .014, .32); GL.add(m, .1, 10, 6, 2, 0); GL.add(m, .035, 26, 20, 12, 0); GL.add(m, .22, 3, 1.6, .5, 4); }
+}
+// dust motes hanging in the air around the camera, lit on the CPU by the headlamp and the nearest lights
+const DUST = [];
+function drawDust(GL, q) {
+  const n = q.dust; if (!n || !G.headP) return;
+  while (DUST.length < n) DUST.push({ o: [Math.random() * 14, Math.random() * 8, Math.random() * 14], ph: Math.random() * TAU, s: .005 + Math.random() * .009 });
+  const C = G.cam, cp = C.p, t = G.time, BX = 14, BY = 8, hp = G.headP, hd = G.headD, cosC = Math.cos(36 * DEG);
+  const Ls = []; for (const L of LOUT) if (L && !L.fill && Ls.length < 8) Ls.push(L);
+  const wrap = (v, c, b) => c + (((v - c) % b + b) % b) - b / 2;
+  for (let i = 0; i < n; i++) {
+    const m = DUST[i], p = [wrap(m.o[0] + Math.sin(t * .23 + m.ph) * .4, cp[0], BX), wrap(m.o[1] + Math.sin(t * .17 + m.ph * 2) * .25 - t * .02, cp[1], BY), wrap(m.o[2] + Math.cos(t * .19 + m.ph) * .4, cp[2], BX)];
+    const rel = V.sub(p, cp), z = V.dot(rel, C.f); if (z < .6) continue;
+    let r = 0, g = 0, b = 0;
+    { const d = V.sub(p, hp), d2 = V.dot(d, d), cs = V.dot(d, hd) / Math.sqrt(d2 + 1e-6), k = 15 * smooth(cosC, cosC + .14, cs) / (1 + d2); r += k; g += k * .84; b += k * .62; }
+    for (const L of Ls) { const d2 = V.dist2(p, L.p), r2 = L.range * L.range; if (d2 > r2) continue; const w = 1 - d2 / r2, k = L.I * w * w / (1 + d2); r += L.col[0] * k; g += L.col[1] * k; b += L.col[2] * k; }
+    const lum = r + g + b; if (lum < .02) continue;
+    const k = .22 * Math.min(1, z / 1.5) * (.6 + .4 * Math.sin(t * 1.7 + m.ph * 5));
+    GL.add(p, m.s * (1 + .12 * z), r * k, g * k, b * k, 0);
+  }
 }
 // ---------- the frame ----------
 function resize() {
@@ -2678,46 +2949,83 @@ function sphereVisible(c, r) {
   const kx = Math.sqrt(1 + th * th), ky = Math.sqrt(1 + tv * tv);
   return Math.abs(x) - z * th < r * kx && Math.abs(y) - z * tv < r * ky;
 }
+function rockUniforms(P, r) {
+  if (!r.uni) {
+    const A = new Float32Array(24), B = new Float32Array(24), E = new Float32Array(12), R = new Float32Array(12);
+    r.cuts.forEach((c, i) => { A.set([c.a[0], c.a[1], c.a[2], c.r], i * 4); B.set([c.b[0], c.b[1], c.b[2], c.floor], i * 4); });
+    r.ells.forEach((ch, i) => { E.set([ch.c[0], ch.c[1], ch.c[2], ch.yaw], i * 4); R.set([ch.r[0] * .96, ch.r[1] * .96, ch.r[2] * .96, ch.floor + .15], i * 4); });
+    r.uni = { A, B, E, R };
+  }
+  gl.uniform1i(P.u.uNCut, r.cuts.length); if (r.cuts.length) { gl.uniform4fv(P.u.uCutA, r.uni.A); gl.uniform4fv(P.u.uCutB, r.uni.B); }
+  gl.uniform1i(P.u.uNEll, r.ells.length); if (r.ells.length) { gl.uniform4fv(P.u.uEll, r.uni.E); gl.uniform4fv(P.u.uEllR, r.uni.R); }
+}
+// one depth cube per shadow slot: the cave walls, static props and everything dynamic, drawn six times from the light
+function renderShadows(q) {
+  let draws = 0; if (!q.sh) return 0;
+  bindShadowCubes(true);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.BLEND); gl.colorMask(false, false, false, false);
+  gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.5, 3); gl.viewport(0, 0, q.shRes, q.shRes);
+  const RS = PROG.shRock, LS = PROG.shLit;
+  const vis = (c, R, lp, F) => { const dx = c[0] - lp[0], dy = c[1] - lp[1], dz = c[2] - lp[2], z = dx * F.f[0] + dy * F.f[1] + dz * F.f[2]; if (z < -R) return false; const k = R * 1.415; return Math.abs(dx * F.r[0] + dy * F.r[1] + dz * F.r[2]) - z < k && Math.abs(dx * F.u[0] + dy * F.u[1] + dz * F.u[2]) - z < k; };
+  for (let k = 0; k < q.sh; k++) {
+    const s = SH.slots[k]; if (!s.light || s.k <= 0) continue;
+    const L = s.light, lp = L.p, far = L.range, proj = M4.persp(Math.PI / 2, 1, .1, far);
+    const rocks = WORLD.rock.filter(r => V.dist(r.c, lp) < r.r + far), cells = []; for (const c of WORLD.statics.values()) if (V.dist(c.c, lp) < c.r * 1.2 + far) cells.push(c);
+    for (let fi = 0; fi < 6; fi++) {
+      const F = CUBE_FACES[fi], vp = M4.mul(proj, M4.view(lp, F.r, F.u, F.f));
+      gl.bindFramebuffer(gl.FRAMEBUFFER, s.fbs[fi]); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(RS.p); gl.uniformMatrix4fv(RS.u.uSVP, false, vp); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+      for (const r of rocks) if (vis(r.c, r.r, lp, F)) { rockUniforms(RS, r); drawPlain(r.mesh); draws++; }
+      gl.disable(gl.CULL_FACE); gl.useProgram(LS.p); gl.uniformMatrix4fv(LS.u.uSVP, false, vp);
+      for (const c of cells) if (vis(c.c, c.r * 1.2, lp, F)) for (const b of c.b.values()) { b.draw(); draws++; }
+      for (const kk in DB) { DB[kk].draw(); draws++; }
+    }
+  }
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.colorMask(true, true, true, true); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return draws;
+}
+let lastRender = 0, expo = 1;
 function render() {
-  const q = QUALITY[QI], [W, H] = resize(); setupTargets(W, H, q);
-  const C = G.cam;
+  const q = QUALITY[QI], [W, H] = resize(); setupTargets(W, H, q); setupShadows(q);
+  const C = G.cam, nowR = performance.now(), dtR = TEST ? 1 : Math.min(.05, (nowR - lastRender) / 1000); lastRender = nowR;
   if (C.asp !== C._asp) { C._asp = C.asp; updateCamera(0); }
-  const nL = gatherLights(q); PERF.lights = nL;
+  const nL = gatherLights(q, dtR); PERF.lights = nL;
+  // zone mood: the big caverns tint the ambient light and the haze
+  let amb = [.011, .012, .017], fog = [.0035, .003, .0028], den = .024;
+  for (const ch of TRACK.chambers) { if (!ch.mood) continue; const w = 1 - smooth(.85, 1.5, chNorm(ch, C.p)); if (w > 0) { amb = V.lerp(amb, ch.mood.amb, w); fog = V.lerp(fog, ch.mood.fog, w); den = lerp(den, ch.mood.den, w); } }
+  // eye adaptation from the light reaching the camera: dark stretches open up, a flare in your face stops down
+  const wantE = 1.35 / Math.pow(1 + .5 * (lightE + (G.phase === 'menu' ? .4 : 0)), .8);
+  expo = TEST ? wantE : expo + (wantE - expo) * (1 - Math.exp(-dtR * (wantE < expo ? 3.5 : 1.2)));
   UB.set('uVP', C.vp); UB.set('uView', C.view); UB.set('uInvVP', M4.inv(C.vp)); UB.set('uCam', [C.p[0], C.p[1], C.p[2], 0]);
-  UB.set('uTime', [G.time, nL, q.octaves, 0]);
-  UB.set('uFog', [.0035, .003, .0028, G.cart.seg && G.cart.seg.id === 'exit' ? lerp(.024, .008, smooth(100, 230, G.cart.s)) : .024]);
-  UB.set('uAmb', [.011, .012, .017, 0]); UB.set('uClip', [.05, 240, W, H]);
+  UB.set('uTime', [G.time, nL, q.octaves, q.pcf]);
+  UB.set('uFog', [fog[0], fog[1], fog[2], G.cart.seg && G.cart.seg.id === 'exit' ? lerp(.024, .008, smooth(100, 230, G.cart.s)) : den]);
+  UB.set('uAmb', [amb[0], amb[1], amb[2], 0]); UB.set('uClip', [.05, 240, W, H]);
   const cf = G.cart.f || (G.cart.seg && G.cart.seg.at(G.cart.s));
-  if (cf) { const hp = V.add(V.madd(G.cart.p, cf.U, 1.12), V.scl(cf.T, .8)), hd = V.norm(V.add(V.scl(C.f, .6), V.scl(cf.T, .4))); UB.set('uHeadP', [hp[0], hp[1], hp[2], G.phase === 'menu' ? 9 : 15]); UB.set('uHeadD', [hd[0], hd[1] - .08, hd[2], Math.cos(36 * DEG)]); }
+  if (cf) { const hp = V.add(V.madd(G.cart.p, cf.U, 1.12), V.scl(cf.T, .8)), hd = V.norm(V.add(V.scl(C.f, .6), V.scl(cf.T, .4))); G.headP = hp; G.headD = V.norm([hd[0], hd[1] - .08, hd[2]]); UB.set('uHeadP', [hp[0], hp[1], hp[2], G.phase === 'menu' ? 9 : 15]); UB.set('uHeadD', [hd[0], hd[1] - .08, hd[2], Math.cos(36 * DEG)]); }
   const rc = TRACK.riverCh, riverOn = rc && chNorm(rc, C.p) < 1.9;
   UB.set('uRiver', rc ? [rc.c[0], rc.water, rc.c[2], rc.yaw] : [0, 0, 0, 0]); UB.set('uRiverR', rc ? [rc.r[0] * 1.05, rc.r[2] * 1.02, riverOn ? 1 : 0, 1.2] : [0, 0, 0, 0]);
   UB.upload();
-  let draws = 0;
+  // dynamic objects are gathered first: the shadow pass needs them too
+  for (const k in DB) DB[k].clear(); GLB.clear(); SMB.clear();
+  drawLamps(DB, GLB); drawLevers(DB, GLB); drawProps(DB, GLB); drawEnemies(DB, GLB); drawBoss(DB, GLB); drawFlares(DB, GLB); drawParticles(DB, GLB, SMB); drawCart(DB); drawDust(GLB, q);
+  for (const k in VMB) VMB[k].clear(); drawGun(VMB, GLB);
+  for (const k in DB) DB[k].upload();
+  let draws = renderShadows(q);
+  bindShadowCubes(false);
   gl.bindFramebuffer(gl.FRAMEBUFFER, RT.msFB); gl.viewport(0, 0, W, H);
   gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND); gl.depthMask(true);
   // cave walls
   gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
   const RP = PROG.rock; gl.useProgram(RP.p);
-  for (const r of WORLD.rock) {
-    if (!sphereVisible(r.c, r.r)) continue;
-    gl.uniform1i(RP.u.uNCut, r.cuts.length);
-    if (r.cuts.length) { const A = new Float32Array(24), Bb = new Float32Array(24); r.cuts.forEach((c, i) => { A.set([c.a[0], c.a[1], c.a[2], c.r], i * 4); Bb.set([c.b[0], c.b[1], c.b[2], c.floor], i * 4); }); gl.uniform4fv(RP.u.uCutA, A); gl.uniform4fv(RP.u.uCutB, Bb); }
-    gl.uniform1i(RP.u.uNEll, r.ells.length);
-    if (r.ells.length) { const A = new Float32Array(12), Bb = new Float32Array(12); r.ells.forEach((ch, i) => { A.set([ch.c[0], ch.c[1], ch.c[2], ch.yaw], i * 4); Bb.set([ch.r[0] * .96, ch.r[1] * .96, ch.r[2] * .96, ch.floor + .15], i * 4); }); gl.uniform4fv(RP.u.uEll, A); gl.uniform4fv(RP.u.uEllR, Bb); }
-    drawPlain(r.mesh); draws++;
-  }
+  for (const r of WORLD.rock) { if (!sphereVisible(r.c, r.r)) continue; rockUniforms(RP, r); drawPlain(r.mesh); draws++; }
   gl.disable(gl.CULL_FACE);
-  // rails, static props
+  // rails, static props, dynamic objects
   const LP = PROG.lit; gl.useProgram(LP.p);
   for (const r of WORLD.rails) if (sphereVisible(r.c, r.r)) { drawPlain(r.mesh); draws++; }
   for (const c of WORLD.statics.values()) { if (!sphereVisible(c.c, c.r * 1.2)) continue; for (const b of c.b.values()) { b.draw(); draws++; } }
-  // dynamic objects
-  for (const k in DB) DB[k].clear(); GLB.clear(); SMB.clear();
-  drawLamps(DB, GLB); drawLevers(DB, GLB); drawProps(DB, GLB); drawEnemies(DB, GLB); drawBoss(DB, GLB); drawFlares(DB, GLB); drawParticles(DB, GLB, SMB); drawCart(DB);
-  for (const k in DB) { DB[k].upload(); DB[k].draw(); draws++; }
+  for (const k in DB) { DB[k].draw(); draws++; }
   // viewmodel gun, in front of everything
-  for (const k in VMB) VMB[k].clear(); drawGun(VMB, GLB);
   gl.depthRange(0, .04); for (const k in VMB) { VMB[k].upload(); VMB[k].draw(); } gl.depthRange(0, 1);
   // river surface: refraction samples a copy of the opaque frame
   if (riverOn) {
@@ -2738,9 +3046,12 @@ function render() {
   blit(RT.msFB, RT.sceneFB, W, H, gl.COLOR_BUFFER_BIT);
   if (q.scatter) {
     blit(RT.msFB, RT.depthFB, W, H, gl.DEPTH_BUFFER_BIT);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, RT.scatFB); gl.viewport(0, 0, RT.scatW, RT.scatH);
+    const SP = PROG.scat; gl.useProgram(SP.p); bindTex(TU.uDepthS, RT.depthTex); gl.uniform1i(SP.u.uNS, Math.min(q.scatter, nL)); gl.uniform1f(SP.u.uDen, .0013); gl.uniform1i(SP.u.uSteps, q.vol);
+    gl.bindVertexArray(null); gl.drawArrays(gl.TRIANGLES, 0, 3); unbindTex(TU.uDepthS);
     gl.bindFramebuffer(gl.FRAMEBUFFER, RT.sceneFB); gl.viewport(0, 0, W, H); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
-    const SP = PROG.scat; gl.useProgram(SP.p); bindTex(TU.uDepthS, RT.depthTex); gl.uniform1i(SP.u.uNS, Math.min(q.scatter, nL)); gl.uniform1f(SP.u.uDen, .0013);
-    gl.bindVertexArray(null); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disable(gl.BLEND); unbindTex(TU.uDepthS);
+    const AP = PROG.up; gl.useProgram(AP.p); bindTex(TU.uSrc, RT.scatTex); gl.uniform2f(AP.u.uTexel, 1 / RT.scatW, 1 / RT.scatH); gl.uniform1f(AP.u.uW, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 3); gl.disable(gl.BLEND);
   }
   // bloom
   const DP = PROG.down, UP = PROG.up; gl.useProgram(DP.p); gl.bindVertexArray(null);
@@ -2756,7 +3067,7 @@ function render() {
   // composite
   gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
   const CP = PROG.comp; gl.useProgram(CP.p); bindTex(TU.uScene, RT.sceneTex); bindTex(TU.uBloom, RT.bloom[0].t);
-  gl.uniform1f(CP.u.uExpo, HDR ? .9 : 1); gl.uniform1f(CP.u.uBloomK, .06 + .015 * (6 - RT.bloom.length)); gl.uniform1f(CP.u.uHurt, G.hurtT); gl.uniform1f(CP.u.uGrain, .025);
+  gl.uniform1f(CP.u.uExpo, HDR ? expo : Math.min(1, expo)); gl.uniform1f(CP.u.uCA, q.ca); gl.uniform1f(CP.u.uBloomK, .06 + .015 * (6 - RT.bloom.length)); gl.uniform1f(CP.u.uHurt, G.hurtT); gl.uniform1f(CP.u.uGrain, .025);
   gl.uniform1f(CP.u.uFade, G.phase === 'menu' ? 0 : G.fade); gl.uniform3fv(CP.u.uFadeCol, G.fadeCol);
   gl.drawArrays(gl.TRIANGLES, 0, 3); unbindTex(TU.uScene); unbindTex(TU.uBloom);
   PERF.draws = draws; PERF.w = W; PERF.h = H;

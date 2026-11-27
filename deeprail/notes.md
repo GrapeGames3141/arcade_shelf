@@ -32,6 +32,21 @@ Sibling briefs (built at the same time by other sessions): Salvage Run (space) a
 - **No URL flags for players:** QUALITY (LOW / MEDIUM / HIGH / MAX), SOUND, AUTO-FIRE and AIM SPEED are buttons on the title and pause cards.
   MAX trades nothing away; HIGH has the adaptive render scale and fewer scattering lights.
 
+## Graphics pass (2026-11-27, asked for by the owner: "make another pass and improve the graphics")
+- Real shadows: flares, the nearest lamps and the daylight at the exit cast shadows through cube shadow maps (1 / 2 / 4 lights by
+  quality). A flare thrown past a timber set now throws the set's shadow down the tunnel, creatures and the Sleeper cast shadows,
+  and light no longer leaks round bends.
+- Light shafts: the dust in the air is lit along the view ray and cut by the same shadows.
+- Rock rewritten: sedimentary beds, smooth bump from noise with an analytic gradient, dust on ledges, gravel floor, wet streaks.
+- Materials for props: wood grain along each timber, rusting iron, mottled creature skin with rim light, glowing crystal.
+- New cart (ribbed, riveted tub with a rolled rim, plank floor, a box of spare flares, coiled rope, hooded headlamp) and a new
+  pistol (banded barrel, flare tube, sights, hammer, trigger guard, gloved hand and sleeve).
+- The Sleeper: rows of pulsing teal sacs down its flanks, a face light, and each lit brazier now warms the whole hollow.
+- Atmosphere: cavern tints (teal river, violet crystal cavern), thinner haze in the caverns, dust motes, lens streaks on flares
+  and the muzzle flash, eye adaptation, a slight chromatic fringe and a colour grade.
+- Touch devices now start on MEDIUM (one shadow-casting light). No gameplay numbers changed, apart from flares resting 40 cm off
+  the surface they hit.
+
 ## Ideas not built (ask before adding)
 - A second level (flooded lower workings, a lava seam), daily seed variant, leaderboard.
 - Switchable weapons (lantern-oil shotgun, slow heavy rivet), a co-op second reticle.
@@ -57,7 +72,10 @@ The autopilot sees every target the moment it is on screen; people searching the
 ## History
 - 2026-11-27: first build in a cloud session started by a schedule. `E:\html games` was not connected to that run (the folder-access
   prompt on the PC went unanswered), so the game was built and tested from a fresh clone of GitHub `main` and delivered as
-  `deeprail.zip`: unzip it into `E:\html games` (giving `E:\html games\deeprail\`) and run `deeprail\commit-deeprail.cmd`, which rebuilds,
-  commits only this folder, adds the CLAUDE.md and README rows with `docs-rows.py` when those files have no other pending edits, and
-  pushes main. A private playable copy is published as a claude.ai artifact. The arcade lobby card (root `index.html` +
-  `assets/arcade/deeprail.webp`) is not added; `art/deeprail-card.webp` is ready for it.
+  `deeprail.zip` with a commit helper. It was published from the PC in commit 65e0d57 ("Publish Deep Rail, Tranq Safari, and
+  Salvage Run"), which also added the CLAUDE.md / README rows and the lobby card (`assets/arcade/deeprail.webp`).
+- 2026-11-27: graphics pass (see above), made in the same cloud session on top of 65e0d57; only paths in `deeprail/` changed.
+  The session could not push to GitHub, so once the owner connected the folder it wrote the changed files straight into
+  `E:\html games\deeprail` through the device bridge (sizes and SHA-256 checked) and left `deeprail\commit-deeprail.cmd`, which
+  commits the tracked files in this folder and pushes main. The lobby card still shows the first screenshot: `art/deeprail-card.webp` is the new one, to copy
+  over `assets/arcade/deeprail.webp` (with the `?v=<hash>` bump in the root `index.html`) in the next release.

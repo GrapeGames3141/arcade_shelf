@@ -91,7 +91,7 @@ with sync_playwright() as p:
         errs(logs)
     elif scen == 'quality':
         pg, logs = page_for(b, 1280, 720)
-        ev(pg, "DR.start({seg:'crystal', s:20}); DR.lightAll('crystal'); DR.step(1)")
+        ev(pg, "DR.start({seg:'intro', s:96, calm:true}); DR.lightAll('intro'); DR.step(1.5); DR.aim(.2,.05); DR.flare(); DR.step(1.4); 1")
         for i, n in enumerate(['low', 'medium', 'high', 'max']):
             ev(pg, f'DR.setQuality({i})'); pg.evaluate('DR.render()')
             t = time.time(); shot(pg, 'q-' + n); print(n, pg.evaluate('JSON.stringify(DR.perf)'), f'{time.time()-t:.2f}s')
@@ -129,6 +129,9 @@ with sync_playwright() as p:
         ev(pg, "DR.start({seg:'crystal', s:16, calm:true}); DR.lightAll('crystal'); DR.god(true); DR.eval('spawnSwarm(TRACK.segs.crystal, 40, 12)'); DR.step(2.2); DR.aim(.1,.1); DR.fire(true); DR.step(.3); 1")
         ev(pg, "document.getElementById('hud').classList.add('hidden'); document.getElementById('hud2d').style.display='none'; 1")
         shot(pg, 'card-b')
+        ev(pg, "DR.start({seg:'intro', s:150, calm:true}); DR.god(true); DR.step(2.8); DR.aim(-.02,.2); DR.flare(); DR.eval('spawnSwarm(TRACK.segs.intro, G.cart.s + 15, 9)'); DR.step(.85); DR.aim(.1,.1); DR.fire(true); DR.step(.12); DR.fire(false); 1")
+        ev(pg, "document.getElementById('hud').classList.add('hidden'); document.getElementById('hud2d').style.display='none'; 1")
+        shot(pg, 'card-c')
         errs(logs)
     elif scen == 'run':
         pg, logs = page_for(b, 640, 360)
