@@ -891,14 +891,15 @@ void main(){
   o=vec4(fogs(col,vW),1.0);
 }`);
   GL.spr = glProg(gl, `#version 300 es
-in vec2 aQ; in vec4 aI; in vec4 aJ; in vec4 aC; uniform mat4 uVP; uniform vec3 uR; out vec2 vUv; out vec4 vC; out vec3 vW;
+in vec2 aQ; in vec4 aI; in vec4 aJ; in vec4 aC; uniform mat4 uVP; uniform vec3 uR; uniform vec3 uCam; uniform vec3 uMe; uniform vec2 uTreeFade; out vec2 vUv; out vec4 vC; out vec3 vW;
 void main(){ vec3 base=aI.xyz; float w=aJ.x, h=aJ.y, slot=aJ.z;
-  vec3 p=base+uR*(aQ.x-0.5)*w+vec3(0,1,0)*(aJ.w>0.5? aQ.y*h : (aQ.y-0.5)*h);
+  float d=length(base.xz-uMe.xz); float near=smoothstep(14.0,34.0,length(base.xz-uCam.xz)); float far=1.0-smoothstep(uTreeFade.x,uTreeFade.y,d); float treeScale=aJ.w>0.5?near*far:1.0;
+  vec3 p=base+uR*(aQ.x-0.5)*w*treeScale+vec3(0,1,0)*(aJ.w>0.5? aQ.y*h*treeScale : (aQ.y-0.5)*h);
   vW=p; vUv=vec2((slot+aQ.x)/8.0, aJ.w>0.5? 1.0-aQ.y : 1.0-aQ.y*0.5); vC=aC; gl_Position=uVP*vec4(p,1.0); }`, `#version 300 es
 precision highp float; in vec2 vUv; in vec4 vC; in vec3 vW; uniform sampler2D uA; uniform float uFog; uniform float uTest; out vec4 o;
 ${GLSL_FOG}
-void main(){ vec4 t=texture(uA,vUv)*vC; if(uTest>0.5 && t.a<0.5) discard;
-  float dc=length(vW-uCam); if(uTest>0.5 && dc<34.0 && fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>(dc-14.0)/20.0) discard; vec3 c=uFog>0.5?fogs(t.rgb,vW):t.rgb; o=vec4(c, uTest>0.5?1.0:t.a); }`);
+void main(){ vec4 t=texture(uA,vUv)*vC; if(uTest>0.5 && t.a<0.08) discard;
+  vec3 c=uFog>0.5?fogs(t.rgb,vW):t.rgb; o=vec4(c,uTest>0.5?1.0:t.a); }`);
   GL.mesh = glProg(gl, `#version 300 es
 in vec3 aP; in vec3 aN; uniform mat4 uVP; uniform mat4 uM; out vec3 vN; out vec3 vW;
 void main(){ vec4 w=uM*vec4(aP,1.0); vW=w.xyz; vN=mat3(uM)*aN; gl_Position=uVP*w; }`, `#version 300 es
@@ -949,6 +950,11 @@ void main(){ float l=.48+.64*max(dot(normalize(vN),normalize(vec3(-.45,.75,-.35)
   const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), gl.STATIC_DRAW);
   loc = gl.getAttribLocation(GL.spr.p, 'aQ'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   GL.sprBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
+  for (const [nm, off] of [['aI', 0], ['aJ', 16], ['aC', 32]]) { loc = gl.getAttribLocation(GL.spr.p, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
+  // Trees retain their own instance storage. Effects may freely overwrite sprBuf.
+  GL.treeVao = gl.createVertexArray(); gl.bindVertexArray(GL.treeVao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, qb); loc = gl.getAttribLocation(GL.spr.p, 'aQ'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  GL.treeBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.treeBuf);
   for (const [nm, off] of [['aI', 0], ['aJ', 16], ['aC', 32]]) { loc = gl.getAttribLocation(GL.spr.p, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
   GL.ringVao = gl.createVertexArray(); gl.bindVertexArray(GL.ringVao); GL.ringBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
   loc = gl.getAttribLocation(GL.ring.p, 'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 16, 0);
@@ -1013,20 +1019,21 @@ function makeAtlas() {
 }
 // trees near the camera as billboards (rebuilt as you drive)
 function glTrees(cx, cy) {
-  const R = GFX.treeRange, out = [], i0 = Math.max(0, Math.floor((cx - R) / CS)), i1 = Math.min(TW - 1, Math.floor((cx + R) / CS)), j0 = Math.max(0, Math.floor((cy - R) / CS)), j1 = Math.min(TH - 1, Math.floor((cy + R) / CS));
+  const R = GFX.treeRange, cacheMargin = 132, rebuildStride = 120, fadeWidth = Math.min(220, R * 0.3), radius = R + cacheMargin, out = [], i0 = Math.max(0, Math.floor((cx - radius) / CS)), i1 = Math.min(TW - 1, Math.floor((cx + radius) / CS)), j0 = Math.max(0, Math.floor((cy - radius) / CS)), j1 = Math.min(TH - 1, Math.floor((cy + radius) / CS));
   const th = MAP.th;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     if (cells[j * TW + i] !== FOREST) continue;
     for (let k = 0; k < 2; k++) {
       if (k === 1 && hash(i, j, 50) < 2 - GFX.treeDensity) break;
       const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS;
-      if (hyp(x - cx, y - cy) > R) continue;
+      if (hyp(x - cx, y - cy) > radius) continue;
       const pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, h = (pine ? 15 : 12) * s, w = h * 0.55;
       const slot = pine ? 0 : 1 + Math.floor(hash(i, j, 61 + k) * 3), sh = 0.85 + 0.25 * hash(i, j, 71 + k);
       out.push(x, heightAt(x, y) - 0.4, y, 0, w, h, slot, 1, sh, sh, sh, 1);
     }
   }
-  GL.treesAt = [cx, cy]; GL.treeData = new Float32Array(out); GL.treeN = out.length / 12; GL.dirtyTrees = false;
+  GL.treesAt = [cx, cy]; GL.treeRange = R; GL.treeStride = rebuildStride; GL.treeFade = [R - fadeWidth, R]; GL.treeN = out.length / 12; GL.dirtyTrees = false;
+  const gl = GL.gl; gl.bindBuffer(gl.ARRAY_BUFFER, GL.treeBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW);
 }
 // 4×4 matrix helpers (column-major)
 let FAR = GFX.far;
@@ -1070,7 +1077,8 @@ function glRender(dt) {
   ey = Math.max(ey, heightAt(ex, ez) + 4, heightAt(me.x - cs * 15, me.y - sn * 15) + 6);
   const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 28 + sn * 12, my + 2.4, me.y + sn * 28 - cs * 12];
   const VP = m4mul(m4persp(1.05, W / H, 0.6, FAR), m4look(eye, tgt));
-  const right = [-sn, 0, cs];
+  const forwardX = tgt[0] - eye[0], forwardZ = tgt[2] - eye[2], forwardL = Math.hypot(forwardX, forwardZ) || 1;
+  const right = [-forwardZ / forwardL, 0, forwardX / forwardL];
   const sky = th.snow ? [0.62, 0.68, 0.74] : MAP.theme === 'autumn' ? [0.62, 0.6, 0.56] : [0.55, 0.68, 0.78];
   const sun = (() => { const v = [-0.45, 0.75, -0.35], l = Math.hypot(...v); return v.map(a => a / l); })();
   gl.viewport(0, 0, W, H); gl.clearColor(...sky, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1148,11 +1156,12 @@ function glRender(dt) {
   }
   for (const f of G.fx) if (f.k === 'smoke' && hyp(f.x - me.x, f.y - me.y) < 2500) { const a = Math.max(0, 1 - f.t / f.life); bb.push(f.x, heightAt(f.x, f.y) + 2 + f.t * 6, f.y, 0, f.s * 2.4 * (1 + f.t), f.s * 2.4 * (1 + f.t), 5, 0, 1, 1, 1, a * 0.9); }
   // trees
-  if (GL.dirtyTrees || !GL.treesAt || hyp(GL.treesAt[0] - me.x, GL.treesAt[1] - me.y) > 120) glTrees(me.x, me.y);
+  if (GL.dirtyTrees || !GL.treesAt || hyp(GL.treesAt[0] - me.x, GL.treesAt[1] - me.y) > GL.treeStride) glTrees(me.x, me.y);
   common(GL.spr); gl.uniform3f(GL.spr.u.uR, ...right);
+  gl.uniform2f(GL.spr.u.uTreeFade, ...GL.treeFade);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, GL.texA); gl.uniform1i(GL.spr.u.uA, 2);
-  gl.bindVertexArray(GL.sprVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
-  if (GL.treeN) { gl.uniform1f(GL.spr.u.uFog, 1); gl.uniform1f(GL.spr.u.uTest, 1); gl.bufferData(gl.ARRAY_BUFFER, GL.treeData, gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, GL.treeN); }
+  gl.bindVertexArray(GL.treeVao);
+  if (GL.treeN) { gl.uniform1f(GL.spr.u.uFog, 1); gl.uniform1f(GL.spr.u.uTest, 1); gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, GL.treeN); }
   // rings on the ground
   if (rings.length) {
     common(GL.ring); gl.bindVertexArray(GL.ringVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
