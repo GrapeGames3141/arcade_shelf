@@ -8,6 +8,8 @@ Work with one writer at a time. Before changing a game, read this file, `CLAUDE.
 
 The root repository tracks every game's source files directly. On this machine, `appalachian-eagle` and `prism-swarm` also retain their old nested Git histories; GitHub clones do not contain nested repositories. Never initialize child repositories in a fresh clone. Use `git -C '<game path>' rev-parse --show-toplevel` to discover whether a local child repository exists. When it does, commit its focused change there first, then commit the same changed source file from the root repository so GitHub records the updated file content. `ashgrove`, `splat`, `dustdevil`, and `merlin` are root-owned game folders. Development prototypes live under `experiments/`; never auto-list them in the arcade or include them in the Pages build unless the user explicitly promotes one.
 
+When replacing existing Arcade Shelf card art, keep the card's canonical asset path and update its lobby `<img src>` with `?v=<hash>`, using the first eight lowercase hexadecimal characters of the new file's SHA-256. Confirm the packaged lobby references that exact URL and, after publishing, that the live image matches the file.
+
 For Codex work that requires implementation, the primary Sol agent must inspect and plan first, then delegate the implementation to one Terra implementer. Claude does not have this delegation requirement; it should follow the iteration workflow in `CLAUDE.md`.
 
 `appalachian-eagle/AGENTS.md` adds a required post-edit command: after every `appalachian-eagle.html` edit, run `node tools/update-size.cjs`.

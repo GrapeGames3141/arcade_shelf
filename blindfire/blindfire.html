@@ -84,6 +84,7 @@ kbd { font: 700 11px/1 ui-monospace, Menlo, monospace; color: var(--ink); backgr
 #status { position: absolute; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); font-size: 14px; pointer-events: none; white-space: nowrap; }
 #status.ready { color: var(--gold); border-color: rgba(242,196,90,.5); }
 body.touch #status { bottom: calc(150px + env(safe-area-inset-bottom)); }
+body.touch.driving #status { top: calc(148px + env(safe-area-inset-top)); bottom: auto; }
 #bShop.afford { border-color: var(--gold); color: var(--gold); }
 #msg { position: absolute; left: 50%; top: 104px; transform: translateX(-50%); font-weight: 800; font-size: 15px; padding: 8px 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; pointer-events: none; }
 #msg.on { opacity: 1; }
@@ -177,6 +178,8 @@ body:not(.driving) #miniw { display: none; }
       <div class="grp touchOnly"><h5>CONTROLS</h5><div class="ks"><span>Stick drives and steers</span><span>Map button, then tap to fire</span><span>Drag to scroll · pinch to zoom</span></div></div>
     </div>
     <div class="panel drawer hidden" id="settings">
+      <div class="set">Graphics<div class="seg" id="segQ"><button data-v="auto">Auto</button><button data-v="low">Low</button><button data-v="medium">Med</button><button data-v="high">High</button></div></div>
+      <div class="grp"><p id="qualityHint"></p></div>
       <div class="set">CPU rivals<div class="seg" id="segN"><button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="5">5</button></div></div>
       <div class="set">CPU skill<div class="seg" id="segD"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
       <div class="set">After firing<div class="seg segF"><button data-v="0">Stay on map</button><button data-v="1">Drive</button></div></div>
@@ -214,9 +217,25 @@ let R = rng(1);
 function hash(x, y, s) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 function vnoise(x, y, s) { const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, f = t => t * t * (3 - 2 * t); const a = hash(i, j, s), b = hash(i + 1, j, s), c = hash(i, j + 1, s), d = hash(i + 1, j + 1, s); return lerp(lerp(a, b, f(u)), lerp(c, d, f(u)), f(v)); }
 function fbm(x, y, s, o = 4) { let t = 0, a = 0.5, n = 0; for (let k = 0; k < o; k++) { t += a * vnoise(x, y, s + k * 17); n += a; x *= 2.02; y *= 2.02; a *= 0.5; } return t / n; }
-const SET = { diff: 1, sound: 1, rivals: 1, autoDrive: 0, name: '' };
+const SET = { diff: 1, sound: 1, rivals: 1, autoDrive: 0, name: '', gfx: 'auto' };
 try { Object.assign(SET, JSON.parse(localStorage.getItem('blindfire.set') || '{}')); } catch (e) { }
 const saveSet = () => { try { localStorage.setItem('blindfire.set', JSON.stringify(SET)); } catch (e) { } };
+
+// A touch screen starts with the smallest complete renderer budget. This avoids
+// guessing at a model name and gives phones an immediate, reliable escape hatch.
+const TOUCH_DEVICE = 'ontouchstart' in window || (navigator.maxTouchPoints > 0 && matchMedia('(pointer: coarse)').matches);
+const GFX_TIERS = {
+  low: { name: 'Low', dpr: 1, overview: 0.20, groundStep: 8, scorchStep: 8, hstep: 40, treeRange: 650, treeDensity: 1, overviewTrees: .3, overviewHighlights: false, far: 1800 },
+  medium: { name: 'Medium', dpr: 1.5, overview: 0.28, groundStep: 6, scorchStep: 6, hstep: 24, treeRange: 850, treeDensity: 1.45, overviewTrees: .72, overviewHighlights: true, far: 2700 },
+  high: { name: 'High', dpr: 2, overview: 0.36, groundStep: 4, scorchStep: 4, hstep: 20, treeRange: 1100, treeDensity: 2, overviewTrees: 1, overviewHighlights: true, far: 4000 }
+};
+function autoGraphicsTier() {
+  if (TOUCH_DEVICE) return 'low';
+  const cores = navigator.hardwareConcurrency || 4, memory = navigator.deviceMemory || 4;
+  return cores >= 8 && memory >= 8 ? 'high' : 'medium';
+}
+function currentGraphics() { return GFX_TIERS[GFX_TIERS[SET.gfx] ? SET.gfx : autoGraphicsTier()]; }
+let GFX = currentGraphics();
 
 // ================= map =================
 const MW = 9600, MH = 6000, CS = 10, TW = MW / CS, TH = MH / CS;
@@ -235,14 +254,16 @@ const THEMES = {
   autumn: { grass: [120, 124, 64], floor: [96, 88, 52], sand: [190, 170, 120], rock: [126, 118, 106], deep: [30, 58, 84], shallow: [60, 104, 116], leaf: [[204, 104, 38], [222, 160, 52], [176, 62, 40], [96, 120, 48]], pine: [38, 74, 48], pineFrac: 0.3, snow: false },
   winter: { grass: [222, 230, 236], floor: [196, 206, 214], sand: [204, 206, 200], rock: [150, 152, 158], deep: [34, 64, 92], shallow: [92, 136, 160], leaf: [[150, 136, 120], [168, 150, 132]], pine: [34, 70, 56], pineFrac: 0.8, snow: true }
 };
-const TR = 0.36;  // overview map pixels per metre (keeps the overview canvas near 7 megapixels)
+let TR = GFX.overview;
 const EG = 12, EW = MW / EG + 1, EH = MH / EG + 1;
 let MAP = null, burnt = new Uint8Array(TW * TH), groundSm = null;
+function dropCanvas(c) { if (c) { c.width = 0; c.height = 0; } }
 function elevAt(x, y) {
   const fx = clamp(x / EG, 0, EW - 1.001), fy = clamp(y / EG, 0, EH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
   return lerp(lerp(elev[j * EW + i], elev[j * EW + i + 1], u), lerp(elev[(j + 1) * EW + i], elev[(j + 1) * EW + i + 1], u), v);
 }
 function genMap(seed, n = 2) {
+  dropCanvas(terrainCv); dropCanvas(groundSm); dropCanvas(scorchCv);
   SEED = seed; R = rng(seed); SPAWNS = spawnBases(n, seed);
   const pr = rng(seed ^ 0x2545f491);
   MAP = {
@@ -271,7 +292,7 @@ function genMap(seed, n = 2) {
   // keep the spawn zones open
   for (const [sx, sy] of SPAWNS) { const r = 130; for (let j = Math.max(0, Math.floor((sy - r) / CS)); j <= Math.min(TH - 1, Math.floor((sy + r) / CS)); j++) for (let i = Math.max(0, Math.floor((sx - r) / CS)); i <= Math.min(TW - 1, Math.floor((sx + r) / CS)); i++) { if (hyp(i * CS + 5 - sx, j * CS + 5 - sy) < r && cells[j * TW + i] >= WATER) { cells[j * TW + i] = GRASS; const e = elevAt(i * CS + 5, j * CS + 5); if (e < MAP.wl + 0.01 || e > MAP.rl) { const ii = Math.round((i * CS + 5) / EG), jj = Math.round((j * CS + 5) / EG); for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const q = (jj + b) * EW + ii + a; if (q >= 0 && q < elev.length) elev[q] = clamp(elev[q], MAP.wl + 0.015, MAP.rl - 0.01); } } } } }
   burnt = new Uint8Array(TW * TH);
-  scorchCv = document.createElement('canvas'); scorchCv.width = MW / 4; scorchCv.height = MH / 4;
+  scorchCv = document.createElement('canvas'); scorchCv.width = MW / GFX.scorchStep; scorchCv.height = MH / GFX.scorchStep;
   drawTerrain();
   if (typeof glNewMap === 'function') glNewMap();
 }
@@ -281,12 +302,12 @@ const passable = (x, y) => { const c = cellAt(x, y); return c === GRASS || c ===
 const drivable = (p, x, y) => { if (x < 30 || y < 30 || x > MW - 30 || y > MH - 30) return false; const c = cellAt(x, y); return c === GRASS || c === FOREST || (c === ROCK && p.lv.climb > 0) || (c === WATER && p.lv.float > 0); };
 const rgb = (c, f = 1) => `rgb(${c[0] * f | 0},${c[1] * f | 0},${c[2] * f | 0})`;
 function drawTerrain() {
-  const th = MAP.th, sw = MW / 4, sh = MH / 4;
+  const th = MAP.th, groundStep = GFX.groundStep, sw = MW / groundStep, sh = MH / groundStep;
   // ground colours from the height field: deep water → shallows → sand → grass/forest floor → rock/snowcaps
   groundSm = document.createElement('canvas'); groundSm.width = sw; groundSm.height = sh;
   const gs = groundSm.getContext('2d'), img = gs.createImageData(sw, sh), d = img.data;
   for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
-    const x = i * 4 + 2, y = j * 4 + 2, e = elevAt(x, y), ex = elevAt(x + 8, y) - e, ey = elevAt(x, y + 8) - e;
+    const x = i * groundStep + groundStep / 2, y = j * groundStep + groundStep / 2, e = elevAt(x, y), ex = elevAt(x + groundStep * 2, y) - e, ey = elevAt(x, y + groundStep * 2) - e;
     const ct = cellAt(x, y), n = 0.94 + 0.12 * hash(i, j, 5), lit = 1 + clamp((-ex - ey) * 14, -0.18, 0.18);
     let c;
     if (e < MAP.wl) { const k = clamp((MAP.wl - e) / 0.08, 0, 1); c = [lerp(th.shallow[0], th.deep[0], k), lerp(th.shallow[1], th.deep[1], k), lerp(th.shallow[2], th.deep[2], k)]; }
@@ -314,15 +335,16 @@ function paintRegion(x0, y0, x1, y1) {
   }
   // treetops, batched into one path per colour (shadows, then crowns, then highlights): far fewer fills on a big map
   const P = new Map(), arc = (st, x, y, r) => { let q = P.get(st); if (!q) P.set(st, q = new Path2D()); q.moveTo(x + r, y); q.arc(x, y, r, 0, TAU); };
-  const shade = 'rgba(0,0,0,.3)', hi = th.snow ? 'rgba(245,248,250,.75)' : null;
+  const shade = 'rgba(0,0,0,.3)', hi = GFX.overviewHighlights && (th.snow ? 'rgba(245,248,250,.75)' : null);
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (cells[j * TW + i] === FOREST) {
+    if (hash(i, j, 97) > GFX.overviewTrees) continue;
     for (let k = 0; k < 2; k++) {
-      if (k === 1 && hash(i, j, 50) < 0.45) break;
+      if (k === 1 && hash(i, j, 50) < 2 - GFX.treeDensity) break;
       const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS, pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, r = (pine ? 4 : 5) * s;
       const c = pine ? th.pine : th.leaf[Math.floor(hash(i, j, 61 + k) * th.leaf.length)];
       arc('0' + shade, x + 2.5, y + 2.5, r);
       arc('1' + rgb(c, 0.9), x, y, r);
-      arc('2' + (hi || rgb(c, 1.2)), x - r * 0.3, y - r * 0.3, r * 0.45);
+      if (GFX.overviewHighlights) arc('2' + (hi || rgb(c, 1.2)), x - r * 0.3, y - r * 0.3, r * 0.45);
     }
   }
   for (const [st, q] of [...P].sort((u, v) => u[0][0] - v[0][0])) { g.fillStyle = st.slice(1); g.fill(q); }
@@ -330,9 +352,9 @@ function paintRegion(x0, y0, x1, y1) {
 }
 function burn(x, y, r) {
   // the blast scorches the ground and flattens forest in its radius
-  const g = scorchCv.getContext('2d'), gr = g.createRadialGradient(x / 4, y / 4, 0, x / 4, y / 4, r / 4);
+  const sc = GFX.scorchStep, g = scorchCv.getContext('2d'), gr = g.createRadialGradient(x / sc, y / sc, 0, x / sc, y / sc, r / sc);
   gr.addColorStop(0, 'rgba(10,8,6,.75)'); gr.addColorStop(0.6, 'rgba(20,14,8,.5)'); gr.addColorStop(1, 'rgba(20,14,8,0)');
-  g.fillStyle = gr; g.beginPath(); g.arc(x / 4, y / 4, r / 4, 0, TAU); g.fill();
+  g.fillStyle = gr; g.beginPath(); g.arc(x / sc, y / sc, r / sc, 0, TAU); g.fill();
   GL.scorchDirty = true;
   const i0 = Math.max(0, Math.floor((x - r) / CS)), i1 = Math.min(TW - 1, Math.floor((x + r) / CS)), j0 = Math.max(0, Math.floor((y - r) / CS)), j1 = Math.min(TH - 1, Math.floor((y + r) / CS));
   let changed = false;
@@ -391,7 +413,7 @@ const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const cleanName = t => String(t || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14);
 const nameOf = pid => (pid && MP.names.get(pid)) || '';
 const pname = p => p.i === G.me ? 'You' : (G && G.roster && nameOf(G.roster[p.i])) || CNAMES[p.i % CNAMES.length];
-function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, gcd: 0, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0 }; }
+function mkPlayer(i, x, y) { return { i, x, y, hd: Math.atan2(MH / 2 - y, MW / 2 - x), hp: 100, max: 100, money: 0, lv: Object.fromEntries(UP.map(u => [u.k, 0])), cd: 1.5, gcd: 0, alive: true, st: { shots: 0, hits: 0, earned: 0, kills: 0 }, mx: 0, my: 0, launchT: 0 }; }
 function spawnPt(i) {
   const [sx, sy] = SPAWNS[i], ry = SPAWNS.length === 2 ? 2000 : 520;
   for (let k = 0; k < 80; k++) { const x = sx + (R() - 0.5) * 1040, y = sy + (R() - 0.5) * 2 * ry; if (passable(x, y) && passable(x + 12, y) && passable(x - 12, y) && passable(x, y + 12) && passable(x, y - 12)) return [x, y]; }
@@ -399,6 +421,7 @@ function spawnPt(i) {
 }
 function newMatch(opts) {
   const n = opts.n || 2;
+  if (!GL.gl && !GL.fail) { try { glInitDrive(); } catch (e) { console.error(e); GL.fail = true; } }
   genMap(opts.seed, n);
   const players = []; for (let i = 0; i < n; i++) players.push(mkPlayer(i, ...spawnPt(i)));
   G = { mode: opts.mode, me: opts.me || 0, n, roster: opts.roster || null, t: 0, over: false, players, missiles: [], rounds: [], bursts: {}, fx: [], marks: [], flashes: [], floats: [], shake: 0, nextId: 1, msgT: 0, paused: false, sentT: 0, pend: {}, out: [], place: 0, ais: [], subs: [], spots: [], log: [], hold: null, lost: null, recT: 0 };
@@ -424,6 +447,7 @@ function fire(p, tx, ty) {
   const d = hyp(tx - p.x, ty - p.y), T = Math.max(1.2, d / stat(p, 'speed') + 0.5), r = stat(p, 'blast');
   const m = { id: G.nextId++, o: p.i, sx: p.x, sy: p.y, tx, ty, t: 0, T, r, cl: stat(p, 'cluster') };
   G.missiles.push(m); p.cd = stat(p, 'reload'); p.st.shots++;
+  p.launchT = 0.001;
   p.hd = Math.atan2(ty - p.y, tx - p.x);
   const forest = cellAt(p.x, p.y) === FOREST;
   // everyone else sees a launch flash somewhere near the launcher
@@ -483,8 +507,9 @@ function driveTargets() {
   for (const q of G.players) {
     if (q === me || !q.alive || (G.mode === 'online' && !q.known)) continue;
     const d = hyp(q.x - me.x, q.y - me.y); if (d >= view) continue;
-    const s = glProject(q.x, heightAt(q.x, q.y) + 2.5, q.y), top = glProject(q.x, heightAt(q.x, q.y) + 7, q.y); if (!s) continue;
-    out.push({ q, d, x: s[0], y: s[1], r: Math.max(26, top ? Math.abs(s[1] - top[1]) * 1.4 : 26), inRange: d < GUN_RANGE });
+    const s = GL.fail ? w2s(q.x, q.y) : glProject(q.x, heightAt(q.x, q.y) + 2.5, q.y);
+    const top = GL.fail ? null : glProject(q.x, heightAt(q.x, q.y) + 7, q.y); if (!s) continue;
+    out.push({ q, d, x: s[0], y: s[1], r: GL.fail ? Math.max(22, 14 / V.s) : Math.max(26, top ? Math.abs(s[1] - top[1]) * 1.4 : 26), inRange: d < GUN_RANGE });
   }
   return out;
 }
@@ -696,6 +721,7 @@ function step(dt) {
   if (!G.over && me.alive && G.view === 'drive') { const [turn, thr] = inputVec(); me.hd += turn * 1.5 * dt * (thr > 0.1 ? -1 : 1); me.mx = Math.cos(me.hd) * -thr; me.my = Math.sin(me.hd) * -thr; } else { me.mx = me.my = 0; }
   if (G.mode === 'cpu' && !G.over) for (const ai of G.ais) aiStep(ai, dt);
   for (const p of G.players) {
+    if (p.launchT) { p.launchT += dt; if (p.launchT > 1.3) p.launchT = 0; }
     if (G.mode === 'online' && p !== me) continue;
     moveP(p, dt); p.cd = Math.max(0, p.cd - dt); p.gcd = Math.max(0, (p.gcd || 0) - dt);
     if (!G.over && p.alive && earning(p)) p.money += INCOME * dt;
@@ -728,7 +754,7 @@ const CAM = { x: MW / 2, y: MH / 2, z: 1.5, follow: true, zUser: 0 };
 const zFit = () => Math.min(V.w / MW, V.h / MH) * 0.96;
 const zHome = () => clamp(Math.min(V.w, V.h) / 480, 0.7, 2.2);
 function layout() {
-  V.dpr = Math.min(2, devicePixelRatio || 1); V.w = innerWidth; V.h = innerHeight;
+  V.dpr = Math.min(GFX.dpr, devicePixelRatio || 1); V.w = innerWidth; V.h = innerHeight;
   cv.width = V.w * V.dpr; cv.height = V.h * V.dpr;
   CAM.z = clamp(CAM.zUser || zHome(), zFit(), 3.2); clampCam();
 }
@@ -767,7 +793,15 @@ function panBy(dx, dy) { CAM.x += dx; CAM.y += dy; CAM.follow = false; clampCam(
 function centerOn(x, y, follow) { CAM.x = x; CAM.y = y; CAM.follow = !!follow; clampCam(); }
 // camera each frame: follow your launcher, arrow keys and screen edges scroll
 function camStep(dt) {
-  if (!G || G.view !== 'map') return;   // closed, the map stays exactly where you left it
+  if (!G) return;
+  const fallbackDrive = G.view === 'drive' && GL.fail;
+  if (fallbackDrive) {
+    const me = ME(); if (!me.alive) return;
+    CAM.z = clamp(zHome(), zFit(), 3.2); CAM.follow = true;
+    const k = 1 - Math.exp(-dt * 8); CAM.x = lerp(CAM.x, me.x, k); CAM.y = lerp(CAM.y, me.y, k); clampCam();
+    return;
+  }
+  if (G.view !== 'map') return;   // closed, the map stays exactly where you left it
   const me = ME(), sp = 760 / CAM.z * dt;
   let px = 0, py = 0;
   if (KEYS.has('ArrowLeft')) px -= 1; if (KEYS.has('ArrowRight')) px += 1; if (KEYS.has('ArrowUp')) py -= 1; if (KEYS.has('ArrowDown')) py += 1;
@@ -807,11 +841,23 @@ mini.addEventListener('pointerup', () => { MOUSE.mini = false; });
 let fogCv = document.createElement('canvas');
 // ================= drive view: a WebGL2 camera behind your launcher =================
 // Map units are metres. Map x → GL x, map y → GL z, terrain height → GL y.
-const HSTEP = 20, TILE = 40, HW = MW / HSTEP + 1, HH = MH / HSTEP + 1, HK = 320;
+let HSTEP = GFX.hstep, HW = MW / HSTEP + 1, HH = MH / HSTEP + 1;
+const TILE = 40, HK = 320;
 let heights = new Float32Array(HW * HH);
+function configureGraphics() {
+  GFX = currentGraphics(); TR = GFX.overview; HSTEP = GFX.hstep; HW = MW / HSTEP + 1; HH = MH / HSTEP + 1; FAR = GFX.far;
+  heights = new Float32Array(HW * HH);
+}
 function heightAt(x, y) {
   const fx = clamp(x / HSTEP, 0, HW - 1.001), fy = clamp(y / HSTEP, 0, HH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
   return lerp(lerp(heights[j * HW + i], heights[j * HW + i + 1], u), lerp(heights[(j + 1) * HW + i], heights[(j + 1) * HW + i + 1], u), v);
+}
+// The terrain mesh uses two planar triangles per cell. Trees must use the same
+// interpolation so their bases stay registered to slopes and cell diagonals.
+function terrainMeshHeightAt(x, y) {
+  const fx = clamp(x / HSTEP, 0, HW - 1.001), fy = clamp(y / HSTEP, 0, HH - 1.001), i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+  const a = heights[j * HW + i], b = heights[j * HW + i + 1], c = heights[(j + 1) * HW + i], d = heights[(j + 1) * HW + i + 1];
+  return u + v <= 1 ? a * (1 - u - v) + b * u + c * v : d * (u + v - 1) + b * (1 - v) + c * (1 - u);
 }
 const GL = { gl: null, fail: false, treesAt: null, treeN: 0, dirtyTrees: true, scorchDirty: true, hd: 0 };
 function glProg(gl, vs, fs) {
@@ -830,7 +876,9 @@ vec3 fogs(vec3 col, vec3 w){
   return col;
 }`;
 function glInitDrive() {
-  const c = $('g'); const gl = c.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: TEST });
+  const c = $('g');
+  if (!GL.events) { c.addEventListener('webglcontextlost', e => { e.preventDefault(); GL.fail = true; }); GL.events = true; }
+  const gl = c.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: TEST });
   if (!gl) { GL.fail = true; return; }
   GL.gl = gl;
   GL.terr = glProg(gl, `#version 300 es
@@ -850,14 +898,15 @@ void main(){
   o=vec4(fogs(col,vW),1.0);
 }`);
   GL.spr = glProg(gl, `#version 300 es
-in vec2 aQ; in vec4 aI; in vec4 aJ; in vec4 aC; uniform mat4 uVP; uniform vec3 uR; out vec2 vUv; out vec4 vC; out vec3 vW;
+in vec2 aQ; in vec4 aI; in vec4 aJ; in vec4 aC; uniform mat4 uVP; uniform vec3 uR; uniform vec3 uMe; uniform vec2 uTreeFade; out vec2 vUv; out vec4 vC; out vec3 vW;
 void main(){ vec3 base=aI.xyz; float w=aJ.x, h=aJ.y, slot=aJ.z;
-  vec3 p=base+uR*(aQ.x-0.5)*w+vec3(0,1,0)*(aJ.w>0.5? aQ.y*h : (aQ.y-0.5)*h);
+  float d=length(base.xz-uMe.xz); float far=1.0-smoothstep(uTreeFade.x,uTreeFade.y,d); float treeScale=aJ.w>0.5?far:1.0;
+  vec3 p=base+uR*(aQ.x-0.5)*w*treeScale+vec3(0,1,0)*(aJ.w>0.5? aQ.y*h*treeScale : (aQ.y-0.5)*h);
   vW=p; vUv=vec2((slot+aQ.x)/8.0, aJ.w>0.5? 1.0-aQ.y : 1.0-aQ.y*0.5); vC=aC; gl_Position=uVP*vec4(p,1.0); }`, `#version 300 es
 precision highp float; in vec2 vUv; in vec4 vC; in vec3 vW; uniform sampler2D uA; uniform float uFog; uniform float uTest; out vec4 o;
 ${GLSL_FOG}
-void main(){ vec4 t=texture(uA,vUv)*vC; if(uTest>0.5 && t.a<0.5) discard;
-  float dc=length(vW-uCam); if(uTest>0.5 && dc<34.0 && fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)>(dc-14.0)/20.0) discard; vec3 c=uFog>0.5?fogs(t.rgb,vW):t.rgb; o=vec4(c, uTest>0.5?1.0:t.a); }`);
+void main(){ vec4 t=texture(uA,vUv)*vC; if(uTest>0.5 && t.a<0.08) discard;
+  vec3 c=uFog>0.5?fogs(t.rgb,vW):t.rgb; o=vec4(c,uTest>0.5?1.0:t.a); }`);
   GL.mesh = glProg(gl, `#version 300 es
 in vec3 aP; in vec3 aN; uniform mat4 uVP; uniform mat4 uM; out vec3 vN; out vec3 vW;
 void main(){ vec4 w=uM*vec4(aP,1.0); vW=w.xyz; vN=mat3(uM)*aN; gl_Position=uVP*w; }`, `#version 300 es
@@ -876,11 +925,43 @@ precision highp float; in float vA; uniform vec4 uCol; out vec4 o; void main(){ 
   let loc = gl.getAttribLocation(GL.mesh.p, 'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
   const nb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, nb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cn), gl.STATIC_DRAW);
   loc = gl.getAttribLocation(GL.mesh.p, 'aN'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 0, 0);
+  GL.vehicle = glProg(gl, `#version 300 es
+in vec3 aP; in vec3 aN; in vec4 aC; uniform mat4 uVP; uniform mat4 uM; uniform vec3 uTeam; uniform vec3 uSun; out vec3 vC; out vec3 vN;
+void main(){ vec4 w=uM*vec4(aP,1.0); vN=mat3(uM)*aN; vC=mix(aC.rgb,uTeam,aC.a); gl_Position=uVP*w; }`, `#version 300 es
+precision highp float; in vec3 vC; in vec3 vN; out vec4 o;
+void main(){ float l=.48+.64*max(dot(normalize(vN),normalize(vec3(-.45,.75,-.35))),0.0); o=vec4(vC*l,1.0); }`);
+  const vp = [], vn = [], vc = [], put = (p, n, c, mask = 0) => { vp.push(...p); vn.push(...n); vc.push(...c, mask); };
+  const quad = (a, b, c, d, n, col, mask = 0) => { put(a, n, col, mask); put(b, n, col, mask); put(c, n, col, mask); put(a, n, col, mask); put(c, n, col, mask); put(d, n, col, mask); };
+  const boxPart = (x, y, z, sx, sy, sz, col, mask = 0) => { const X=sx/2,Y=sy/2,Z=sz/2, p=[[-X,-Y,-Z],[X,-Y,-Z],[X,Y,-Z],[-X,Y,-Z],[-X,-Y,Z],[X,-Y,Z],[X,Y,Z],[-X,Y,Z]].map(q=>[q[0]+x,q[1]+y,q[2]+z]); quad(p[0],p[1],p[2],p[3],[0,0,-1],col,mask); quad(p[5],p[4],p[7],p[6],[0,0,1],col,mask); quad(p[4],p[0],p[3],p[7],[-1,0,0],col,mask); quad(p[1],p[5],p[6],p[2],[1,0,0],col,mask); quad(p[3],p[2],p[6],p[7],[0,1,0],col,mask); quad(p[4],p[5],p[1],p[0],[0,-1,0],col,mask); };
+  const wheelPart = (x, y, z, r, w, col) => { for(let i=0;i<12;i++){const a=i/12*TAU,b=(i+1)/12*TAU,pa=[x+Math.cos(a)*r,y+Math.sin(a)*r],pb=[x+Math.cos(b)*r,y+Math.sin(b)*r],na=[Math.cos(a),Math.sin(a),0],nb3=[Math.cos(b),Math.sin(b),0];quad([pa[0],pa[1],z-w/2],[pb[0],pb[1],z-w/2],[pb[0],pb[1],z+w/2],[pa[0],pa[1],z+w/2],na,col); put([x,y,z-w/2],[0,0,-1],col); put([pb[0],pb[1],z-w/2],[0,0,-1],col); put([pa[0],pa[1],z-w/2],[0,0,-1],col); put([x,y,z+w/2],[0,0,1],col); put([pa[0],pa[1],z+w/2],[0,0,1],col); put([pb[0],pb[1],z+w/2],[0,0,1],col); } };
+  const rearDisc = (x, y, z, r, col) => { for(let i=0;i<12;i++){ const a=i/12*TAU,b=(i+1)/12*TAU; put([x,y,z],[-1,0,0],col); put([x,y+Math.sin(b)*r,z+Math.cos(b)*r],[-1,0,0],col); put([x,y+Math.sin(a)*r,z+Math.cos(a)*r],[-1,0,0],col); } };
+  const olive=[.26,.30,.19], armor=[.34,.38,.25], pod=[.18,.22,.16], darkV=[.055,.065,.05], glass=[.30,.58,.68], rubber=[.045,.05,.042], hub=[.29,.31,.25], lamp=[.95,.18,.08];
+  boxPart(0,1.45,0,11.4,1.15,4.7,darkV); boxPart(.1,2.05,0,10.2,.55,4.25,olive);
+  // Cab wedge has a genuinely descending front roofline, with windows inset on both shoulders.
+  const cab=[ [1.55,1.75,-2.02],[1.55,1.75,2.02],[1.55,4.28,-2.02],[1.55,4.28,2.02],[4.95,1.75,-2.02],[4.95,1.75,2.02],[4.95,3.42,-2.02],[4.95,3.42,2.02] ];
+  quad(cab[0],cab[4],cab[6],cab[2],[0,0,-1],armor); quad(cab[5],cab[1],cab[3],cab[7],[0,0,1],armor); quad(cab[4],cab[5],cab[7],cab[6],[.7,.7,0],armor); quad(cab[2],cab[6],cab[7],cab[3],[.45,.9,0],armor); quad(cab[0],cab[1],cab[5],cab[4],[0,-1,0],armor); quad(cab[1],cab[0],cab[2],cab[3],[-1,0,0],armor);
+  boxPart(3.05,3.23,-2.05,1.55,.8,.1,glass); boxPart(3.05,3.23,2.05,1.55,.8,.1,glass); boxPart(4.93,2.85,0,.1,1.02,3.78,glass);
+  for(const x of [-3.9,-.55,3.35]) for(const z of [-2.72,2.72]) { wheelPart(x,1.08,z,1.11,.78,rubber); wheelPart(x,1.08,z+(z<0?-.03:.03),.35,.82,hub); }
+  GL.vehicleChassisN = vp.length / 3;
+  boxPart(-2.25,3.75,0,5.9,2.35,4.35,olive); boxPart(-2.25,3.86,0,5.5,1.92,4.06,pod); boxPart(-2.3,4.92,0,5.45,.22,4.12,armor);
+  for(const z of [-2.23,2.23]){boxPart(-2.25,4.25,z,5.05,.18,.14,[1,1,1],1);boxPart(-2.25,3,z,4.65,.12,.12,darkV);} for(const x of [-4.25,-2.15,-.05])boxPart(x,5.04,0,.12,.26,4.16,[.09,.12,.085]);
+  boxPart(-5.35,3.75,0,.22,1.12,3.22,armor); boxPart(-5.58,2.48,0,.28,.32,4.6,darkV); for(const z of [-2.02,2.02]) boxPart(-5.5,2.98,z,.14,.42,.42,lamp);
+  for(const y of [3.58,4.28]) for(const z of [-1.18,0,1.18]) rearDisc(-5.5,y,z,.34,darkV);
+  GL.vehiclePodStart = GL.vehicleChassisN; GL.vehiclePodN = vp.length / 3 - GL.vehiclePodStart;
+  GL.vehicleN=vp.length/3; GL.vehicleVao=gl.createVertexArray(); gl.bindVertexArray(GL.vehicleVao);
+  const vpb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vpb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vp),gl.STATIC_DRAW); loc=gl.getAttribLocation(GL.vehicle.p,'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
+  const vnb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vnb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vn),gl.STATIC_DRAW); loc=gl.getAttribLocation(GL.vehicle.p,'aN'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,3,gl.FLOAT,false,0,0);
+  const vcb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vcb); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vc),gl.STATIC_DRAW); loc=gl.getAttribLocation(GL.vehicle.p,'aC'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,4,gl.FLOAT,false,0,0);
   // billboards: one quad, instanced
   GL.sprVao = gl.createVertexArray(); gl.bindVertexArray(GL.sprVao);
   const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), gl.STATIC_DRAW);
   loc = gl.getAttribLocation(GL.spr.p, 'aQ'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   GL.sprBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
+  for (const [nm, off] of [['aI', 0], ['aJ', 16], ['aC', 32]]) { loc = gl.getAttribLocation(GL.spr.p, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
+  // Trees retain their own instance storage. Effects may freely overwrite sprBuf.
+  GL.treeVao = gl.createVertexArray(); gl.bindVertexArray(GL.treeVao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, qb); loc = gl.getAttribLocation(GL.spr.p, 'aQ'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  GL.treeBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.treeBuf);
   for (const [nm, off] of [['aI', 0], ['aJ', 16], ['aC', 32]]) { loc = gl.getAttribLocation(GL.spr.p, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 48, off); gl.vertexAttribDivisor(loc, 1); }
   GL.ringVao = gl.createVertexArray(); gl.bindVertexArray(GL.ringVao); GL.ringBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
   loc = gl.getAttribLocation(GL.ring.p, 'aP'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, 16, 0);
@@ -912,11 +993,13 @@ function glNewMap() {
     GL.tiles.push({ x0: ti * HSTEP, x1: i1 * HSTEP, y0: tj * HSTEP, y1: j1 * HSTEP, off: q0 * 4, n: q - q0 });
   }
   if (GL.terrVao) gl.deleteVertexArray(GL.terrVao);
+  if (GL.terrVB) gl.deleteBuffer(GL.terrVB);
+  if (GL.terrIB) gl.deleteBuffer(GL.terrIB);
   GL.terrVao = gl.createVertexArray(); gl.bindVertexArray(GL.terrVao);
-  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
+  const vb = GL.terrVB = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, P, gl.STATIC_DRAW);
   const T = GL.terr.p;
   for (const [nm, sz, off] of [['aP', 3, 0], ['aN', 3, 12], ['aW', 1, 24]]) { const loc = gl.getAttribLocation(T, nm); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, sz, gl.FLOAT, false, 28, off); }
-  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  const ib = GL.terrIB = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
   GL.terrN = idx.length; gl.bindVertexArray(null);
   const tex = (t, src, mip) => { gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); if (mip) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); } else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); };
   tex(GL.texG, groundSm, true); tex(GL.texS, scorchCv, false); tex(GL.texA, makeAtlas(), true);
@@ -943,23 +1026,24 @@ function makeAtlas() {
 }
 // trees near the camera as billboards (rebuilt as you drive)
 function glTrees(cx, cy) {
-  const R = 1100, out = [], i0 = Math.max(0, Math.floor((cx - R) / CS)), i1 = Math.min(TW - 1, Math.floor((cx + R) / CS)), j0 = Math.max(0, Math.floor((cy - R) / CS)), j1 = Math.min(TH - 1, Math.floor((cy + R) / CS));
+  const R = GFX.treeRange, cacheMargin = 132, rebuildStride = 120, fadeWidth = Math.min(220, R * 0.3), radius = R + cacheMargin, out = [], i0 = Math.max(0, Math.floor((cx - radius) / CS)), i1 = Math.min(TW - 1, Math.floor((cx + radius) / CS)), j0 = Math.max(0, Math.floor((cy - radius) / CS)), j1 = Math.min(TH - 1, Math.floor((cy + radius) / CS));
   const th = MAP.th;
   for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
     if (cells[j * TW + i] !== FOREST) continue;
     for (let k = 0; k < 2; k++) {
-      if (k === 1 && hash(i, j, 50) < 0.45) break;
+      if (k === 1 && hash(i, j, 50) < 2 - GFX.treeDensity) break;
       const x = i * CS + hash(i, j, 11 + k) * CS, y = j * CS + hash(i, j, 21 + k) * CS;
-      if (hyp(x - cx, y - cy) > R) continue;
+      if (hyp(x - cx, y - cy) > radius) continue;
       const pine = hash(i, j, 31 + k) < th.pineFrac, s = 0.8 + hash(i, j, 41 + k) * 0.55, h = (pine ? 15 : 12) * s, w = h * 0.55;
       const slot = pine ? 0 : 1 + Math.floor(hash(i, j, 61 + k) * 3), sh = 0.85 + 0.25 * hash(i, j, 71 + k);
-      out.push(x, heightAt(x, y) - 0.4, y, 0, w, h, slot, 1, sh, sh, sh, 1);
+      out.push(x, terrainMeshHeightAt(x, y) - 0.4, y, 0, w, h, slot, 1, sh, sh, sh, 1);
     }
   }
-  GL.treesAt = [cx, cy]; GL.treeData = new Float32Array(out); GL.treeN = out.length / 12; GL.dirtyTrees = false;
+  GL.treesAt = [cx, cy]; GL.treeRange = R; GL.treeStride = rebuildStride; GL.treeFade = [R - fadeWidth, R]; GL.treeN = out.length / 12; GL.dirtyTrees = false;
+  const gl = GL.gl; gl.bindBuffer(gl.ARRAY_BUFFER, GL.treeBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW);
 }
 // 4×4 matrix helpers (column-major)
-const FAR = 4000;
+let FAR = GFX.far;
 function m4persp(f, a, n, fr) { const t = 1 / Math.tan(f / 2); return [t / a, 0, 0, 0, 0, t, 0, 0, 0, 0, (fr + n) / (n - fr), -1, 0, 0, 2 * fr * n / (n - fr), 0]; }
 function m4look(e, c) {
   let zx = e[0] - c[0], zy = e[1] - c[1], zz = e[2] - c[2], l = Math.hypot(zx, zy, zz); zx /= l; zy /= l; zz /= l;
@@ -968,11 +1052,23 @@ function m4look(e, c) {
   return [xx, yx, zx, 0, xy, yy, zy, 0, xz, yz, zz, 0, -(xx * e[0] + xy * e[1] + xz * e[2]), -(yx * e[0] + yy * e[1] + yz * e[2]), -(zx * e[0] + zy * e[1] + zz * e[2]), 1];
 }
 function m4mul(a, b) { const o = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; o[i * 4 + j] = s; } return o; }
-function m4box(x, y, z, yaw, pitch, sx, sy, sz) { // translate · rotY(yaw) · rotZ(pitch) · scale
-  const c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+function m4box(x, y, z, yaw, pitch, sx, sy, sz, roll = 0) { // translate · yaw · pitch · roll · scale
+  const c = Math.cos(yaw), s = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll);
   // local +x is forward; yaw turns about up, pitch tilts the nose up
   const fx = c * cp, fy = sp, fz = s * cp, ux = -c * sp, uy = cp, uz = -s * sp, rx = -s, rz = c;
-  return [fx * sx, fy * sx, fz * sx, 0, ux * sy, uy * sy, uz * sy, 0, rx * sz, 0, rz * sz, 0, x, y, z, 1];
+  const urx = ux * cr + rx * sr, ury = uy * cr, urz = uz * cr + rz * sr, rrx = rx * cr - ux * sr, rry = -uy * sr, rrz = rz * cr - uz * sr;
+  return [fx * sx, fy * sx, fz * sx, 0, urx * sy, ury * sy, urz * sy, 0, rrx * sz, rry * sz, rrz * sz, 0, x, y, z, 1];
+}
+function launchLiftAt(t) {
+  if (!t) return 0;
+  if (t < .5) return Math.sin(t / .5 * Math.PI / 2) * .52;
+  if (t < .68) return .52;
+  return Math.max(0, 1 - (t - .68) / .62) * .52;
+}
+const launchLift = p => launchLiftAt(p.launchT || 0);
+function m4PodHinge(angle) {
+  const x = -4.9, y = 2.75, c = Math.cos(angle), s = Math.sin(angle);
+  return [c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, x - c * x + s * y, y - s * x - c * y, 0, 1];
 }
 function glRender(dt) {
   const gl = GL.gl, c = $('g');
@@ -983,11 +1079,14 @@ function glRender(dt) {
   GL.hd += (((me.hd - GL.hd + Math.PI) % TAU + TAU) % TAU - Math.PI) * Math.min(1, dt * 16);
   const cs = Math.cos(GL.hd), sn = Math.sin(GL.hd), my = heightAt(me.x, me.y);
   const sh = G.shake > 0 ? G.shake * 0.6 : 0;
-  const ex = me.x - cs * 30, ez = me.y - sn * 30; let ey = my + 15;
+  // A modest shoulder offset keeps the road and aiming direction centred while
+  // showing the cab, all three axles and the launcher pod at rest.
+  const shoulder = 17, ex = me.x - cs * 30 - sn * shoulder, ez = me.y - sn * 30 + cs * shoulder; let ey = my + 15;
   ey = Math.max(ey, heightAt(ex, ez) + 4, heightAt(me.x - cs * 15, me.y - sn * 15) + 6);
-  const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 45, my + 2, me.y + sn * 45];
+  const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 28 + sn * 12, my + 2.4, me.y + sn * 28 - cs * 12];
   const VP = m4mul(m4persp(1.05, W / H, 0.6, FAR), m4look(eye, tgt));
-  const right = [-sn, 0, cs];
+  const forwardX = tgt[0] - eye[0], forwardZ = tgt[2] - eye[2], forwardL = Math.hypot(forwardX, forwardZ) || 1;
+  const right = [-forwardZ / forwardL, 0, forwardX / forwardL];
   const sky = th.snow ? [0.62, 0.68, 0.74] : MAP.theme === 'autumn' ? [0.62, 0.6, 0.56] : [0.55, 0.68, 0.78];
   const sun = (() => { const v = [-0.45, 0.75, -0.35], l = Math.hypot(...v); return v.map(a => a / l); })();
   gl.viewport(0, 0, W, H); gl.clearColor(...sky, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1011,29 +1110,44 @@ function glRender(dt) {
   common(GL.mesh); gl.bindVertexArray(GL.cube); gl.uniform1f(GL.mesh.u.uEm, 0);
   const box = (M, col, em = 0) => { gl.uniformMatrix4fv(GL.mesh.u.uM, false, M); gl.uniform3f(GL.mesh.u.uCol, ...col); gl.uniform1f(GL.mesh.u.uEm, em); gl.drawArrays(gl.TRIANGLES, 0, 36); };
   const hex = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
-  const launcher = p => {
-    const y = heightAt(p.x, p.y), c = hex(pcol(p)), a = p.hd, ca = Math.cos(a), sa = Math.sin(a), dark = p.alive ? [0.12, 0.14, 0.12] : [0.06, 0.06, 0.06], col = p.alive ? c : [0.2, 0.2, 0.2];
-    const pitch = Math.atan2(heightAt(p.x + ca * 4, p.y + sa * 4) - heightAt(p.x - ca * 4, p.y - sa * 4), 8);
-    box(m4box(p.x, y + 0.9, p.y, a, pitch, 9, 1.2, 5), dark);
-    box(m4box(p.x - ca * 0.6, y + 2.2, p.y - sa * 0.6, a, pitch, 6.4, 1.7, 4.2), col);
-    box(m4box(p.x + ca * 3.4, y + 2.2, p.y + sa * 3.4, a, pitch, 2, 2.2, 4.2), col.map(v => v * 0.8));
-    box(m4box(p.x - ca * 0.9, y + 3.6, p.y - sa * 0.9, a, pitch + 0.22, 5.2, 1.3, 2.6), [0.86, 0.88, 0.84]);
-    box(m4box(p.x + ca * 1.7, y + 4.15, p.y + sa * 1.7, a, pitch + 0.22, 0.4, 1.0, 2.2), [0.25, 0.25, 0.24]);
-    if (p.lv && p.lv.float > 0) for (const sd of [-1, 1]) {   // pontoons: orange floats along both sides, striped white
-      const ox = -sa * sd * 3.6, oz = ca * sd * 3.6;
-      box(m4box(p.x + ox, y + 1.1, p.y + oz, a, pitch, 10.5, 1.6, 1.6), [0.95, 0.55, 0.16]);
-      for (const t of [-2.6, 2.6]) box(m4box(p.x + ox + ca * t, y + 1.12, p.y + oz + sa * t, a, pitch, 0.9, 1.66, 1.66), [0.98, 0.95, 0.86]);
+  const cachedLauncher = p => {
+    const c = hex(pcol(p)), cs = Math.cos(p.hd), sn = Math.sin(p.hd), y = heightAt(p.x, p.y), pitch = Math.atan2(heightAt(p.x + cs * 4, p.y + sn * 4) - heightAt(p.x - cs * 4, p.y - sn * 4), 8), roll = -Math.atan2(heightAt(p.x - sn * 2.7, p.y + cs * 2.7) - heightAt(p.x + sn * 2.7, p.y - cs * 2.7), 5.4);
+    const pose = m4box(p.x, y, p.y, p.hd, pitch, 1, 1, 1, roll), lift = launchLift(p);
+    common(GL.vehicle); gl.bindVertexArray(GL.vehicleVao); gl.uniform3f(GL.vehicle.u.uTeam, ...(p.alive ? c.map(v => .28 + v * .62) : [.18,.18,.18]));
+    gl.uniformMatrix4fv(GL.vehicle.u.uM, false, pose); gl.drawArrays(gl.TRIANGLES, 0, GL.vehicleChassisN);
+    gl.uniformMatrix4fv(GL.vehicle.u.uM, false, m4mul(pose, m4PodHinge(lift))); gl.drawArrays(gl.TRIANGLES, GL.vehiclePodStart, GL.vehiclePodN);
+    // The two movement upgrades remain attached to the same rigid chassis pose.
+    common(GL.mesh); gl.bindVertexArray(GL.cube);
+    if (p.lv && p.lv.float > 0) for (const sd of [-1, 1]) {
+      const ox = -sn * sd * 3.6, oz = cs * sd * 3.6;
+      box(m4box(p.x + ox, y + 1.1, p.y + oz, p.hd, pitch, 10.5, 1.6, 1.6, roll), [.95,.55,.16]);
+      for (const x of [-2.6, 2.6]) box(m4box(p.x + ox + cs * x, y + 1.12, p.y + oz + sn * x, p.hd, pitch, .9, 1.66, 1.66, roll), [.98,.95,.86]);
     }
-    if (p.lv && p.lv.climb > 0) for (const sd of [-1, 1]) box(m4box(p.x - sa * sd * 2.7, y + 0.6, p.y + ca * sd * 2.7, a, pitch, 9.6, 0.5, 0.6), [0.55, 0.5, 0.42]);   // crawler cleats
+    if (p.lv && p.lv.climb > 0) for (const sd of [-1,1]) box(m4box(p.x-sn*sd*2.7,y+.6,p.y+cs*sd*2.7,p.hd,pitch,9.6,.5,.6,roll),[.55,.5,.42]);
   };
-  for (const p of G.players) { if (p !== me && !(spect || hyp(p.x - me.x, p.y - me.y) < view) || (G.mode === 'online' && p !== me && !p.known)) continue; if (p === me && !me.alive) continue; launcher(p); }
-  if (!me.alive) launcher(me);
+  for (const p of G.players) { if (p !== me && !(spect || hyp(p.x - me.x, p.y - me.y) < view) || (G.mode === 'online' && p !== me && !p.known)) continue; if (p === me && !me.alive) continue; cachedLauncher(p); }
+  if (!me.alive) cachedLauncher(me);
+  common(GL.mesh); gl.bindVertexArray(GL.cube);
   // missiles you can see
   const bb = [];
   for (const m of G.missiles) {
-    const u = m.t / m.T, x = lerp(m.sx, m.tx, u), z = lerp(m.sy, m.ty, u), d = hyp(m.tx - m.sx, m.ty - m.sy), h = lerp(heightAt(m.sx, m.sy), heightAt(m.tx, m.ty), u) + d * 0.22 * 4 * u * (1 - u) + 3;
+    const ignition = .48, dx = m.tx - m.sx, dz = m.ty - m.sy, distance = hyp(dx, dz), heading = Math.atan2(dz, dx);
+    // Rendering delays ignition while the pod raises. The source is frozen from
+    // packeted shot coordinates so driving after the shot cannot bend its path.
+    const originX = m.sx + Math.cos(heading) * 1.4, originZ = m.sy + Math.sin(heading) * 1.4;
+    const originH = heightAt(m.sx, m.sy) + 3.8 + launchLiftAt(Math.min(m.t, 1.3)) * 7;
+    if (m.t < ignition) {
+      const owner = G.players[m.o];
+      const sourceVisible = m.o === G.me || (owner && (spect || hyp(owner.x - me.x, owner.y - me.y) < view) && (G.mode !== 'online' || owner.known));
+      const flash = clamp(1 - Math.abs(m.t - .42) / .16, 0, 1);
+      if (sourceVisible && flash) bb.push(originX, originH, originZ, 0, 8 + flash * 14, 8 + flash * 14, 4, 0, 1, .76, .32, flash);
+      continue;
+    }
+    const u = clamp((m.t - ignition) / Math.max(.01, m.T - ignition), 0, 1);
+    const x = lerp(originX, m.tx, u), z = lerp(originZ, m.ty, u);
+    const h = lerp(originH, heightAt(m.tx, m.ty), u) + distance * .22 * 4 * u * (1 - u) + 3;
     if (!spect && hyp(x - me.x, z - me.y) > view * 1.6 && m.o !== G.me) continue;
-    const vy = d * 0.22 * 4 * (1 - 2 * u) / m.T, vh = d / m.T;
+    const vy = distance * .22 * 4 * (1 - 2 * u) / Math.max(.01, m.T - ignition), vh = distance / Math.max(.01, m.T - ignition);
     box(m4box(x, h, z, Math.atan2(m.ty - m.sy, m.tx - m.sx), Math.atan2(vy, vh), 4, 0.8, 0.8), [0.95, 0.95, 0.9], 1);
     bb.push(x, h, z, 0, 6, 6, 4, 0, 1, 0.8, 0.5, 0.9);
   }
@@ -1051,11 +1165,12 @@ function glRender(dt) {
   }
   for (const f of G.fx) if (f.k === 'smoke' && hyp(f.x - me.x, f.y - me.y) < 2500) { const a = Math.max(0, 1 - f.t / f.life); bb.push(f.x, heightAt(f.x, f.y) + 2 + f.t * 6, f.y, 0, f.s * 2.4 * (1 + f.t), f.s * 2.4 * (1 + f.t), 5, 0, 1, 1, 1, a * 0.9); }
   // trees
-  if (GL.dirtyTrees || !GL.treesAt || hyp(GL.treesAt[0] - me.x, GL.treesAt[1] - me.y) > 120) glTrees(me.x, me.y);
+  if (GL.dirtyTrees || !GL.treesAt || hyp(GL.treesAt[0] - me.x, GL.treesAt[1] - me.y) > GL.treeStride) glTrees(me.x, me.y);
   common(GL.spr); gl.uniform3f(GL.spr.u.uR, ...right);
+  gl.uniform2f(GL.spr.u.uTreeFade, ...GL.treeFade);
   gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, GL.texA); gl.uniform1i(GL.spr.u.uA, 2);
-  gl.bindVertexArray(GL.sprVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.sprBuf);
-  if (GL.treeN) { gl.uniform1f(GL.spr.u.uFog, 1); gl.uniform1f(GL.spr.u.uTest, 1); gl.bufferData(gl.ARRAY_BUFFER, GL.treeData, gl.DYNAMIC_DRAW); gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, GL.treeN); }
+  gl.bindVertexArray(GL.treeVao);
+  if (GL.treeN) { gl.uniform1f(GL.spr.u.uFog, 1); gl.uniform1f(GL.spr.u.uTest, 1); gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, GL.treeN); }
   // rings on the ground
   if (rings.length) {
     common(GL.ring); gl.bindVertexArray(GL.ringVao); gl.bindBuffer(gl.ARRAY_BUFFER, GL.ringBuf);
@@ -1086,11 +1201,16 @@ function glProject(x, h, y) { const M = GL.VP; if (!M) return null; const cx = M
 
 function drawLauncher(p, col, alpha = 1) {
   ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.hd); const k = Math.max(1, 0.75 / V.s); ctx.scale(k, k); ctx.globalAlpha = alpha;
-  if (p.lv && p.lv.float > 0) { ctx.fillStyle = '#f2a33a'; ctx.fillRect(-12, -12, 24, 4); ctx.fillRect(-12, 8, 24, 4); ctx.fillStyle = '#fff3d6'; ctx.fillRect(-6, -12, 3, 4); ctx.fillRect(3, -12, 3, 4); ctx.fillRect(-6, 8, 3, 4); ctx.fillRect(3, 8, 3, 4); }
-  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(-9, -6, 20, 14);
-  ctx.fillStyle = '#1b231d'; ctx.fillRect(-10, -8, 20, 4); ctx.fillRect(-10, 4, 20, 4);
-  ctx.fillStyle = col; ctx.fillRect(-9, -5, 18, 10);
-  ctx.fillStyle = '#e8efe6'; ctx.fillRect(-2, -2.2, 14, 4.4);
+  if (p.lv && p.lv.float > 0) { ctx.fillStyle = '#f2a33a'; ctx.fillRect(-13, -13, 27, 4); ctx.fillRect(-13, 9, 27, 4); ctx.fillStyle = '#fff3d6'; ctx.fillRect(-7, -13, 3, 4); ctx.fillRect(3, -13, 3, 4); ctx.fillRect(-7, 9, 3, 4); ctx.fillRect(3, 9, 3, 4); }
+  ctx.fillStyle = 'rgba(0,0,0,.5)'; for (const x of [-8, -1, 7]) for (const y of [-7, 7]) { ctx.beginPath(); ctx.arc(x, y, 3.4, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = '#172019'; ctx.fillRect(-10, -6, 22, 12);
+  ctx.fillStyle = '#48543a'; ctx.fillRect(-7, -5, 18, 10);
+  ctx.fillStyle = '#37422f'; ctx.fillRect(7, -7, 6, 14);
+  ctx.fillStyle = col; ctx.fillRect(-6, -5, 13, 1.5); ctx.fillRect(-6, 3.5, 13, 1.5);
+  ctx.fillStyle = '#9ed8e7'; ctx.fillRect(8, -4.5, 4, 9);
+  ctx.fillStyle = '#28342b'; ctx.fillRect(-12, -5.5, 7, 11);
+  ctx.fillStyle = '#e9f4dd'; ctx.fillRect(-12.5, -3.4, 1.7, 2.2); ctx.fillRect(-12.5, 1.2, 1.7, 2.2);
+  const lift = launchLift(p); if (lift) { ctx.strokeStyle = '#ffe28a'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-7, 0); ctx.lineTo(-2, -lift * 16); ctx.stroke(); ctx.fillStyle = 'rgba(255,196,90,.8)'; ctx.beginPath(); ctx.arc(-2, -lift * 16, 2.2, 0, TAU); ctx.fill(); }
   ctx.restore();
 }
 function draw() {
@@ -1408,11 +1528,27 @@ function setRivals(v) { SET.rivals = v; saveSet(); document.querySelectorAll('#s
 function setDiff(v) { SET.diff = v; saveSet(); document.querySelectorAll('#segD button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
 document.querySelectorAll('#segS button').forEach(b => b.onclick = () => { AUD.init(); setSound(+b.dataset.v); });
 document.querySelectorAll('#segD button').forEach(b => b.onclick = () => setDiff(+b.dataset.v));
+document.querySelectorAll('#segQ button').forEach(b => b.onclick = () => setQuality(b.dataset.v));
 function setAutoDrive(v) { SET.autoDrive = v; saveSet(); document.querySelectorAll('.segF button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); }
+function renderQuality() {
+  document.querySelectorAll('#segQ button').forEach(b => b.classList.toggle('on', b.dataset.v === SET.gfx));
+  const mode = SET.gfx === 'auto' ? `Auto → ${GFX.name}` : GFX.name;
+  $('qualityHint').textContent = `${mode} graphics. New matches use this budget immediately.`;
+}
+function setQuality(v) {
+  if (!GFX_TIERS[v] && v !== 'auto') return;
+  SET.gfx = v; saveSet(); configureGraphics(); layout(); renderQuality();
+}
 document.querySelectorAll('.segF button').forEach(b => b.onclick = () => setAutoDrive(+b.dataset.v));
 document.querySelectorAll('#segN button').forEach(b => b.onclick = () => setRivals(+b.dataset.v));
-let backdrop = null;
-function menuBackdrop() { genMap((Math.random() * 1e9) | 0, 2); backdrop = true; }
+function menuBackdrop() {
+  // The title is a painted preview, never a hidden full-size match allocation.
+  dropCanvas(terrainCv); dropCanvas(groundSm); dropCanvas(scorchCv);
+  terrainCv = null; groundSm = null; scorchCv = null; miniBase = null; MAP = null;
+  if (GL.gl && GL.terrVao) { GL.gl.deleteVertexArray(GL.terrVao); GL.terrVao = null; }
+  if (GL.gl && GL.terrVB) { GL.gl.deleteBuffer(GL.terrVB); GL.terrVB = null; }
+  if (GL.gl && GL.terrIB) { GL.gl.deleteBuffer(GL.terrIB); GL.terrIB = null; }
+}
 
 // ================= online (Arcade Shelf relay) =================
 // Up to 6 launchers per room. The lowest seat in the room hosts: it starts matches and rematches.
@@ -1567,6 +1703,7 @@ function mpMsg(m) {
   else if (m.k === 'fire') {
     G.missiles.push({ id: 'r' + m.from + '-' + m.id, rid: m.id, o: m.from, sx: m.sx, sy: m.sy, tx: m.tx, ty: m.ty, t: 0, T: m.T, r: m.r, cl: m.cl || 0 });
     p.x = m.sx; p.y = m.sy;
+    p.launchT = 0.001;
     if (me.alive) launchSeen(me, p, m.forest, m.smoke || 1);
   }
   else if (m.k === 'res') {
@@ -1687,7 +1824,7 @@ function hudStatus() {
   else if (G.view === 'map' && AIM.on && hyp(AIM.w[0] - me.x, AIM.w[1] - me.y) < MISSILE_MIN) t = 'Too close for a missile · use the gun from the drive view';
   else if (G.view === 'map') t = me.cd > 0 ? `Reloading ${me.cd.toFixed(1)} s · W to drive` : (SET.autoDrive === 1 ? 'Click to fire, then you\'re back to driving · Shift-click stays' : 'Click to fire · W to drive · Space finds you');
   else if (G.view === 'drive') { ready = me.cd <= 0; t = ready ? 'Ready to fire · open the map (M)' : `Reloading ${me.cd.toFixed(1)} s`; }
-  if (document.body.classList.contains('touch')) t = t.replace(' (M)', '').replace('Click to fire the gun', 'Tap to fire the gun').replace('click a rival', 'tap a rival').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
+  if (document.body.classList.contains('touch')) t = t.replace('Ready to fire · open the map (M)', 'Ready · tap Map to fire').replace(' (M)', '').replace('Click to fire the gun', 'Tap to fire the gun').replace('click a rival', 'tap a rival').replace(' · W to drive', '').replace('Click to fire, then you\'re back to driving · Shift-click stays', 'Tap to fire, then you\'re back to driving').replace('Click to fire · W to drive · Space finds you', 'Tap to fire');
   if (el.textContent !== t) el.textContent = t;
   el.classList.toggle('ready', ready); el.classList.toggle('hidden', !t);
 }
@@ -1707,7 +1844,12 @@ function frame(ts) {
 }
 function drawBackdrop(t) {
   screenXf(); ctx.fillStyle = '#070b08'; ctx.fillRect(0, 0, V.w, V.h);
-  if (!terrainCv) return;
+  if (!terrainCv) {
+    const sky = ctx.createLinearGradient(0, 0, 0, V.h); sky.addColorStop(0, '#1c3140'); sky.addColorStop(0.58, '#45554c'); sky.addColorStop(1, '#151c15'); ctx.fillStyle = sky; ctx.fillRect(0, 0, V.w, V.h);
+    for (let k = 0; k < 5; k++) { const y = V.h * (0.42 + k * 0.12), sway = Math.sin(t * 0.12 + k) * 34; ctx.fillStyle = `rgba(${18 + k * 5},${35 + k * 7},${25 + k * 5},.72)`; ctx.beginPath(); ctx.moveTo(0, V.h); for (let x = -80; x <= V.w + 80; x += 80) ctx.lineTo(x, y + Math.sin(x * 0.012 + k * 2.1) * 26 + sway); ctx.lineTo(V.w, V.h); ctx.closePath(); ctx.fill(); }
+    const x = V.w * 0.73, y = V.h * 0.69, s = Math.min(V.w, V.h) * 0.15; ctx.save(); ctx.translate(x, y); ctx.rotate(-0.1); ctx.fillStyle = 'rgba(6,12,10,.75)'; ctx.fillRect(-s * 1.1, -s * .28, s * 2.15, s * .56); ctx.fillStyle = '#31463a'; ctx.fillRect(-s * .95, -s * .48, s * 1.7, s * .38); ctx.fillStyle = '#263129'; ctx.fillRect(s * .52, -s * .93, s * .72, s * .5); ctx.fillStyle = '#8cb7c9'; ctx.fillRect(-s * .72, -s * .43, s * .33, s * .2); ctx.fillStyle = '#151a17'; for (const wx of [-.7, -.08, .56]) { ctx.beginPath(); ctx.arc(wx * s, s * .34, s * .18, 0, TAU); ctx.fill(); } ctx.restore();
+    return;
+  }
   CAM.z = Math.max(zFit(), zHome() * 0.75); CAM.x = MW / 2 + Math.sin(t * 0.03) * MW * 0.3; CAM.y = MH / 2 + Math.sin(t * 0.021 + 1) * MH * 0.25; clampCam();
   worldXf(); ctx.globalAlpha = 0.9; ctx.drawImage(terrainCv, 0, 0); ctx.globalAlpha = 1;
   // a slow sweep of shots landing, for atmosphere
@@ -1717,8 +1859,7 @@ function drawBackdrop(t) {
   }
   ctx.globalAlpha = 1;
 }
-layout(); setSound(SET.sound); setDiff(SET.diff); setRivals(SET.rivals); setAutoDrive(SET.autoDrive === 1 ? 1 : 0);
-try { glInitDrive(); } catch (e) { console.error(e); GL.fail = true; }
+layout(); setSound(SET.sound); setDiff(SET.diff); setRivals(SET.rivals); setAutoDrive(SET.autoDrive === 1 ? 1 : 0); renderQuality();
 showRejoin();
 menuBackdrop();
 if (Q.get('room')) { drawer('friend'); $('roomIn').value = Q.get('room').toUpperCase(); mpConnect(Q.get('room').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 5)); }

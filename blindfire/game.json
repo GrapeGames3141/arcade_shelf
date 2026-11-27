@@ -3,5 +3,5 @@
   "description": "Artillery in the dark across a big 3D map that's new every match: hills, lakes, rivers, forests and a season. Drive your launcher from behind, then stop and open the map to fire blind at rivals you can't see. Every landing is rated Cold to Scorching and pays more the closer it was. Upgrades are their own menu, and the match doesn't wait while you're in the map or the shop. Land inside your own blast and you're out. Play the CPU (1-5 rivals) or up to six players online.",
   "category": "Strategy",
   "controls": "Drive: W/S throttle, A/D steer, M map, B upgrades. Map: click to fire, drag/arrow keys/wheel to look around, M back to driving. Esc menu, N sound. Touch: stick drives; Map button then tap to fire; Upgrades button.",
-  "requirements": "WebGL2 browser. Playing online needs an internet connection."
+  "requirements": "WebGL2 enables the 3D driving camera. Browsers without it use the built-in 2D drive and map view. Playing online needs an internet connection."
 }

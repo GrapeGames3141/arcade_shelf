@@ -1,0 +1,7 @@
+{
+  "title": "Salvage Run",
+  "description": "You're the gunner on a junky salvage tug. Fly four routes, from a ship graveyard to a robot scrapyard, a comet's tail and the nest of the thing that lives in the wrecks. Blast debris out of the lane, crack open cargo, sweep targets into homing volleys, beat each boss, then spend the take on upgrades and new fire modes.",
+  "category": "Action",
+  "controls": "Mouse aims, left click fires, hold the right button and sweep over targets, then release to launch a volley; the wheel switches fire mode. WASD or arrows aim, Space fires, Shift locks, Q switches mode, Esc pauses. Touch: drag anywhere to aim, FIRE, LOCK and MODE buttons on the right, optional auto-fire. Gamepad supported.",
+  "requirements": "WebGL2 browser"
+}
