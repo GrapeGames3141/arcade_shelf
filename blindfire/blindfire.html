@@ -1079,11 +1079,10 @@ function glRender(dt) {
   GL.hd += (((me.hd - GL.hd + Math.PI) % TAU + TAU) % TAU - Math.PI) * Math.min(1, dt * 16);
   const cs = Math.cos(GL.hd), sn = Math.sin(GL.hd), my = heightAt(me.x, me.y);
   const sh = G.shake > 0 ? G.shake * 0.6 : 0;
-  // A modest shoulder offset keeps the road and aiming direction centred while
-  // showing the cab, all three axles and the launcher pod at rest.
-  const shoulder = 17, ex = me.x - cs * 30 - sn * shoulder, ez = me.y - sn * 30 + cs * shoulder; let ey = my + 15;
+  // straight behind the middle of the launcher (no shoulder offset), looking down its line
+  const ex = me.x - cs * 30, ez = me.y - sn * 30; let ey = my + 15;
   ey = Math.max(ey, heightAt(ex, ez) + 4, heightAt(me.x - cs * 15, me.y - sn * 15) + 6);
-  const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 28 + sn * 12, my + 2.4, me.y + sn * 28 - cs * 12];
+  const eye = [ex + (Math.random() - 0.5) * sh, ey + (Math.random() - 0.5) * sh, ez], tgt = [me.x + cs * 45, my + 2.4, me.y + sn * 45];
   const VP = m4mul(m4persp(1.05, W / H, 0.6, FAR), m4look(eye, tgt));
   const forwardX = tgt[0] - eye[0], forwardZ = tgt[2] - eye[2], forwardL = Math.hypot(forwardX, forwardZ) || 1;
   const right = [-forwardZ / forwardL, 0, forwardX / forwardL];
