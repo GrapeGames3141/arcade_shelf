@@ -1,5 +1,5 @@
 """Headless checks for Staff Training (Python Playwright + SwiftShader).
-usage: python test/shot.py js "<expr>" "shot:name" ...   |  python test/shot.py menu | mobile [sandbox] | next | lessons [n..] | fuzz [n..] | card | walls
+usage: python test/shot.py js "<expr>" "shot:name" ...   |  python test/shot.py menu | mobile [sandbox] | next | lessons [n..] | fuzz [n..] | card | walls | meow
 Serves the game folder itself; screenshots go to test/out/.
 """
 import sys, os, json, threading, http.server, socketserver, functools
@@ -227,5 +227,18 @@ with sync_playwright() as p:
           return { before, ctx, front: ST.DOORS.front.tgt, bed: ST.DOORS.bed.tgt, who: ST.HUM.filter(h => h.planName === 'door').map(h => h.name) }; })()""")
         ok &= check(f'pawing the front door after the bedroom door opens the FRONT door {r}', r['front'] == 1 and r['bed'] == 0)
         errs(logs); print('ALL PASS' if ok else 'SOME FAILED')
+
+    elif scen == 'meow':
+        # renders the three meow levels and the protest offline, checks them, and writes test/out/meows.wav to listen to
+        import wave, struct
+        pg, logs = page_for(b, 400, 300); frames = []
+        for n, name in ((1, 'mew'), (2, 'meow'), (3, 'MRRROWW'), (4, 'protest')):
+            x = pg.evaluate("""async (n) => { const sr = 44100, c = new OfflineAudioContext(1, sr * 1.5, sr); if (n === 4) Object.assign({}, AU, { ctx: c, sfx: c.destination }).mrow(); else AU.voice(c, c.destination, 0.05, AU.meowSpec(n)); const b = await c.startRendering(); return Array.from(b.getChannelData(0)); }""", n)
+            peak = max(abs(v) for v in x); on = [i for i, v in enumerate(x) if abs(v) > 1e-3]; dur = (on[-1] - on[0]) / 44100 if on else 0
+            print(f'{name}: peak {peak:.2f}, {dur:.2f} s'); assert 0.15 < peak < 0.8 and dur > 0.25 and all(v == v for v in x), name
+            frames += x[:int(44100 * (dur + 0.45))]
+        w = wave.open(os.path.join(OUT, 'meows.wav'), 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(44100); w.writeframes(b''.join(struct.pack('<h', int(max(-1, min(1, v)) * 32767)) for v in frames)); w.close()
+        # and through the live audio path, to catch scheduling errors a real AudioContext would throw
+        print('live', pg.evaluate("(() => { AU.init(); if (!AU.ctx) return 'no audio context'; for (const n of [1, 2, 3]) AU.meow(n); AU.mrow(); return 'ok'; })()")); errs(logs)
     b.close()
 srv.shutdown()
