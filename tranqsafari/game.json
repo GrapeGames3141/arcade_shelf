@@ -1,0 +1,8 @@
+{
+  "title": "Tranq Safari",
+  "description": "Ride shotgun in an open jeep through a prehistoric valley with a tranquilizer dart rifle. Dart raptors before they climb in, gliders before they dive and hornbacks before they ram, then turn around and put Rumblejaw to sleep as it chases you down the river. Nobody gets hurt; everybody naps.",
+  "category": "Action",
+  "controls": "Mouse aims, click fires, R or right click reloads. Arrows/WASD aim, Space fires, Esc pause. Touch: drag anywhere to aim, FIRE and RELOAD under your right thumb. Gamepad: stick aims, RT fires, X reloads.",
+  "requirements": "WebGL2 browser",
+  "screenshot": "art/tranqsafari-card.webp"
+}

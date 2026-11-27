@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07060f">
+<meta name="description" content="Salvage Run: an on-rails space shooter. Gun for a junky salvage tug through a ship graveyard, an asteroid belt and an ice ring.">
+<title>Salvage Run</title>
+<link rel="icon" href="data:,">
+<style>
+/*@CSS*/
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud2d"></canvas>
+<div id="hud" class="hidden">
+  <div id="scoreBox">
+    <div class="cap">CREDITS</div>
+    <div id="score">0</div>
+    <div id="combo"><span id="mult">×1</span><div class="bar"><i id="comboFill"></i></div></div>
+  </div>
+  <div id="hullBox">
+    <div class="cap">HULL <span id="hullPct">100%</span></div>
+    <div class="bar big"><i id="hullFill"></i></div>
+    <div id="zoneName">SHIP GRAVEYARD</div>
+    <div id="route"><span class="r1"></span><span class="r2"></span><span class="r3"></span><b id="routeTug"></b></div>
+  </div>
+  <button id="pauseBtn" aria-label="Pause">II</button>
+  <div id="radio" class="hidden">
+    <canvas id="gusFace" width="96" height="96"></canvas>
+    <div class="rtext"><div class="who">GUS · TUG <i>SECOND MORTGAGE</i></div><div id="radioText"></div></div>
+  </div>
+  <div id="bossBar" class="hidden">
+    <div class="cap">OLD GRABBY <span id="bossPhase"></span></div>
+    <div class="bar boss"><i id="bossFill"></i></div>
+    <div id="pullBox" class="hidden"><div class="cap">PULLING US IN</div><div class="bar pull"><i id="pullFill"></i></div></div>
+  </div>
+  <div id="hint" class="hidden"></div>
+</div>
+<div id="touch" class="hidden">
+  <button id="tAuto">AUTO</button>
+  <button id="tLock">LOCK</button>
+  <button id="tFire">FIRE</button>
+</div>
+
+<div id="menu" class="screen hidden">
+  <div class="card">
+    <div class="logo"><span class="l1">SALVAGE</span><span class="l2">RUN</span></div>
+    <div class="tag">You're the gunner on a junky salvage tug. Gus flies. You shoot. The bank gets paid.</div>
+    <div class="btns">
+      <button id="startBtn" class="go">START RUN</button>
+      <button id="howBtn" class="go alt">HOW TO PLAY</button>
+      <button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+    </div>
+    <div id="best" class="best"></div>
+    <div class="settings" id="setMenu"></div>
+    <div class="qnote"></div>
+  </div>
+</div>
+
+<div id="how" class="screen hidden">
+  <div class="card">
+    <h2>HOW TO PLAY</h2>
+    <div class="howtext">
+      <p>The tug <b>Second Mortgage</b> flies a fixed route through a ship graveyard, an asteroid belt and an ice ring. You only aim and shoot.</p>
+      <p><b>Debris and rocks</b> in the lane damage the hull. Red brackets mark anything on a collision course. Big rocks and ice split into smaller pieces.</p>
+      <p><b>Salvage</b>: crack open cargo pods, dead drones, engine cores, ore-streaked rocks and frozen pods. Their contents fly to the tug as credits. Green crates patch the hull. Engine cores explode and take nearby junk with them.</p>
+      <p><b>Lock-on volley</b>: hold the lock button and sweep the reticle across up to 8 targets, then let go to launch homing missiles. The 2nd kill in a volley scores ×2, the 3rd ×3, up to ×8, and a full house of 8 pays a bonus.</p>
+      <p><b>Combo</b>: kills in quick succession raise the multiplier up to ×8. Taking a hit resets it.</p>
+      <p><b>Hull mites</b> ride on debris and jump at the tug. At the end of the route something lives in the wreck of the Corvina Sunrise.</p>
+      <table class="keys">
+        <tr><td>Mouse</td><td>aim · left click fires · hold right button and sweep to lock, release to launch (or HOLD LEFT in settings)</td></tr>
+        <tr><td>Keyboard</td><td>WASD / arrows aim · Space or J fires · hold Shift or K to lock · Esc pauses</td></tr>
+        <tr><td>Touch</td><td>drag anywhere to aim · hold FIRE · hold LOCK while dragging over targets · AUTO fires when the reticle is on a target</td></tr>
+        <tr><td>Gamepad</td><td>sticks aim · RT or A fires · LT, RB or X locks · Start pauses</td></tr>
+      </table>
+    </div>
+    <div class="btns"><button id="howBack" class="go">BACK</button></div>
+  </div>
+</div>
+
+<div id="pause" class="screen hidden">
+  <div class="card small">
+    <h2>PAUSED</h2>
+    <div class="btns">
+      <button id="resumeBtn" class="go">RESUME</button>
+      <button id="restartBtn" class="go alt">RESTART RUN</button>
+      <button id="quitBtn" class="go alt">QUIT TO MENU</button>
+      <button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+    </div>
+    <div class="settings" id="setPause"></div>
+    <div class="qnote"></div>
+  </div>
+</div>
+
+<div id="results" class="screen hidden">
+  <div class="card">
+    <div id="resTitle" class="restitle">SALVAGE COMPLETE</div>
+    <div class="resmain"><div id="resRank" class="rank">A</div><div><div class="cap">CREDITS</div><div id="resScore" class="resscore">0 cr</div><div id="resBest" class="best"></div></div></div>
+    <div id="resRows" class="resrows"></div>
+    <div id="resQuip" class="quip"></div>
+    <div class="btns">
+      <button id="againBtn" class="go">RETRY</button>
+      <button id="menuBtn" class="go alt">MENU</button>
+      <button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading"><div class="logo"><span class="l1">SALVAGE</span><span class="l2">RUN</span></div><div id="loadText">Loading…</div></div>
+<script>
+/*@JS*/
+</script>
+</body>
+</html>

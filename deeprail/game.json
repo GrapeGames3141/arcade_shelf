@@ -1,0 +1,8 @@
+{
+  "title": "Deep Rail",
+  "description": "A runaway mine cart plunges through an abandoned mine full of glowing eyes. Aim and shoot while the cart drives itself: fire flares to light the dark and scare off what is watching, shoot lanterns and crystals to light them for good, flip the junction levers to pick your tunnel, and face the thing sleeping at the bottom.",
+  "category": "Action",
+  "controls": "Mouse aims, left click fires, right click launches a flare. Keys: arrows or WASD aim, Space fires, F or Shift flare, Esc pause. Touch: drag anywhere to aim, FIRE and FLARE under your right thumb, optional AUTO fire. Gamepad supported.",
+  "requirements": "WebGL2 browser",
+  "screenshot": "art/deeprail-card.webp"
+}

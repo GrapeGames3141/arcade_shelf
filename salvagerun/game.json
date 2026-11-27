@@ -1,0 +1,7 @@
+{
+  "title": "Salvage Run",
+  "description": "You're the gunner on a junky salvage tug flying a fixed route through a ship graveyard, an asteroid belt and an ice ring. Blast debris out of the lane, crack open cargo for credits, sweep up to 8 targets into a homing volley, and deal with whatever lives in the last wreck.",
+  "category": "Action",
+  "controls": "Mouse aims, left click fires, hold the right button and sweep over targets, then release to launch a volley. WASD or arrows aim, Space fires, Shift locks, Esc pauses. Touch: drag anywhere to aim, FIRE and LOCK buttons on the right, optional auto-fire. Gamepad supported.",
+  "requirements": "WebGL2 browser"
+}

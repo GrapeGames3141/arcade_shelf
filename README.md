@@ -54,6 +54,9 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Shadow Cabinet | `shadowcabinet/shadowcabinet.html` | `http://127.0.0.1:8000/shadowcabinet/shadowcabinet.html` |
 | Ghost Shift | `ghostshift/ghostshift.html` | `http://127.0.0.1:8000/ghostshift/ghostshift.html` |
 | Staff Training | `stafftraining/stafftraining.html` | `http://127.0.0.1:8000/stafftraining/stafftraining.html` |
+| Deep Rail | `deeprail/deeprail.html` | `http://127.0.0.1:8000/deeprail/deeprail.html` |
+| Tranq Safari | `tranqsafari/tranqsafari.html` | `http://127.0.0.1:8000/tranqsafari/tranqsafari.html` |
+| Salvage Run | `salvagerun/salvagerun.html` | `http://127.0.0.1:8000/salvagerun/salvagerun.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 

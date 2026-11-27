@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#2b2a1c">
+<title>Tranq Safari</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2246%22 fill=%22%23ffd34d%22/%3E%3Cpath d=%22M30 62 L62 30 M58 26 L74 22 L70 38 Z%22 stroke=%22%23394a22%22 stroke-width=%228%22 fill=%22%23394a22%22/%3E%3C/svg%3E">
+<style>
+/*@CSS*/
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hudc"></canvas>
+<div id="weave"></div>
+<div id="hurt"></div>
+<div id="touchzone"></div>
+<div id="hud" class="hidden">
+  <div id="tl">
+    <button id="pauseBtn" aria-label="Pause">II</button>
+    <div class="pill"><div class="cap">SCORE</div><div id="score">0</div></div>
+    <div id="combo" class="pill dim"><div class="cap">COMBO</div><div id="mult">x1</div></div>
+  </div>
+  <div id="tc"><div id="bossbar" class="hidden"><div class="bname">RUMBLEJAW <span>sleepiness</span></div><div class="track"><div id="bossfill"></div><i style="left:34%"></i><i style="left:67%"></i></div></div></div>
+  <div id="tr"><div class="pill hp"><div class="cap">JEEP</div><div class="track"><div id="hpfill"></div></div></div></div>
+  <div id="radio" class="hidden"><div class="who"><span class="dot"></span><b id="rwho">DOT</b> <span id="rrole">driver</span></div><div id="rtext"></div></div>
+  <div id="ammo"><div id="darts"></div><div id="reloadbar"><div id="reloadfill"></div></div><div id="ammohint">R / right click</div></div>
+  <div id="banner"></div>
+  <div id="touchbtns"><button id="reloadBtn">RELOAD</button><button id="fireBtn">FIRE</button></div>
+</div>
+
+<div id="loading" class="overlay"><div class="card small"><div class="logo"><span class="l1">TRANQ</span><span class="l2">SAFARI</span></div><div id="loadmsg">Waking up the valley...</div><div class="track load"><div id="loadfill"></div></div></div></div>
+
+<div id="menu" class="overlay hidden">
+  <div class="card">
+    <div class="logo"><span class="l1">TRANQ</span><span class="l2">SAFARI</span></div>
+    <div class="tag">No dinosaurs were harmed. Several got very sleepy.</div>
+    <div class="how">Ride shotgun through a prehistoric valley. Dot drives; you keep the dinosaurs off the jeep with a tranquilizer dart rifle. Bigger animals take more darts, and weak spots count extra. Then something big comes down the river.</div>
+    <div class="row"><span class="lab">Difficulty</span><div class="seg" data-set="diff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
+    <div class="row"><span class="lab">Quality</span><div class="seg" data-set="quality"><button data-v="0">Low</button><button data-v="1">Med</button><button data-v="2">High</button><button data-v="3">Max</button></div></div>
+    <div class="row"><span class="lab">Sound</span><div class="seg" data-set="sound"><button data-v="1">On</button><button data-v="0">Off</button></div><span class="lab">Music</span><div class="seg" data-set="music"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="row"><span class="lab">Radio voice</span><div class="seg" data-set="voice"><button data-v="0">Captions</button><button data-v="1">Spoken</button></div></div>
+    <div class="row touchonly"><span class="lab">Touch aim</span><div class="seg" data-set="sens"><button data-v="0.7">Slow</button><button data-v="1">Med</button><button data-v="1.45">Fast</button></div><span class="lab">Auto-fire</span><div class="seg" data-set="autofire"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+    <div id="bestMenu" class="best"></div><div id="portraitHint">Tip: turn your phone sideways for a wider view.</div>
+    <button id="playBtn" class="go">START SAFARI</button><button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+    <div class="keys" id="keysHelp">Mouse aims &middot; click fires &middot; R or right click reloads &middot; arrows/WASD aim &middot; Space fires &middot; Esc pause<br>Touch: drag anywhere to aim &middot; FIRE and RELOAD under your right thumb &middot; gamepad: stick aims, RT fires, X reloads</div>
+  </div>
+</div>
+
+<div id="pause" class="overlay hidden">
+  <div class="card small">
+    <div class="ptitle">PAUSED</div>
+    <div class="row"><span class="lab">Quality</span><div class="seg" data-set="quality"><button data-v="0">Low</button><button data-v="1">Med</button><button data-v="2">High</button><button data-v="3">Max</button></div></div>
+    <div class="row"><span class="lab">Sound</span><div class="seg" data-set="sound"><button data-v="1">On</button><button data-v="0">Off</button></div><span class="lab">Music</span><div class="seg" data-set="music"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
+    <div class="row"><span class="lab">Radio voice</span><div class="seg" data-set="voice"><button data-v="0">Captions</button><button data-v="1">Spoken</button></div></div>
+    <div class="row touchonly"><span class="lab">Touch aim</span><div class="seg" data-set="sens"><button data-v="0.7">Slow</button><button data-v="1">Med</button><button data-v="1.45">Fast</button></div><span class="lab">Auto-fire</span><div class="seg" data-set="autofire"><button data-v="0">Off</button><button data-v="1">On</button></div></div>
+    <div id="fpsRow" class="best"></div>
+    <button id="resumeBtn" class="go">RESUME</button>
+    <button id="restartBtn" class="go alt">RESTART</button><button id="quitBtn" class="go alt">QUIT TO TITLE</button><button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+  </div>
+</div>
+
+<div id="results" class="overlay hidden">
+  <div class="card">
+    <div id="rtitle" class="ptitle">SAFARI COMPLETE</div>
+    <div id="rsub" class="tag"></div>
+    <div id="rbody"></div>
+    <button id="againBtn" class="go">RETRY</button><button id="menuBtn" class="go alt">TITLE</button><button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+  </div>
+</div>
+<div id="nogl" class="overlay" style="display:none"><div class="card small"><div class="ptitle">WebGL2 needed</div><div class="how">This game needs a browser with WebGL2.</div></div></div>
+
+<script>
+/*@JS*/
+</script>
+</body>
+</html>

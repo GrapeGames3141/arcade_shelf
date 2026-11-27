@@ -21,6 +21,9 @@ SOURCE_ONLY_DIRS = {
     "quilthill": {"parts", "test"},
     "alleyknights": {"parts", "test"},
     "stafftraining": {"parts", "test"},
+    "deeprail": {"parts", "test", "art"},
+    "tranqsafari": {"parts", "test", "art"},
+    "salvagerun": {"parts", "test", "art"},
 }
 BYTE_EXACT_EXPERIMENTS = (
     Path("experiments/rain-dragon-express/fable.html"),
