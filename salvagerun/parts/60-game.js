@@ -9,20 +9,23 @@ function resetRun(seed = 1) {
   ENTS = []; DEBRIS.length = 0; PICKS.length = 0; BOLTS.length = 0; MISSILES.length = 0; TIMERS.length = 0; LIGHTS.length = 0; VOLLEYS = {};
   PT.n = 0; LOCK.on = false; LOCK.list = []; LOCK.cool = 0; WEAP.cool = 0;
   Object.assign(G, { t: 0, runT: 0, score: 0, combo: 0, comboT: 0, mult: 1, stats: newStats(), slowmo: 0, shake: 0, flash: 0, evI: 0, ambS: 150, saidMites: false, bossOn: false, ended: false, radioQ: [], radioCur: null, radioT: 0, said: {}, quipT: 30, lowSaid: false, hitQuipT: 0, popups: [], deadT: 0, result: null });
-  Object.assign(TUG, { s: 0, v: 16, x: 0, y: 0, hull: 100, dead: false, turQ: null, hitT: 0 });
+  Object.assign(TUG, { s: 0, v: 16, x: 0, y: 0, hull: STATS.hull, hullMax: STATS.hull, dead: false, turQ: null, hitT: 0, shieldUp: STATS.shield > 0, shieldT: 0, shieldFlash: 0 });
+  WEAP.heat = 0; WEAP.over = false; WEAP.beamOn = false; if (!CAMP.modes[WEAP.mode]) WEAP.mode = 'cannon';
   bossReset();
   updateTug(0); updateCamera(0);
 }
 function updateTug(dt) {
   if (!TUG.dead) {
-    if (G.phase === 'menu') { TUG.v = 30; TUG.s += TUG.v * dt; if (TUG.s > 6600) TUG.s = 40; }
+    if (G.phase === 'menu') { TUG.v = 30; TUG.s += TUG.v * dt; if (TUG.s > S_STOP - 700) TUG.s = 40; }
     else if (TUG.s < S_STOP) { TUG.v = railSpeed(TUG.s); TUG.s = Math.min(S_STOP, TUG.s + TUG.v * dt); if (TUG.s >= S_STOP && !BOSS.active) bossStart(); }
     else { TUG.v = 0; }
   }
   const t = G.t;
   let x = 2.6 * Math.sin(t * 0.37) + 1.2 * Math.sin(t * 0.83 + 1), y = 1.5 * Math.sin(t * 0.29 + 1) + 0.7 * Math.sin(t * 0.71);
   let sz = 0;
-  if (BOSS.active) { const k = sstep(0, 3, BOSS.t); x = lerp(x, 13 * Math.sin(BOSS.t * 0.33), k); y = lerp(y, 3 + 4 * Math.sin(BOSS.t * 0.47), k); sz = BOSS.pull * 55 + (BOSS.lunge > 0 ? -Math.sin(BOSS.lunge * Math.PI) * 8 : 0); }
+  if (BOSS.active) { const k = sstep(0, 3, BOSS.t); x = lerp(x, 13 * Math.sin(BOSS.t * 0.33), k); y = lerp(y, 3 + 4 * Math.sin(BOSS.t * 0.47), k); sz = (BOSS.pullMove ? BOSS.pull * (BOSS.pullDist || 55) : 0) + (BOSS.lunge > 0 && BOSS.pullMove ? -Math.sin(BOSS.lunge * Math.PI) * 8 : 0); }
+  if (STATS.shield && !TUG.shieldUp && !TUG.dead) { TUG.shieldT -= dt; if (TUG.shieldT <= 0) { TUG.shieldUp = true; if (G.phase === 'play') SFX.shieldUp(); } }
+  TUG.shieldFlash = Math.max(0, (TUG.shieldFlash || 0) - dt * 2.5);
   const px = TUG.x, py = TUG.y; TUG.x = x; TUG.y = y;
   const f = railFrame(TUG.s + sz, {});
   const W = vadd(f.p, vadd(vscl(f.R, x), vscl(f.U, y)));
@@ -39,11 +42,10 @@ function updateCamera(dt) {
   const boss = BOSS.active ? sstep(0, 2.5, BOSS.t) : 0;
   const back = lerp(17.5, 19, boss), up = lerp(6.4, 9.5, boss);
   eye = vadd(vadd(eye, vscl(f.T, -back)), vscl(f.U, up));
-  if (BOSS.active && BOSS.pull) eye = vmad(eye, f.T, BOSS.pull * 55);
   const ax = (AIM.x / VIEW.cssW - 0.5), ay = (AIM.y / VIEW.cssH - 0.5);
   let at = vadd(vadd(TUG.W, vscl(f.T, 40)), vscl(f.U, 4.2));
   at = vadd(at, vadd(vscl(f.R, ax * 7), vscl(f.U, -ay * 4.5)));
-  if (boss > 0) { const look = vadd(WRECK.c, vadd(vscl(WRECK.U, 7), vadd(vscl(f.R, ax * 30), vscl(f.U, -ay * 18)))); at = vlerp(at, look, boss); }
+  if (boss > 0) { const base = BOSS.focus || vadd(WRECK.c, vscl(WRECK.U, 7)); BOSS.sFocus = BOSS.sFocus ? vlerp(BOSS.sFocus, base, 1 - Math.exp(-2.5 * dt)) : base; const look = vadd(BOSS.sFocus, vadd(vscl(f.R, ax * 30), vscl(f.U, -ay * 18))); at = vlerp(at, look, boss * 0.86); } // keep a little of the tug-relative look so the tug stays in frame
   if (G.phase === 'menu') { const a = G.t * 0.12; eye = vadd(TUG.W, vadd(vadd(vscl(f.R, Math.sin(a) * 18), vscl(f.U, 5 + Math.sin(a * 0.7) * 2)), vscl(f.T, Math.cos(a) * 18))); at = vadd(TUG.W, vscl(f.U, 1)); }
   if (TUG.dead) { eye = vmad(eye, f.T, -G.deadT * 6); }
   if (!CAM.sEye || dt === 0 || G.phase === 'menu') { CAM.sEye = eye; CAM.sAt = at; }
@@ -63,6 +65,7 @@ function updateCamera(dt) {
 function shake(a) { G.shake = Math.min(1.4, Math.max(G.shake, a)); }
 function hitTug(dmg, src) {
   if (TUG.dead || G.phase !== 'play' || G.god) return;
+  if (TUG.shieldUp) { TUG.shieldUp = false; TUG.shieldT = STATS.shieldT; TUG.shieldFlash = 1; G.stats.shieldHits = (G.stats.shieldHits || 0) + 1; popup('SHIELD', TUG.W, '#7df'); SFX.shield(); shake(0.2); addLight(TUG.W, [2, 5, 8], 30, 0.3); return; }
   TUG.hull = Math.max(0, TUG.hull - dmg); G.stats.dmgTaken += dmg; G.stats.hitsTaken++; const hk = src && src.kind ? src.kind : 'boss'; G.stats.hitBy[hk] = (G.stats.hitBy[hk] || 0) + 1;
   G.flash = Math.min(1, 0.45 + dmg * 0.025); shake(0.35 + dmg * 0.02); G.combo = 0; G.mult = 1; TUG.hitT = G.t;
   FX.sparks(vmad(TUG.W, TUG.vel, 0.05), 20, TUG.vel, [6, 4, 2], 18); addLight(TUG.W, [8, 4, 2], 25, 0.3);
@@ -72,7 +75,7 @@ function hitTug(dmg, src) {
   if (TUG.hull < 30 && !G.lowSaid) { G.lowSaid = true; radio('low', true); }
   else if (G.t > G.hitQuipT) { G.hitQuipT = G.t + 9; radio('hit'); }
 }
-function repairTug(n) { if (TUG.hull >= 99.5) { const v = 200 * G.mult; G.score += v; G.stats.salvage += v; popup('+' + v + ' (spare kit)', TUG.W, '#6f8'); SFX.pickup(); return; } TUG.hull = Math.min(100, TUG.hull + n); popup('+' + n + ' HULL', TUG.W, '#6f8'); radio('kit'); SFX.repair(); if (TUG.hull >= 30) G.lowSaid = false; }
+function repairTug(n) { if (TUG.hull >= TUG.hullMax - 0.5) { const v = 200 * G.mult; G.score += v; G.stats.salvage += v; popup('+' + v + ' (spare kit)', TUG.W, '#6f8'); SFX.pickup(); return; } TUG.hull = Math.min(TUG.hullMax, TUG.hull + n); popup('+' + n + ' HULL', TUG.W, '#6f8'); radio('kit'); SFX.repair(); if (TUG.hull >= 30) G.lowSaid = false; }
 // ---- scoring ----
 function scoreKill(e, src) {
   G.stats.kills++; G.stats.kinds[e.kind] = (G.stats.kinds[e.kind] || 0) + 1;
@@ -95,7 +98,7 @@ function scoreKill(e, src) {
 }
 function collectPick(k) {
   if (k.kit) { repairTug(15); return; }
-  const v = Math.round(k.val * G.mult); G.score += v; G.stats.salvage += v;
+  const v = Math.round(k.val * G.mult * STATS.tractor); G.score += v; G.stats.salvage += v;
   popup('+' + v, k.p, '#fd6'); SFX.pickup();
 }
 function popup(text, p, col, big) { G.popups.push({ text, p: p.slice(), col, big, t: 0 }); if (G.popups.length > 30) G.popups.shift(); }
@@ -140,6 +143,7 @@ const LINES = {
   quip: ["My first tug was a converted ice-cream freighter. Smelled like vanilla for nine years.", "If you see a sandwich floating out there, it's mine.", "Don't touch the red button. Or the other red button.", "The bank calls this an asset. I call her the Second Mortgage.", "You know what's great about space? No traffic cops."],
   miss: ["You're mostly hitting space. Space is fine. Space doesn't pay."]
 };
+Object.assign(LINES, MORE_LINES);
 function radio(key, urgent) {
   const arr = LINES[key]; if (!arr || !arr[0]) return;
   let i = G.said['_' + key] || 0; const text = arr[i % arr.length]; G.said['_' + key] = i + 1;
@@ -152,7 +156,7 @@ function updateRadio(dt) {
 // ---- level script (route positions) ----
 const LEAD = 360;
 function inLane() { return [rr(-2.5, 2.5), rr(-1.5, 1.5)]; }
-const EV = [
+const EV_L1 = [
   [10, () => radio('intro1')], [70, () => radio('intro2')], [150, () => { radio('grave'); }],
   [180, () => { for (let i = 0; i < 3; i++) spawnAt('plate', rr(-30, 30), rr(-12, 12), LEAD + i * 40, { aim: inLane(), spin: rr(1, 2.5) }); radio('plates'); }],
   [300, () => { radio('pod'); for (let i = 0; i < 3; i++) spawnAt('pod', -70 - i * 12, rr(-6, 10), LEAD + i * 30, { rv: [11, 0, 0], spin: 0.4 }); }],
@@ -200,7 +204,7 @@ const EV = [
   [6950, () => radio('claws')],
   [7120, () => radio('corvina')]
 ];
-function ambientSpawn() {
+function ambientL1() {
   const z = zoneAt(TUG.s); if (TUG.s > 6650) return;
   const kinds = [['plate', 'plate', 'rockS', 'plate'], ['rockS', 'rockM', 'rockS', 'ore'], ['iceS', 'iceM', 'iceS', 'iceS']][Math.min(z, 2)];
   const k = pick(kinds), inP = rnd() < 0.33;
@@ -208,8 +212,9 @@ function ambientSpawn() {
   if (rnd() < 0.12) spawnAt(z === 2 ? 'frozen' : rnd() < 0.5 ? 'pod' : 'drone', rr(-35, 35), rr(-14, 14), LEAD + rr(0, 60), { rv: [rr(-4, 4), 0, 0], spin: 0.4 });
 }
 function updateLevel(dt) {
+  const EV = LV.events();
   while (G.evI < EV.length && TUG.s >= EV[G.evI][0]) { EV[G.evI][1](); G.evI++; }
-  if (TUG.s >= G.ambS) { G.ambS += rr(48, 80); ambientSpawn(); }
+  if (TUG.s >= G.ambS) { G.ambS += rr(48, 80); LV.ambient(); }
   G.quipT -= dt; if (G.quipT <= 0 && !G.radioCur && !BOSS.active) { G.quipT = rr(35, 55); if (G.stats.shots > 120 && G.stats.hits / G.stats.shots < 0.18) radio('miss'); else radio('quip'); }
 }
 function step(dt) {
@@ -229,17 +234,18 @@ function step(dt) {
   G.shake = Math.max(0, G.shake - dt * 1.8); G.flash = Math.max(0, G.flash - dt * 1.6);
   for (const p of G.popups) p.t += dt; G.popups = G.popups.filter(p => p.t < (p.big ? 1.6 : 1.0));
   if (TUG.dead && frnd() < dt * 6) FX.boom(vadd(TUG.W, vscl(randDir(frnd), 3)), frr(1.5, 3.5), [1, 0.6, 0.25], TUG.vel);
-  if (G.phase === 'menu' && frnd() < dt * 0.6 && ENTS.length < 10) spawnAt(pick(['rockM', 'plate', 'pod', 'iceM']), rr(-30, 30), rr(-12, 12), 260, { spin: rr(0.3, 1.5) });
+  if (G.phase === 'menu' && frnd() < dt * 0.6 && ENTS.length < 10) spawnAt(pick(LV.attract), rr(-30, 30), rr(-12, 12), 260, { spin: rr(0.3, 1.5) });
 }
 function finishRun(win) {
   if (G.ended) return; G.ended = true;
   for (const k of PICKS.splice(0)) collectPick(k);
   const hullBonus = win ? Math.round(TUG.hull) * 25 : 0, bossBonus = win ? 5000 : 0;
   G.score += hullBonus + bossBonus;
-  const acc = G.stats.shots ? G.stats.hits / G.stats.shots : 0;
-  const ranks = [['S', 400000], ['A', 280000], ['B', 180000], ['C', 100000], ['D', 0]];
+  const acc = G.stats.shots ? Math.min(1, G.stats.hits / G.stats.shots) : 0;
+  const rk = LV.ranks, ranks = [['S', rk[0]], ['A', rk[1]], ['B', rk[2]], ['C', rk[3]], ['D', 0]];
   const rank = win ? ranks.find(r => G.score >= r[1])[0] : 'X';
-  const best = SAVE.get('best', 0), isBest = G.score > best; if (isBest) SAVE.set('best', Math.round(G.score));
-  G.result = { win, score: Math.round(G.score), hullBonus, bossBonus, acc, rank, isBest, best: Math.max(best, G.score), time: G.runT, stats: G.stats, hull: Math.round(TUG.hull) };
-  G.phase = 'results'; showResults();
+  const best = CAMP.best[LV_N] || 0, isBest = win && G.score > best;
+  const paid = bankLevel(LV_N, win, G.score);
+  G.result = { win, level: LV_N, score: Math.round(G.score), paid, hullBonus, bossBonus, acc, rank, isBest, best: Math.max(best, win ? G.score : 0), time: G.runT, stats: G.stats, hull: Math.round(TUG.hull), last: LV_N === LEVELS.length };
+  G.phase = 'results'; SFX.beam(false); showResults();
 }

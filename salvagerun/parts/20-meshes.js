@@ -259,6 +259,39 @@ function buildTemplates() {
   { const g = new Geo(); g.add(cyl(1.0, 0.38, 1.2, 16, C_DARK, 3, false), [0, 0, 0], QX90); g.add(cyl(0.4, 0.4, 0.4, 12, C_GREY, 3), [0, 0, 0.75], QX90); reg('bell', g, false); }
   { const g = new Geo(); seg(g, [0, 0, -1], [0, 0, 1], 0.04, 0.04, C_DARK, 3, 5); for (const z of [-0.6, 0, 0.6]) seg(g, [-0.3, 0, z], [0.3, 0, z], 0.02, 0.02, C_DARK, 3, 4); reg('mast', g); }
   { const g = new Geo(); g.add(box(2.4, 2.6, 12)); for (let z = -5.4; z <= 5.5; z += 0.9) for (const s of [-1, 1]) g.add(box(0.08, 2.4, 0.18), [s * 1.22, 0, z]); for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) g.add(box(0.3, 0.3, 12.1, C_DARK, 3), [x * 1.1, y * 1.2, 0]); reg('container', g); }
+  // ---- level 2: Kessler Breaker Yard ----
+  for (let k = 0; k < 2; k++) { // compressed scrap cube: a jumble of crushed panels
+    const R = mkRng(900 + k * 7), g = new Geo(), cols = [[0.55, 0.16, 0.12], [0.18, 0.24, 0.36], [0.62, 0.42, 0.16], [0.45, 0.47, 0.5], [0.3, 0.32, 0.28], [0.7, 0.66, 0.58]];
+    for (let i = 0; i < 9; i++) g.add(box(0.5 + R() * 0.7, 0.4 + R() * 0.7, 0.5 + R() * 0.7, cols[Math.floor(R() * cols.length)], R() < 0.25 ? 3 : 2), [(R() - 0.5) * 0.7, (R() - 0.5) * 0.7, (R() - 0.5) * 0.7], qrand(R));
+    g.add(box(1.05, 1.05, 1.05, [0.34, 0.33, 0.31], 3), [0, 0, 0], qaxis([0.3, 1, 0.2], R()));
+    reg('cube' + k, g);
+  }
+  { const g = new Geo(); g.add(box(2.2, 2.2, 3.4)); for (const z of [-1.3, 0, 1.3]) g.add(box(2.32, 2.32, 0.18, C_DARK, 3), [0, 0, z]); g.add(box(2.26, 0.5, 3.46, [1, 1, 1], 8), [0, 0.6, 0]); g.add(sphere(0.18, 8, 6, [0.3, 1, 0.5], 4), [0, 1.2, 1.2]); reg('crate', g); }
+  { const g = new Geo(); g.add(sphere(1, 14, 10, [0.25, 0.25, 0.27], 3)); const R = mkRng(77); for (let i = 0; i < 14; i++) { const d = randDir(R); seg(g, vscl(d, 0.85), vscl(d, 1.75), 0.16, 0.0, C_GREY, 3, 6); } g.add(torus(1.02, 0.09, 24, 5, [1, 0.12, 0.08], 4)); reg('mine', g); }
+  { const g = new Geo(); g.add(sphere(1, 16, 12, [0.42, 0.44, 0.47], 2)); g.add(torus(0.5, 0.11, 18, 5, [1, 0.15, 0.08], 4), [0, 0, 0.88], QX90); g.add(sphere(0.3, 10, 8, [1, 0.25, 0.1], 4), [0, 0, 0.9]);
+    for (const s2 of [-1, 1]) { g.add(cyl(0.12, 0.12, 1.4, 8, C_DARK, 3), [s2 * 1.05, -0.2, 0.4], QX90); g.add(box(0.5, 0.5, 0.8, C_DARK, 3), [s2 * 1.0, -0.2, -0.1]); }
+    g.add(box(0.12, 0.7, 1.0, [0.9, 0.7, 0.1], 8), [0, 1.05, -0.2]); reg('sentry', g); }
+  { const g = new Geo(); g.add(box(2.2, 1.7, 1.7, [0.33, 0.35, 0.38], 3)); for (const [x, y] of [[-0.9, -0.65], [0.9, -0.65], [0.9, 0.65], [-0.9, 0.65]]) g.add(cyl(0.12, 0.12, 0.14, 8, C_GREY, 3), [x, y, 0.88], QX90);
+    g.add(box(0.9, 0.5, 0.06, [0.25, 1, 0.85], 4), [0, 0.1, 0.87]); g.add(box(2.28, 0.18, 1.78, [1, 1, 1], 8), [0, -0.7, 0]); reg('vault', g); }
+  { const g = new Geo(); g.add(cyl(1, 1, 3.6, 16, [1, 1, 1], -1, false), [0, 0, 0], QX90); for (const z of [-1.95, 1.95]) g.add(cyl(1.02, 0.6, 0.35, 16, C_DARK, 3), [0, 0, z * (z > 0 ? 1 : 1)], z > 0 ? QX90 : qaxis([1, 0, 0], -Math.PI / 2)); g.add(cyl(1.03, 1.03, 0.5, 16, [1, 1, 1], 8, false), [0, 0, 0.6], QX90); g.add(cyl(0.12, 0.12, 0.6, 8, C_GREY, 3), [0, 1.1, -0.8]); reg('tank', g); }
+  { const g = new Geo(); g.add(torus(1, 0.065, 72, 8, [0.62, 0.62, 0.6], 7)); for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; seg(g, [Math.cos(a) * 0.08, 0, Math.sin(a) * 0.08], [Math.cos(a) * 0.95, 0, Math.sin(a) * 0.95], 0.012, 0.012, C_GREY, 3, 5); } g.add(cyl(0.09, 0.09, 0.2, 14, C_GREY, 2)); reg('wheel', g); }
+  { const g = new Geo(); g.add(box(3, 2, 2.2, [0.85, 0.62, 0.1], 2)); g.add(box(3.1, 0.3, 2.3, [1, 1, 1], 8), [0, 1.05, 0]); for (const x of [-1, 1]) { g.add(cyl(0.25, 0.25, 2.4, 10, C_GREY, 3), [x, 2.1, 0]); g.add(box(1.2, 0.5, 2.0, C_DARK, 3), [x, 3.3, 0]); } g.add(box(2.6, 0.4, 2.6, C_DARK, 3), [0, -1.2, 0]); reg('crusher', g); }
+  { const g = new Geo(); g.add(box(4.2, 0.08, 2.2, C_DARK, 3)); for (let i = 0; i < 4; i++) g.add(box(0.95, 0.06, 2.0, [0.15, 0.25, 0.45], 9), [-1.55 + i * 1.03, 0.04, 0]); reg('solar', g, false); }
+  { const g = new Geo(); g.add(box(3.2, 2.6, 2.0, [0.86, 0.6, 0.08], 2)); g.add(box(3.3, 0.6, 2.1, [1, 1, 1], 8), [0, -1.0, 0]); for (const x of [-1.1, 0, 1.1]) g.add(box(0.7, 1.4, 0.15, C_DARK, 3), [x, 0.3, 1.05]); g.add(box(1.4, 1.0, 0.6, C_DARK, 3), [0, 0.2, -1.2]); reg('fbody', g); }
+  { const g = new Geo(); g.add(box(1.6, 1.0, 1.3, [0.86, 0.6, 0.08], 2)); g.add(box(1.3, 0.28, 0.1, [1, 0.12, 0.05], 4), [0, 0.05, 0.66]); seg(g, [0.5, 0.5, 0], [0.6, 1.4, -0.2], 0.04, 0.03, C_DARK, 3, 4); g.add(sphere(0.07, 6, 4, [1, 0.2, 0.1], 4), [0.6, 1.42, -0.2]); reg('fhead', g); }
+  { const g = new Geo(); g.add(box(0.8, 0.8, 3, [0.86, 0.6, 0.08], 2), [0, 0, 1.5]); g.add(box(0.84, 0.25, 2.6, [1, 1, 1], 8), [0, 0.3, 1.5]); g.add(cyl(0.12, 0.12, 2.4, 8, C_GREY, 3), [0, -0.55, 1.5], QX90); reg('arm', g); }
+  { const g = new Geo(); g.add(box(1.2, 1.2, 0.8, C_DARK, 3)); for (let k = 0; k < 3; k++) { const a = k / 3 * TAU, d = [Math.cos(a), Math.sin(a), 0]; seg(g, vscl(d, 0.4), vadd(vscl(d, 0.9), [0, 0, 1.3]), 0.2, 0.15, C_GREY, 3, 5); seg(g, vadd(vscl(d, 0.9), [0, 0, 1.3]), vadd(vscl(d, 0.35), [0, 0, 2.4]), 0.15, 0.06, C_GREY, 3, 5); } reg('claw', g); }
+  { const g = new Geo(); g.add(cyl(1, 1, 1.3, 16, C_DARK, 3)); g.add(torus(1.05, 0.22, 24, 6, [1, 0.55, 0.12], 4)); g.add(cyl(0.55, 0.55, 1.4, 12, [1, 0.6, 0.15], 4)); reg('actuator', g); }
+  // ---- level 3: The Comet Tail ----
+  { const g = new Geo(), R = mkRng(321); for (let i = 0; i < 7; i++) { const d = vnorm([(R() - 0.5) * 1.4, 1, (R() - 0.5) * 1.4]); g.add(crystal(0.16 + R() * 0.12, 0.8 + R() * 1.1), vscl(d, 0.1), qfromTo([0, 1, 0], d)); }
+    for (let k = 0; k < g.nv; k++) g.c[k * 4 + 3] = 11; g.add(blobGeo(1, d => 1 + 0.2 * hash3(Math.round(d[0] * 5), Math.round(d[1] * 5), Math.round(d[2] * 5)), () => [0.3, 0.29, 0.3], 11, [0.6, 0.3, 0.6]).flat(), [0, -0.1, 0]); reg('crysclus', g); }
+  reg('whead', blobGeo(3, d => { let r = 1 + 0.1 * (fbm(d[0] * 3 + 7, d[1] * 3, d[2] * 3, 4) - 0.5) * 2 + 0.05 * Math.sin(Math.atan2(d[1], d[0]) * 9) * (1 - Math.abs(d[2])); if (d[2] > 0.8) r -= (d[2] - 0.8) * 2.4; return r; },
+    d => { const f = d[2] > 0.76 ? 0.2 : 1, top = d[1] > 0.1 ? 0.75 : 1; return [0.5 * f * top, 0.56 * f * top, 0.64 * f * top]; }, 5, [0.9, 0.75, 1.5]));
+  // ---- level 4: The Nest ----
+  reg('egg', blobGeo(2, d => 1 + 0.06 * (fbm(d[0] * 4, d[1] * 4 + 3, d[2] * 4, 3) - 0.5) * 2, d => [0.42 + d[1] * 0.1, 0.18, 0.3], 5, [0.8, 1.05, 0.8]));
+  { const g = new Geo(); g.add(blobGeo(2, d => 1 + 0.3 * (fbm(d[0] * 2.5 + 3, d[1] * 2.5, d[2] * 2.5, 3) - 0.5) * 2, () => [0.22, 0.08, 0.2], 5, [1, 0.6, 1])); seg(g, [0, 0.4, 0], [0, 1.6, 0.6], 0.5, 0.32, [0.25, 0.09, 0.22], 5, 10); g.add(torus(0.33, 0.12, 14, 6, [0.3, 1, 0.5], 4), [0, 1.65, 0.65], qaxis([1, 0, 0], 1.1)); reg('spitter', g); }
+  { const g = new Geo(); g.add(cyl(0.03, 0.03, 2, 6, [0.28, 0.1, 0.24], 5, false), [0, 0, 0], QX90); reg('strand', g, false); }
+  { const g = blobGeo(3, d => 1 + 0.18 * (fbm(d[0] * 3 + 5, d[1] * 3, d[2] * 3, 4) - 0.5) * 2, () => [0.2, 0.07, 0.17], 5); for (let k = 0; k < g.i.length; k += 3) { const t = g.i[k + 1]; g.i[k + 1] = g.i[k + 2]; g.i[k + 2] = t; } for (let k = 0; k < g.n.length; k++) g.n[k] = -g.n[k]; reg('cavern', g, false); }
   // ---- creature ----
   reg('blob', blobGeo(2, d => 1 + 0.4 * (fbm(d[0] * 2.4 + 9, d[1] * 2.4, d[2] * 2.4, 4) - 0.5) * 2, () => [1, 1, 1], -1, [1, 0.75, 1]));
   reg('bhead', blobGeo(3, d => {

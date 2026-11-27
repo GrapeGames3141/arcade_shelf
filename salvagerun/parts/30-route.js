@@ -1,22 +1,36 @@
-// ---------- the fixed route: spline, rail frames, zones, environment, scenery ----------
-const ROUTE_PTS = [[0, 0, -300], [0, 0, 0], [30, 10, 550], [150, 30, 1080], [330, 0, 1560], [410, -40, 2080], [340, -60, 2600], [170, -20, 3080], [20, 30, 3580], [-70, 60, 4100],
+// ---------- routes: spline, rail frames, zones, environment (per level), and level 1 scenery ----------
+// The current level (LV, defined in 32-levels.js) sets ROUTE_PTS, ZONES, S_STOP and S_BOSS before its route and scenery are built.
+let ROUTE_PTS = [[0, 0, -300], [0, 0, 0], [30, 10, 550], [150, 30, 1080], [330, 0, 1560], [410, -40, 2080], [340, -60, 2600], [170, -20, 3080], [20, 30, 3580], [-70, 60, 4100],
   [-20, 30, 4620], [130, 0, 5120], [280, -10, 5620], [330, 30, 6140], [250, 60, 6640], [150, 62, 7080], [95, 58, 7420], [60, 55, 7800], [40, 52, 8200], [30, 50, 8600]];
-const ZONES = [
-  { id: 'graveyard', name: 'SHIP GRAVEYARD', s0: 0, s1: 2300 },
-  { id: 'belt', name: 'ASTEROID BELT', s0: 2300, s1: 4600 },
-  { id: 'ice', name: 'ICE RING', s0: 4600, s1: 6700 },
-  { id: 'wreck', name: 'THE CORVINA SUNRISE', s0: 6700, s1: 99999 }
+// zone: id, name, s0, s1, env (key into ENV), v (cruise speed m/s)
+let ZONES = [
+  { id: 'graveyard', name: 'SHIP GRAVEYARD', s0: 0, s1: 2300, env: 'graveyard', v: 44 },
+  { id: 'belt', name: 'ASTEROID BELT', s0: 2300, s1: 4600, env: 'belt', v: 47 },
+  { id: 'ice', name: 'ICE RING', s0: 4600, s1: 6700, env: 'ice', v: 45 },
+  { id: 'wreck', name: 'THE CORVINA SUNRISE', s0: 6700, s1: 7300, env: 'wreck', v: 45 }
 ];
-const S_STOP = 7300, S_BOSS = 7440;
+let S_STOP = 7300, S_BOSS = 7440;
 const ENV = {
   graveyard: { sun: [2.35, 2.1, 1.8], ambA: [0.16, 0.09, 0.11], ambB: [0.05, 0.04, 0.06], haze: [0.07, 0.035, 0.035], hazeDen: 0.00034, mote: [0.5, 0.35, 0.25], expo: 0.86, neb: 1.0, star: 1.0, planetR: 0.14 },
   belt: { sun: [2.45, 2.25, 1.95], ambA: [0.12, 0.11, 0.1], ambB: [0.04, 0.05, 0.07], haze: [0.07, 0.055, 0.04], hazeDen: 0.00042, mote: [0.55, 0.45, 0.32], expo: 0.86, neb: 0.95, star: 0.9, planetR: 0.2 },
   ice: { sun: [2.6, 2.55, 2.5], ambA: [0.1, 0.15, 0.22], ambB: [0.03, 0.05, 0.09], haze: [0.06, 0.09, 0.14], hazeDen: 0.0005, mote: [0.55, 0.75, 1.0], expo: 0.8, neb: 0.9, star: 0.8, planetR: 0.27 },
-  wreck: { sun: [1.7, 1.5, 1.45], ambA: [0.13, 0.06, 0.13], ambB: [0.02, 0.06, 0.05], haze: [0.04, 0.03, 0.05], hazeDen: 0.00045, mote: [0.35, 0.8, 0.6], expo: 0.95, neb: 0.75, star: 1.1, planetR: 0.3 }
+  wreck: { sun: [1.7, 1.5, 1.45], ambA: [0.13, 0.06, 0.13], ambB: [0.02, 0.06, 0.05], haze: [0.04, 0.03, 0.05], hazeDen: 0.00045, mote: [0.35, 0.8, 0.6], expo: 0.95, neb: 0.75, star: 1.1, planetR: 0.3 },
+  // level 2: Kessler Breaker Yard
+  yard: { sun: [2.5, 2.4, 2.3], ambA: [0.1, 0.12, 0.16], ambB: [0.06, 0.04, 0.03], haze: [0.05, 0.05, 0.06], hazeDen: 0.0004, mote: [0.8, 0.6, 0.35], expo: 0.85, neb: 0.7, star: 1.0, planetR: 0.11 },
+  spine: { sun: [2.3, 2.25, 2.2], ambA: [0.09, 0.11, 0.15], ambB: [0.07, 0.05, 0.03], haze: [0.04, 0.045, 0.06], hazeDen: 0.00045, mote: [0.7, 0.75, 0.9], expo: 0.88, neb: 0.65, star: 1.0, planetR: 0.12 },
+  foundry: { sun: [2.0, 1.8, 1.6], ambA: [0.14, 0.08, 0.05], ambB: [0.05, 0.04, 0.05], haze: [0.07, 0.04, 0.025], hazeDen: 0.0005, mote: [1.0, 0.6, 0.3], expo: 0.9, neb: 0.6, star: 0.9, planetR: 0.13 },
+  // level 3: The Comet Tail
+  coma: { sun: [3.0, 2.95, 2.85], ambA: [0.14, 0.2, 0.28], ambB: [0.05, 0.07, 0.11], haze: [0.1, 0.14, 0.2], hazeDen: 0.0006, mote: [0.8, 0.95, 1.2], expo: 0.72, neb: 0.55, star: 0.5, planetR: 0.05 },
+  surface: { sun: [3.1, 3.0, 2.9], ambA: [0.12, 0.16, 0.22], ambB: [0.07, 0.07, 0.08], haze: [0.09, 0.12, 0.17], hazeDen: 0.00055, mote: [0.9, 0.95, 1.1], expo: 0.72, neb: 0.5, star: 0.45, planetR: 0.05 },
+  burrow: { sun: [2.8, 2.7, 2.6], ambA: [0.1, 0.13, 0.2], ambB: [0.06, 0.06, 0.07], haze: [0.08, 0.1, 0.15], hazeDen: 0.0005, mote: [0.8, 0.9, 1.1], expo: 0.75, neb: 0.5, star: 0.5, planetR: 0.05 },
+  // level 4: The Nest
+  hive: { sun: [1.6, 1.45, 1.5], ambA: [0.09, 0.14, 0.1], ambB: [0.06, 0.02, 0.07], haze: [0.03, 0.06, 0.05], hazeDen: 0.0005, mote: [0.5, 1.0, 0.7], expo: 1.0, neb: 0.7, star: 1.1, planetR: 0.18 },
+  throat: { sun: [0.5, 0.45, 0.5], ambA: [0.16, 0.12, 0.17], ambB: [0.05, 0.13, 0.09], haze: [0.06, 0.03, 0.06], hazeDen: 0.0011, mote: [0.6, 1.0, 0.8], expo: 1.25, neb: 0.4, star: 0.6, planetR: 0.18 },
+  cavern: { sun: [0.6, 0.5, 0.55], ambA: [0.15, 0.075, 0.135], ambB: [0.04, 0.11, 0.08], haze: [0.045, 0.02, 0.04], hazeDen: 0.0008, mote: [0.7, 1.0, 0.8], expo: 1.0, neb: 0.4, star: 0.6, planetR: 0.18 }
 };
 const ROUTE = { ds: 2 };
-function buildRoute() {
-  const P = ROUTE_PTS, dense = [];
+function buildRoute(P) {
+  P = P || ROUTE_PTS; const dense = [];
   const cr = (p0, p1, p2, p3, t) => { const t2 = t * t, t3 = t2 * t; return [0, 1, 2].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3)); };
   for (let i = 0; i < P.length - 1; i++) { const p0 = P[Math.max(0, i - 1)], p3 = P[Math.min(P.length - 1, i + 2)]; for (let k = 0; k < 120; k++) dense.push(cr(p0, P[i], P[i + 1], p3, k / 120)); }
   dense.push(P[P.length - 1]);
@@ -55,17 +69,18 @@ function railFrame(s, out) {
 }
 const _rf = {};
 function railToWorld(x, y, z) { const f = railFrame(z, _rf); return [f.p[0] + f.R[0] * x + f.U[0] * y, f.p[1] + f.R[1] * x + f.U[1] * y, f.p[2] + f.R[2] * x + f.U[2] * y]; }
+// cruise speed per zone, eased over the first 200 m of each zone, then slowing to a stop before the boss
 function railSpeed(s) {
-  if (s < 140) return lerp(16, 44, sstep(0, 140, s));
-  if (s < 2300) return 44; if (s < 4600) return lerp(44, 47, sstep(2300, 2500, s)); if (s < 6700) return lerp(47, 45, sstep(4600, 4800, s));
-  return Math.max(6, 45 * (1 - sstep(6950, S_STOP, s)));
+  const Z = ZONES; if (s < 140) return lerp(16, Z[0].v, sstep(0, 140, s));
+  const i = zoneAt(s); let v = Z[i].v; if (i > 0) v = lerp(Z[i - 1].v, v, sstep(Z[i].s0, Z[i].s0 + 200, s));
+  return Math.max(6, v * (1 - sstep(S_STOP - 350, S_STOP, s)));
 }
 function zoneAt(s) { for (let i = ZONES.length - 1; i >= 0; i--) if (s >= ZONES[i].s0) return i; return 0; }
 // blended environment at route position s
 function envAt(s) {
-  const keys = ['graveyard', 'belt', 'ice', 'wreck'], b = [2300, 4600, 6700], W = 160;
-  let w = [1, 0, 0, 0];
-  for (let k = 0; k < 3; k++) { const t = sstep(b[k] - W, b[k] + W, s); for (let j = 0; j <= k; j++) w[j] *= (1 - t); w[k + 1] = t; }
+  const keys = ZONES.map(z => z.env), n = keys.length, W = 160;
+  let w = keys.map((_, i) => i ? 0 : 1);
+  for (let k = 0; k < n - 1; k++) { const b = ZONES[k + 1].s0, t = sstep(b - W, b + W, s); for (let j = 0; j <= k; j++) w[j] *= (1 - t); w[k + 1] = t; }
   const out = {}; const e0 = ENV.graveyard;
   for (const key in e0) { const v = e0[key]; if (Array.isArray(v)) out[key] = [0, 0, 0]; else out[key] = 0; }
   keys.forEach((k, i) => { if (w[i] <= 0) return; const e = ENV[k]; for (const key in e) { if (Array.isArray(e[key])) out[key] = vmad(out[key], e[key], w[i]); else out[key] += e[key] * w[i]; } });
@@ -97,8 +112,8 @@ function derelict(key, c, q, r, opt = {}) {
   for (let k = 0; k < 3; k++) sinst('beacon', X([rr(-1, 1) * r, r * rr(0.9, 1.05), rr(-1, 1) * L]), qid(), 0.25 * r / 10 + 0.3, [1, 0.12, 0.08], 4, key, 3, rnd() * 5, -1);
   return { back, front: X([0, 0, -(segs * L) / 2]) };
 }
-function buildScenery() {
-  STATIC.list = []; gasBegin(); srand(4242);
+function sceneryL1() {
+  srand(4242);
   const F = QL.field, fr = {};
   // ---------- ship graveyard ----------
   for (let i = 0; i < 13; i++) {
@@ -153,10 +168,9 @@ function buildScenery() {
   for (let i = 0; i < 40; i++) { const s = rr(6700, 7350); railFrame(s, fr); const a = rr(0, TAU), d = rr(30, 260); sinst(pick(['plate0', 'plate1', 'container', 'blob', 'girder']), vadd(fr.p, vadd(vscl(fr.R, Math.cos(a) * d), vscl(fr.U, Math.sin(a) * d * 0.6))), qrand(), rr(1, 3), pick([[0.3, 0.12, 0.26], [0.55, 0.16, 0.12], [0.4, 0.42, 0.28]]), pick([2, 5]), s, 0.4, rnd() * 9, 0.9); }
   for (let i = 0; i < 30; i++) { const s = rr(6800, 7500); railFrame(s, fr); const a = rr(0, TAU), d = rr(30, 200); gasCloud(s, vadd(fr.p, vadd(vscl(fr.R, Math.cos(a) * d), vscl(fr.U, Math.sin(a) * d * 0.5))), rr(30, 70), 7, [[0.15, 0.5, 0.4], [0.35, 0.15, 0.4]], 0.9); }
   buildBossWreck();
-  gasEnd(); staticFinalize();
 }
 // the freighter where the creature lives, laid across the route at S_BOSS
-const WRECK = {};
+const WRECK = {}; // boss arena frame: c, T, U, R, X(local) and the anchor points (every level sets it)
 function buildBossWreck() {
   const fr = railFrame(S_BOSS, {}); const T = fr.T, U = fr.U, R = fr.R;
   WRECK.c = vadd(vadd(fr.p, vscl(U, -4)), vscl(T, 0)); WRECK.T = T; WRECK.U = U; WRECK.R = R;

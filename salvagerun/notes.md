@@ -36,7 +36,35 @@ Look: Gaussian-splat nebulae, dust and gas; lit meshes for rocks, hulls and the 
 - **Sound**: all procedural WebAudio (no files). Music is a small step sequencer: chords, bass, arpeggio; kick and hats join
   in the belt; the boss gets a faster, driving pattern. The pilot voice (speech synthesis) is off by default.
 
+## Campaign update (user, 2026-11-27)
+Request: "Add levels and upgrades between levels. Maybe alternative fire modes on a toggle as upgrade etc." Asked about the
+structure, the user chose **today's run + new levels**: keep the first run as level 1 unchanged and add new areas after it,
+each with a boss.
+
+Design calls:
+- **Four levels**, each 3 zones and a boss: 1 the Corvina run (unchanged), 2 **Kessler Breaker Yard** (an abandoned automated
+  scrapyard station: conveyor lines, crushers, a girder spine to fly through, a turning habitat wheel; mines, sentry drones,
+  red tanks, vaults), 3 **the Comet Tail** (the bright coma with dirty ice and crystals, then low over the crust of comet
+  Halvard with gas jets that throw rocks), 4 **the Nest** (the hollow asteroid Grabby came from: egg-covered rocks, spitters,
+  a flesh tunnel, the brood chamber). Gus explains each one on the radio.
+- **Bosses**: the Foreman (a breaker robot whose glowing joints are the weak points, then a reactor that vents open and shut
+  while a magnet drags the tug in), the Gulper (a worm that leaps out of the crust with a warning ring; shoot the gills while
+  it is in the air, then it rears up), the Matriarch (Grabby's mother: six tentacles, eight eyes, throws eggs).
+- **Money = score.** A win pays the full score into the wallet, a loss pays half ("insurance"), so a failed run still helps
+  and the hangar is never a dead end. Level bests stay per level; the campaign total is their sum.
+- **Upgrades** are tiered and priced so one good run buys two or three things and the whole hangar takes the campaign plus
+  some replays (about 2 million credits in all). Fire modes are one-off purchases that stay toggleable in flight; the cannon
+  is always fitted. The starting mode is whatever was used last (or EQUIP in the hangar).
+- **Fire modes** each have a job: scatter for swarms and close junk, the beam for one tough target (but it overheats), flak for
+  clusters at range. Toggle: Q / E / Tab / 1-4, mouse wheel, middle click, touch MODE, gamepad Y.
+- **Shield** is an upgrade, not a pickup: it eats one hit and recharges, and a shielded hit does not break the combo.
+- **Level select** replays any unlocked level; NEW CAMPAIGN asks twice and keeps the bests.
+- **Balance**: levels 2-4 assume some upgrades. Measured with the headless bot (AGENTS.md): a good bot wins every level with
+  no upgrades; a slow bot needs plating and the deflector for level 2 and more for level 4.
+- **Bug fixes found on the way** (also in level 1): the boss reset deleted its own hit and kill hooks; the camera moved twice
+  with the boss pull and ended up in front of the tug.
+
 ## Ideas not built (ask before adding)
-- A second route (a comet tail, a space station breaker yard), route branches chosen by shooting a beacon.
-- Upgrades bought with credits between runs (faster cannon, 10-lock volley, shield).
+- Route branches chosen by shooting a beacon; more levels (a ring city, a dying star).
 - Co-pilot banter tied to the player's score; a photo mode; online leaderboard via the arcade relay.
+- Sell-back or respec in the hangar; a hard mode with no insurance.

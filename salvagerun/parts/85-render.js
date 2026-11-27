@@ -1,5 +1,5 @@
 // ---------- frame rendering: shadow, sky, meshes, splats, particles, bloom, composite ----------
-const PROG = {};
+const PROG = {}, ID3 = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 function initPrograms() {
   PROG.mesh = compile(VS_MESH, FS_MESH, 'mesh');
   PROG.shadow = compile(VS_SHADOW, FS_SHADOW, 'shadow');
@@ -31,6 +31,7 @@ function drawTug() {
     sprite(vmad(n, f, -1.6), vscl(f, -3.0 * thr), 0.38, 0.38, [0.8, 1.5, 3], 0.9, 2);
   }
   for (const s of [-1, 1]) sprite(vadd(TUG.W, qrot(TUG.q, [s * 1.25, 0.85, 2.7])), null, 0.7, 0.7, [4, 3.8, 3.2], 0.8, 0);
+  if (TUG.shieldUp || TUG.shieldFlash > 0) { const k = TUG.shieldUp ? 0.035 + 0.02 * Math.max(0, Math.sin(G.t * 2.2)) : 0, fl = TUG.shieldFlash || 0, r = 6.8 + fl * 4, b = k + fl * 1.6; sprite(vadd(TUG.W, qrot(TUG.q, [0, 0.5, 0.4])), null, r, r, [0.5 * b, 1.6 * b, 2.4 * b], 1, 1); }
   const blink = Math.floor(G.t * 1.3) % 2;
   if (blink) { sprite(vadd(TUG.W, qrot(TUG.q, [1.76, 0.25, 1.6])), null, 0.6, 0.6, [5, 0.6, 0.4], 1, 0); sprite(vadd(TUG.W, qrot(TUG.q, [-1.76, 0.25, 1.6])), null, 0.6, 0.6, [0.4, 5, 1], 1, 0); }
   if (TUG.hull < 35 && frnd() < 0.35) spawnP({ p: vadd(TUG.W, qrot(TUG.q, [frr(-1.5, 1.5), 1, frr(-2, 1)])), v: vadd(TUG.vel, vscl(randDir(frnd), 3)), life: 0.8, s0: 0.4, s1: 1.6, c0: [0.25, 0.22, 0.2], c1: [0.05, 0.05, 0.05], a0: 0.6, a1: 0, shape: 3 });
@@ -39,8 +40,9 @@ function lightUniforms(pr) {
   const L = [];
   for (const l of LIGHTS) { const k = l.life / l.max; L.push({ p: l.p, c: vscl(l.col, k), r: l.r, w: vlen(l.col) * k / (1 + vdist(l.p, CAM.eye) * 0.01) }); }
   if (!TUG.dead) { const n = vadd(TUG.W, qrot(TUG.q, [0, 0, -6])); L.push({ p: n, c: [1.2, 2.2, 4], r: 16, w: 99 }); }
-  if (BOSS.active && BOSS.core && BOSS.core.alive && BOSS.phase === 3) L.push({ p: BOSS.core.W, c: [9, 3, 5], r: 60, w: 98 });
-  if (BOSS.active && BOSS.mawP && BOSS.phase === 2) L.push({ p: BOSS.mawP, c: [1, 4, 3], r: 40, w: 97 });
+  if (BOSS.active && BOSS.core && BOSS.core.alive && !BOSS.core.hidden) L.push({ p: BOSS.core.W, c: BOSS.coreCol || [9, 3, 5], r: 60, w: 98 });
+  if (BOSS.active && BOSS.mawP && BOSS.phase === 2 && BOSS.type === 'grabby') L.push({ p: BOSS.mawP, c: [1, 4, 3], r: 40, w: 97 });
+  if (BOSS.active && BOSS.lights) for (const l of BOSS.lights) L.push({ p: l.p, c: l.c, r: l.r, w: 96 });
   L.sort((a, b) => b.w - a.w);
   const n = Math.min(16, L.length), P = new Float32Array(64), C = new Float32Array(64);
   for (let i = 0; i < n; i++) { P.set([L[i].p[0], L[i].p[1], L[i].p[2], L[i].r], i * 4); C.set([L[i].c[0], L[i].c[1], L[i].c[2], 0], i * 4); }
@@ -51,9 +53,9 @@ function fsq() { gl.bindVertexArray(FSQ); gl.drawArrays(gl.TRIANGLES, 0, 3); }
 function renderFrame() {
   const t0 = performance.now();
   batchReset(); PT.ns = 0;
-  drawTug(); drawEntities(); drawBossMeshes(); drawWeapons(); packParticles();
+  drawTug(); drawEntities(); drawBossMeshes(); drawWeapons(); if (LV && LV.decor) LV.decor(); packParticles();
   batchUpload();
-  if (BOSS.active) buildTentGeo(); else TENT_GEO.n = 0;
+  if (BOSS.active && BOSS.tubes && BOSS.tubes.length) buildTentGeo(); else TENT_GEO.n = 0;
   RSTAT.inst = BATCH.total; RSTAT.parts = PT.ns;
   const env = envAt(TUG.s), sun = SKY.sunDir;
   const sCam = TUG.s, s0 = sCam - 450, s1 = sCam + (BOSS.active ? 2100 : 1700);
@@ -73,6 +75,7 @@ function renderFrame() {
     gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 3);
     gl.useProgram(PROG.shadow.p); gl.uniformMatrix4fv(PROG.shadow.u.uVP, false, shadowVP);
     drawBatch(true); drawStatic(sCam - 150, sCam + 320, true);
+    for (const m of LVMESH.list) if (m.shadow) { gl.bindVertexArray(m.vao); setCull(false); gl.drawElementsInstanced(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0, 1); }
     if (TENT_GEO.n) { gl.bindVertexArray(DYNMESH.vao); setCull(false); gl.drawElementsInstanced(gl.TRIANGLES, TENT_GEO.count, gl.UNSIGNED_INT, 0, 1); }
     gl.disable(gl.POLYGON_OFFSET_FILL);
   }
@@ -87,6 +90,7 @@ function renderFrame() {
     gl.uniform3fv(pr.u.uSunDir, sun); gl.uniform3fv(pr.u.uSunCol, env.sun); gl.uniform3fv(pr.u.uPlanetDir, SKY.planetDir); gl.uniform3fv(pr.u.uPlanetAx, SKY.planetAx);
     gl.uniform3fv(pr.u.uRingN, SKY.ringN); gl.uniform3fv(pr.u.uBandN, SKY.bandN); gl.uniform1f(pr.u.uPlanetR, env.planetR);
     gl.uniform1f(pr.u.uPixAng, CAM.fov / RT.h); gl.uniform1f(pr.u.uTime, G.t); gl.uniform1f(pr.u.uNebGain, env.neb); gl.uniform1f(pr.u.uStarGain, env.star);
+    gl.uniformMatrix3fv(pr.u.uSkyRot, false, SKY.rot || ID3); gl.uniform3fv(pr.u.uPlanetTint, SKY.tint || [1, 1, 1]); gl.uniform1f(pr.u.uRingOn, SKY.ring ?? 1); gl.uniform1f(pr.u.uSunSize, SKY.sunSize || 1);
     fsq(); }
   // meshes
   gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.depthFunc(gl.LEQUAL);
@@ -100,6 +104,7 @@ function renderFrame() {
     lightUniforms(pr);
     RSTAT.static = drawStatic(s0, s1, false);
     drawBatch(false);
+    if (LVMESH.list.length) { gl.uniform1f(pr.u.uUseUV, 1); for (const m of LVMESH.list) { gl.bindVertexArray(m.vao); setCull(false); gl.drawElementsInstanced(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0, 1); } gl.uniform1f(pr.u.uUseUV, 0); }
     if (TENT_GEO.n) { gl.uniform1f(pr.u.uUseUV, 1); gl.bindVertexArray(DYNMESH.vao); setCull(false); gl.drawElementsInstanced(gl.TRIANGLES, TENT_GEO.count, gl.UNSIGNED_INT, 0, 1); gl.uniform1f(pr.u.uUseUV, 0); }
   }
   // additive splats: gas, motes, particles

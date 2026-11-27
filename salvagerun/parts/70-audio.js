@@ -48,7 +48,29 @@ const SFX = {
   spit() { noise(0.2, 0.1, 'bandpass', 1200, 400, 3); tone(400, 0.15, 'sine', 0.06, 150); },
   chitter() { for (let i = 0; i < 10; i++) noise(0.03, 0.06, 'bandpass', 3500 + Math.random() * 2000, null, 6, i * 0.04); },
   repair() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.2, 'triangle', 0.07, null, i * 0.07)); },
-  fanfare() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.35, 'square', 0.04, null, i * 0.06)); }
+  fanfare() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.35, 'square', 0.04, null, i * 0.06)); },
+  // campaign weapons and gear
+  zap() { if (!rateOk('zap', 0.08)) return; tone(1800, 0.12, 'sawtooth', 0.025, 500); },
+  mode() { tone(660, 0.06, 'square', 0.05); tone(990, 0.08, 'square', 0.04, null, 0.06); },
+  scatter() { if (!AU.ctx || !rateOk('scatter', 0.05)) return; noise(0.16, 0.13, 'lowpass', 2600, 300, 0.8); tone(160, 0.14, 'square', 0.06, 60); },
+  flak() { if (!AU.ctx || !rateOk('flak', 0.05)) return; noise(0.12, 0.08, 'bandpass', 900, 400, 1.5); tone(240, 0.12, 'square', 0.05, 90); },
+  flakPop() { if (!rateOk('flakPop', 0.03)) return; noise(0.22, 0.11, 'lowpass', 1600, 150, 1); },
+  overheat() { noise(0.6, 0.12, 'highpass', 4000, 1500, 0.8); tone(420, 0.5, 'square', 0.05, 140); },
+  shield() { tone(880, 0.3, 'sine', 0.1, 1760); noise(0.25, 0.08, 'highpass', 5000, 2000, 1); },
+  shieldUp() { [784, 988, 1175].forEach((f, i) => tone(f, 0.18, 'sine', 0.05, null, i * 0.06)); },
+  buy() { tone(1046, 0.08, 'square', 0.05); tone(1568, 0.16, 'square', 0.05, null, 0.07); noise(0.05, 0.05, 'highpass', 6000, null, 1, 0.07); },
+  beam(on) { // a held hum while the cutting beam fires
+    const C = AU.ctx; if (!C) return;
+    if (on && !AU.beam) {
+      const o = C.createOscillator(), o2 = C.createOscillator(), g = C.createGain(), f = C.createBiquadFilter();
+      o.type = 'sawtooth'; o.frequency.value = 110; o2.type = 'square'; o2.frequency.value = 221; f.type = 'lowpass'; f.frequency.value = 1400; f.Q.value = 4;
+      g.gain.setValueAtTime(0.0001, C.currentTime); g.gain.exponentialRampToValueAtTime(0.05, C.currentTime + 0.05);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(AU.sfx); o.start(); o2.start(); AU.beam = { o, o2, g, f };
+    } else if (!on && AU.beam) {
+      const b = AU.beam; AU.beam = null; const t = C.currentTime; b.g.gain.cancelScheduledValues(t); b.g.gain.setValueAtTime(Math.max(0.0001, b.g.gain.value), t); b.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08); b.o.stop(t + 0.1); b.o2.stop(t + 0.1);
+    }
+    if (AU.beam) { const h = WEAP.heat || 0; AU.beam.f.frequency.value = 900 + h * 2600; AU.beam.o.frequency.value = 110 + h * 50; }
+  }
 };
 // ---- music: a small step sequencer ----
 const MUSIC = { mode: 'cruise', step: 0, next: 0, timer: null };

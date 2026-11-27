@@ -6,7 +6,7 @@ Nothing gets hurt: every dinosaur you dart stumbles, yawns and dozes off where i
 a combo, and when something enormous comes down the river behind you, turn around and put it to sleep.
 
 ## Design calls (made without asking; the run was unattended)
-- **One level, about 3.5 minutes**, built as a 2.6 km rail with eight sections. The timeline is keyed to distance along
+- **The first route is about 3.5 minutes**, built as a 2.6 km rail with eight sections. The timeline is keyed to distance along
   the rail, not to time, so set pieces always line up with the jeep.
 - **The driver is Dot**, on the intercom, with Base (the ranger station) on the radio. Lines show as captions with a
   squelch; the title and pause cards have a "Radio voice: Captions / Spoken" switch for browser speech. Light humour,
@@ -16,7 +16,7 @@ a combo, and when something enormous comes down the river behind you, turn aroun
 - **Magazine of 6, 1.35 s reload.** Holding fire keeps shooting at the bolt rate; firing an empty rifle starts the reload,
   and the reticle shows a reload ring.
 - **Weak spots count double** (heads; Rumblejaw's throat counts triple and is best exposed when it roars). Bigger animals
-  need more darts: raptor and glider 1, crestrunner 2, hornback 4, long-neck 18, Rumblejaw 50.
+  need more darts: raptor, glider and nipper 1, crestrunner 2, hornback 4, Clubtail 14, long-neck 18, Rumblejaw 50, Sailback 72.
 - **The camera turns toward the reticle** (aim parallax up to 30 degrees, more in portrait), looks up at the long-neck
   as the jeep passes under it, and turns all the way around for the river chase.
 - **Raptors climb on the jeep** at five visible points (hood, fenders, rear in the chase). A red ring with a shrinking arc
@@ -32,7 +32,42 @@ a combo, and when something enormous comes down the river behind you, turn aroun
 - **Settings are buttons**: difficulty, quality (Low, Med, High, Max), sound, music, radio voice, touch aim speed and
   auto-fire. URL flags exist only for headless tests.
 
-## The run, section by section
+## Route 2: Dusk Delta (added on request: "add another level and improve graphics a bit")
+Design calls made for it:
+- **A second route, not a longer first one.** The title card has a Route switch (1 Valley Run, 2 Dusk Delta); the picked
+  route is remembered, each route keeps its own best score, and the results card offers the other route.
+- **It is the night drive from the ideas list**, told as one evening: sunset in a cypress mire, last light on the
+  mudflats, lava fields after dark, then a lagoon by moonlight. The light changes with distance along the rail, so the
+  scenery and the sky always agree.
+- **Headlights and a torch on the rifle** fade in as the sun goes down. The torch follows the reticle, and animals' eyes
+  shine back when a lamp is on them, which is how you spot nippers in the dark.
+- **New cast, new rules** rather than more raptors: Nippers (small pack hunters, one dart each, up to seven at a time
+  on ten small perches), the Clubtail (armoured roadblock: the jeep has to stop, darts glance off the shell, the head
+  and legs are soft, and its tail club swings unless you interrupt it), and the Sailback (it swims beside the sand
+  bar, so only what is above water can be hit; it rears out of the shallows to bite, and its open mouth counts triple).
+- **Three long-necks wade on the mudflats** as scenery and optional 18-dart targets; nothing on this route crosses the
+  road the way the valley long-neck does.
+- **The Sailback can be escaped** like Rumblejaw: reach the lighthouse station and the run completes without the bonus.
+- **Rank bars are slightly lower** on this route (S 50k, A 32k, B 18k, C 9k) because it has fewer targets.
+
+| distance | section | what happens |
+|---|---|---|
+| 0-110 m | Dock | Dot's evening briefing; low sun through the trees |
+| 110-520 m | Cypress mire | causeway through swamp water; nipper packs of 5, 7 and 6, gliders, raptors; fireflies as the light drops |
+| 520-920 m | Mudflats | three long-necks wading; a small crestrunner herd crosses; gliders, raptors, more nippers |
+| 920-1335 m | Ember fields | lava channels, burnt trees, steam vents, ash; raptors in the headlights; the Clubtail roadblock at 1150 m with nippers harassing the stopped jeep |
+| 1335-2430 m | Moon lagoon | the road runs along a sand bar; the Sailback stalks alongside, rears up and lunges; glowing plankton in its wake; nippers and gliders as mop-up |
+| 2430-2500 m | Lighthouse station | results |
+
+## Graphics pass (both routes)
+- Light shafts from the sun or moon through trees and clouds; split-tone grading and a little more contrast.
+- Derivative bump on terrain, rock and dinosaur scales; wet sheen on ground near water and on hides below the water line.
+- Grass tufts and base-to-tip gradients on blades; palms, cypresses with hanging moss, lily pads, burnt snags.
+- Spot lamps (headlights, torch) lighting terrain, plants, animals, water and dust; eyeshine.
+- Stars, a moon, a glowing crater and lava after dark; water that carries flow, murk and depth per vertex.
+- The jeep got a windscreen pane, grille, headlamp rims, tow hooks and lit gauges.
+
+## Route 1: Valley Run, section by section
 | distance | section | what happens |
 |---|---|---|
 | 0-90 m | Ranger gate | Dot introduces herself; three practice boards (bullseye counts extra) |
@@ -63,7 +98,7 @@ with surface nets (mytharium's approach), a smoking volcano and ridges in the sk
 canvas-weave overlay.
 
 ## Ideas for later
-- A second route (night drive with spotlights) reusing the same rail system.
+- A third route (a canyon in the rain, or a snowfield) reusing the level system; see "Adding a route" in AGENTS.md.
 - Tracker darts on the long-neck for a photo bonus; a photo mode.
 - Hand-placed vegetation clearings along the rail so the stampede reads from farther away.
 - Copy the findings in AGENTS.md into SPLAT-GUIDE.md (shared root file; left for a session that may edit it).

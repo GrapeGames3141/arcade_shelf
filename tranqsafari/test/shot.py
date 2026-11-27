@@ -1,6 +1,7 @@
 """Headless checks for Tranq Safari (Python Playwright + SwiftShader).
 usage: python3 test/shot.py <scenario> [--q N] [--out DIR]
-scenarios: basic, mobile, run (full autopilot run, no rendering), boss, studio, quality, js "<expr>"
+scenarios: basic, mobile, run (full autopilot run, no rendering), boss, moments, studio, quality, live, touch, card, delta, dmoments, studio2, routes, js "<expr>"
+--level 1 boots straight into route 2 (Dusk Delta)
 Serves the game folder itself; screenshots and logs go to test/out/ (or --out).
 """
 import sys, os, json, threading, http.server, socketserver, functools, time
@@ -11,7 +12,7 @@ args = sys.argv[1:]; scen = args[0] if args else 'basic'
 def opt(name, d=None):
     return args[args.index(name) + 1] if name in args else d
 OUT = opt('--out', os.path.join(HERE, 'out')); os.makedirs(OUT, exist_ok=True)
-Q = int(opt('--q', '2')); PORT = int(opt('--port', '8766'))
+Q = int(opt('--q', '2')); PORT = int(opt('--port', '8766')); LEVEL = int(opt('--level', '0'))
 
 def serve():
     class H(http.server.SimpleHTTPRequestHandler):
@@ -30,7 +31,7 @@ def page_for(b, w, h, mobile=False, flags=''):
     pg.on('console', lambda m: logs.append(f'[{m.type}] {m.text}'))
     pg.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
     t0 = time.time()
-    pg.goto(f'http://127.0.0.1:{PORT}/tranqsafari.html?test&scale=1&q={["low","medium","high","max"][Q]}{flags}{opt('--flags','')}', wait_until='load')
+    pg.goto(f'http://127.0.0.1:{PORT}/tranqsafari.html?test&scale=1&q={["low","medium","high","max"][Q]}{flags}{opt('--flags','')}&level={LEVEL}', wait_until='load')
     pg.wait_for_function('window.TS && TS.ready', timeout=180000)
     print(f'boot {time.time()-t0:.1f}s', pg.evaluate('JSON.stringify(TS.perf())'))
     return pg, logs
@@ -62,7 +63,9 @@ with sync_playwright() as p:
     elif scen == 'mobile':
         pg, logs = page_for(b, 412, 860, True, '&touch')
         shot(pg, 'm-menu'); pg.evaluate('TS.start({seed:3})'); pg.evaluate('TS.skipTo(150)'); pg.evaluate('TS.step(3)'); shot(pg, 'm-play')
-        pg2, logs2 = page_for(b, 860, 412, True, '&touch'); pg2.evaluate('TS.start({seed:3})'); pg2.evaluate('TS.skipTo(1655)'); pg2.evaluate('TS.step(6)'); shot(pg2, 'm-land-boss')
+        if LEVEL == 1: pg.evaluate('TS.skipTo(1372)'); pg.evaluate('TS.step(12)'); shot(pg, 'm-port-boss')
+        pg2, logs2 = page_for(b, 860, 412, True, '&touch'); pg2.evaluate('TS.start({seed:3})'); pg2.evaluate('TS.skipTo(1372)' if LEVEL == 1 else 'TS.skipTo(1655)'); pg2.evaluate('TS.step(12)' if LEVEL == 1 else 'TS.step(6)'); shot(pg2, 'm-land-boss')
+        if LEVEL == 1: pg2.evaluate('TS.skipTo(1072)'); pg2.evaluate('TS.step(9)'); shot(pg2, 'm-land-block')
         report(logs + logs2)
     elif scen == 'run':
         pg, logs = page_for(b, 960, 540)
@@ -146,7 +149,16 @@ with sync_playwright() as p:
         # arcade card art: 800x560 gameplay frames with the HUD hidden
         ctx = b.new_context(viewport={'width': 800, 'height': 560}, device_scale_factor=1); pg = ctx.new_page(); logs = []
         pg.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
-        pg.goto(f'http://127.0.0.1:{PORT}/tranqsafari.html?test&scale=1&q=max', wait_until='load'); pg.wait_for_function('window.TS && TS.ready', timeout=180000)
+        pg.goto(f'http://127.0.0.1:{PORT}/tranqsafari.html?test&scale=1&q=max&level={LEVEL}', wait_until='load'); pg.wait_for_function('window.TS && TS.ready', timeout=180000)
+        if LEVEL == 1:   # route 2 frames: the mire at sunset, the roadblock, the Sailback rearing out of the lagoon
+            pg.evaluate('TS.start({level:1, seed:3})'); pg.evaluate('TS.skipTo(118)'); pg.evaluate('TS.step(7.5)'); pg.evaluate('TS.aim(0.1,0.05)'); pg.evaluate('TS.step(0.3)'); pg.evaluate('TS.hud(false)'); shot(pg, 'card-delta-mire')
+            pg.evaluate('TS.skipTo(1072)'); pg.evaluate('TS.step(8.5)'); pg.evaluate("(()=>{const a=TS.actors().find(a=>a.sp==='clubtail'); TS.aimAt(a.id);})()"); shot(pg, 'card-delta-block')
+            pg.evaluate('TS.skipTo(1368)')
+            for i in range(400):
+                pg.evaluate('TS.step(0.1)')
+                if pg.evaluate("TS.state().boss && TS.state().boss.state==='rise'"): break
+            pg.evaluate('TS.step(0.8)'); pg.evaluate('TS.aimAt(BOSS.a.id, true)'); shot(pg, 'card-delta-sailback')
+            report(logs); b.close(); srv.shutdown(); sys.exit(0)
         pg.evaluate('TS.start({seed:3})'); pg.evaluate('TS.skipTo(436)'); pg.evaluate('TS.step(5.2)'); pg.evaluate('TS.aim(0.12,0.18)'); pg.evaluate('TS.step(0.6)')
         pg.evaluate('TS.hud(false)'); shot(pg, 'card-longneck')
         pg.evaluate('TS.hud(true)'); pg.evaluate('TS.skipTo(700)')
@@ -172,6 +184,62 @@ with sync_playwright() as p:
         box = pg.locator('#reloadBtn').bounding_box(); pg.touchscreen.tap(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
         print('after RELOAD tap', pg.evaluate('TS.state().reload'))
         shot(pg, 'touch-play'); report(logs)
+    elif scen == 'delta':
+        pg, logs = page_for(b, 1280, 720)
+        pg.evaluate('TS.start({level:1, seed:3})'); pg.evaluate('TS.step(4)'); shot(pg, 'd-start')
+        for s_, name, extra in [(200, 'd-mire', 3), (540, 'd-flats', 4), (700, 'd-flats2', 3), (960, 'd-ember', 4), (990, 'd-ember2', 4), (1072, 'd-block', 9), (1360, 'd-lagoon0', 6), (1500, 'd-lagoon', 6), (2380, 'd-station', 6)]:
+            pg.evaluate(f'TS.skipTo({s_})'); pg.evaluate(f'TS.step({extra})'); shot(pg, name)
+        print(pg.evaluate('JSON.stringify(TS.state())')); print(pg.evaluate('JSON.stringify(TS.actors())'))
+        report(logs)
+    elif scen == 'studio2':
+        # route 2 cast alone: nipper, clubtail, sailback
+        pg, logs = page_for(b, 900, 600)
+        pg.evaluate('TS.hud(false)')
+        for sp, pose, view, name in [
+            ('nipper', {}, {}, 'st-nipper'), ('nipper', {'run': 1, 'spd': 9, 'phase': 1.2}, {'ang': 1.4}, 'st-nipper-run'), ('nipper', {'sleep': 1, 'asleep': True}, {'ang': 1.0, 'el': 0.5}, 'st-nipper-sleep'),
+            ('clubtail', {}, {'ang': 0.9}, 'st-club'), ('clubtail', {'swing': 1.05}, {'ang': 2.2, 'el': 0.4}, 'st-club-swing'), ('clubtail', {'swing': -0.5}, {'ang': 2.2, 'el': 0.4}, 'st-club-windup'),
+            ('clubtail', {'sleep': 1, 'asleep': True}, {'el': 0.4}, 'st-club-sleep'),
+            ('sailback', {'run': 1, 'spd': 6, 'phase': 0.7}, {'d': 30, 'ang': 0.9}, 'st-sail'), ('sailback', {'rear': 1, 'roar': 1}, {'d': 30, 'ang': 0.3, 'el': 0.05}, 'st-sail-rear'),
+            ('sailback', {'swim': 1, 'phase': 0.4}, {'d': 30, 'ang': 1.2, 'el': 0.3}, 'st-sail-swim'), ('sailback', {'swim': 1, 'sleep': 1, 'asleep': True}, {'d': 30, 'el': 0.5}, 'st-sail-sleep')]:
+            pg.evaluate(f'TS.studio({json.dumps(sp)},{json.dumps(pose)},{json.dumps(view)})'); shot(pg, name)
+        report(logs)
+    elif scen == 'dmoments':
+        # route 2 set pieces caught at the right instant (run with --level 1)
+        pg, logs = page_for(b, 1280, 720)
+        def until(expr, n=160, dt=0.1):
+            for i in range(n):
+                pg.evaluate(f'TS.step({dt})')
+                if pg.evaluate(expr): return True
+            print('  never:', expr); return False
+        pg.evaluate('TS.start({level:1, seed:3})'); pg.evaluate('TS.skipTo(112)')
+        until("TS.actors().some(a => a.sp==='nipper' && a.state==='cling')"); pg.evaluate('TS.step(0.3)'); shot(pg, 'dm-nippers'); print(pg.evaluate('JSON.stringify(TS.actors().map(a=>[a.sp,a.state]))'))
+        pg.evaluate('TS.skipTo(1072)'); until("TS.actors().some(a => a.sp==='clubtail' && a.state==='windup')", 300); pg.evaluate('TS.step(0.6)'); shot(pg, 'dm-club-windup')
+        until("TS.actors().some(a => a.sp==='clubtail' && a.state==='swing')", 60, 0.05); pg.evaluate('TS.step(0.2)'); shot(pg, 'dm-club-swing'); print(pg.evaluate('JSON.stringify(TS.state())'))
+        # a dart on the shell must glance off: aim at the middle of the biggest armour capsule
+        pg.evaluate("TS._eval(`(()=>{const a=ACTORS.find(a=>a.sp.id==='clubtail'); const c=actorCapsules(a).filter(c=>c.armor).sort((x,y)=>y.r-x.r)[0]; const p=V.lerp(c.a,c.b,0.5); for(let k=0;k<6;k++){const n=projectNDC(CAM.vp,p); INPUT.rx=n[0]; INPUT.ry=n[1]; clampAim(); updateCamera(0.5);} })()`)")
+        before = pg.evaluate('JSON.stringify([TS.state().combo, TS.state().misses, TS._eval("ACTORS.find(a=>a.sp.id===\'clubtail\').dose")])'); pg.evaluate('TS.fire()'); pg.evaluate('TS.step(0.25)'); shot(pg, 'dm-club-deflect')
+        print('deflects', pg.evaluate('TS._eval("G.deflects")'), 'combo/misses/dose before', before, 'after', pg.evaluate('JSON.stringify([TS.state().combo, TS.state().misses, TS._eval("ACTORS.find(a=>a.sp.id===\'clubtail\').dose")])'))
+        pg.evaluate('TS.autopilot(true,0.01)'); until("TS.actors().some(a => a.sp==='clubtail' && a.asleep)", 300); pg.evaluate('TS.autopilot(false)'); pg.evaluate('TS.step(2.5)'); shot(pg, 'dm-club-doze'); print(pg.evaluate('JSON.stringify(TS.state())'))
+        pg.evaluate('TS.skipTo(1368)'); until("TS.state().boss && TS.state().boss.state==='rise'", 400); pg.evaluate('TS.step(0.7)'); pg.evaluate('TS.aimAt(BOSS.a.id, true)'); shot(pg, 'dm-sail-rise')
+        until("TS.state().boss.state==='lunge'", 60, 0.05); pg.evaluate('TS.step(0.35)'); shot(pg, 'dm-sail-lunge')
+        pg.evaluate('TS.autopilot(true,0.01)'); until("TS.state().boss.state==='thrash'", 600); pg.evaluate('TS.step(0.8)'); shot(pg, 'dm-sail-thrash')
+        until("BOSS.a.asleep", 900); pg.evaluate('TS.autopilot(false)'); pg.evaluate('TS.step(2.0)'); shot(pg, 'dm-sail-asleep'); print(pg.evaluate('JSON.stringify(TS.state())'))
+        until("TS.state().phase==='results'", 400); shot(pg, 'dm-results'); print(pg.evaluate('JSON.stringify(TS.state().final)'), 'next button shown:', pg.evaluate("getComputedStyle(document.getElementById('nextBtn')).display"))
+        report(logs)
+    elif scen == 'routes':
+        # real page: pick route 2 on the title card (loading card), play, pause, back to menu, pick route 1 again
+        ctx = b.new_context(viewport={'width': 1280, 'height': 720}); pg = ctx.new_page(); logs = []
+        pg.on('console', lambda m: logs.append(f'[{m.type}] {m.text}')); pg.on('pageerror', lambda e: logs.append(f'[pageerror] {e}'))
+        pg.goto(f'http://127.0.0.1:{PORT}/tranqsafari.html?q=medium', wait_until='load')
+        pg.wait_for_selector('#menu:not(.hidden)', timeout=120000); pg.wait_for_timeout(800)
+        t0 = time.time(); pg.click('#menu .seg[data-set=route] button[data-v="1"]', timeout=180000, no_wait_after=True); pg.wait_for_function("TS.state().route === 'delta' && !document.getElementById('menu').classList.contains('hidden')", timeout=120000)
+        print(f'route 2 loaded in {time.time()-t0:.1f}s'); pg.wait_for_timeout(1200); pg.screenshot(path=os.path.join(OUT, 'routes-menu2.png'))
+        pg.click('#playBtn'); pg.wait_for_timeout(5000); pg.mouse.move(640, 330); pg.mouse.down(); pg.wait_for_timeout(120); pg.mouse.up(); pg.wait_for_timeout(500)
+        pg.screenshot(path=os.path.join(OUT, 'routes-play2.png')); print(pg.evaluate('JSON.stringify(TS.state())'))
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(300); pg.click('#quitBtn'); pg.wait_for_timeout(600)
+        t0 = time.time(); pg.click('#menu .seg[data-set=route] button[data-v="0"]', timeout=180000, no_wait_after=True); pg.wait_for_function("TS.state().route === 'valley' && !document.getElementById('menu').classList.contains('hidden')", timeout=120000)
+        print(f'route 1 loaded in {time.time()-t0:.1f}s'); pg.wait_for_timeout(1200); pg.screenshot(path=os.path.join(OUT, 'routes-menu1.png')); print(pg.evaluate('JSON.stringify(TS.state())'))
+        report(logs)
     elif scen == 'js':
         pg, logs = page_for(b, 1280, 720)
         for e in args[1:]:

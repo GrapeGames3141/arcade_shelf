@@ -1,5 +1,5 @@
 """Headless checks for Salvage Run (Python Playwright + SwiftShader).
-usage: python test/shot.py [basic|mobile|full|boss|quality|perf|card|js] [extra js steps...]
+usage: python test/shot.py [basic|zones|boss|full|mobile|quality|card|level N|lboss N|lfull N acc|hangar|modes|js] [args...]
 Serves the game folder itself on port 8766; screenshots go to test/out/ (not committed).
 """
 import sys, os, json, threading, http.server, socketserver, functools, time
@@ -92,7 +92,7 @@ with sync_playwright() as p:
         for (w, h, nm) in [(390, 844, 'portrait'), (844, 390, 'landscape')]:
             pg, logs = page_for(b, w, h, mobile=True, extra='&touch')
             shot(pg, f'm-{nm}-menu')
-            pg.evaluate('SR.start({seed:1})'); pg.evaluate('SR.step(3)')
+            pg.evaluate('SR.grant({scatter:1, shield:1})'); pg.evaluate('SR.start({seed:1})'); pg.evaluate('SR.step(3)')
             # real touch drag to aim
             pg.mouse.move(w * 0.3, h * 0.6)
             cdp = pg.context.new_cdp_session(pg)
@@ -110,6 +110,8 @@ with sync_playwright() as p:
             pg.evaluate('SR.autopilot(false)'); tg = pg.evaluate('SR.targets()')
             pg.evaluate('SR.step(0.2)'); shot(pg, f'm-{nm}-lock')
             touch('touchEnd', []); pg.evaluate('SR.step(0.1)')
+            modeb = pg.evaluate("(()=>{const r=document.getElementById('tMode').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2,r.width]})()")
+            m0 = pg.evaluate('WEAP.mode'); touch('touchStart', [tuple(modeb[:2])]); touch('touchEnd', []); print('MODE button', modeb, m0, '->', pg.evaluate('WEAP.mode'))
             pg.evaluate('SR.autopilot(true)'); pg.evaluate('SR.step(12)'); shot(pg, f'm-{nm}-play')
             pg.evaluate('SR.pause(true)'); shot(pg, f'm-{nm}-pause'); pg.evaluate('SR.pause(false)')
             errs(logs); pg.context.close()
@@ -125,6 +127,65 @@ with sync_playwright() as p:
         sval = float(sys.argv[2]) if len(sys.argv) > 2 else 1640
         pg.evaluate('SR.start({seed:1})'); pg.evaluate('SR.hud(false)'); pg.evaluate('SR.god(true)'); pg.evaluate(f'SR.skip({sval})'); pg.evaluate('SR.autopilot(true)'); pg.evaluate('SR.step(5.5)')
         shot(pg, 'card'); errs(logs)
+    elif scen == 'level':
+        n = int(sys.argv[2]) if len(sys.argv) > 2 else 2
+        pg, logs = page_for(b, 1280, 720)
+        print(json.dumps(pg.evaluate(f'SR.level({n})')))
+        pg.evaluate(f'SR.start({{level:{n}, seed:1}})'); pg.evaluate('SR.autopilot(true)'); pg.evaluate('SR.god(true)')
+        stop = pg.evaluate('S_STOP'); marks = [int(x) for x in sys.argv[3:]] or [int(stop * k) for k in (0.05, 0.16, 0.3, 0.45, 0.6, 0.75, 0.9, 0.98)]
+        for sv in marks:
+            pg.evaluate(f'SR.skip({max(10, sv - 250)})'); pg.evaluate('SR.step(6.5)'); shot(pg, f'l{n}-{sv}'); print(sv, json.dumps(st(pg))[:300])
+        errs(logs)
+    elif scen == 'lboss':
+        n = int(sys.argv[2]) if len(sys.argv) > 2 else 2; god = (sys.argv[3] if len(sys.argv) > 3 else 'god') == 'god'
+        pg, logs = page_for(b, 1280, 720)
+        pg.evaluate(f'SR.level({n})'); pg.evaluate(f'SR.start({{level:{n}, seed:1}})'); pg.evaluate('SR.boss()'); pg.evaluate(f'SR.god({str(god).lower()})')
+        pg.evaluate('SR.step(2)'); shot(pg, f'lb{n}-intro')
+        pg.evaluate('SR.step(4)'); shot(pg, f'lb{n}-a'); print(json.dumps(st(pg)))
+        pg.evaluate('SR.autopilot(true, 0.7)')
+        for i in range(30):
+            pg.evaluate('SR.step(4)'); s2 = st(pg); print(json.dumps({k: s2[k] for k in ('runT', 'score', 'hull', 'boss', 'phase', 'ents')}))
+            if i % 2 == 1: shot(pg, f'lb{n}-{i:02d}')
+            if s2['phase'] == 'results': break
+        shot(pg, f'lb{n}-end'); print(json.dumps(pg.evaluate('SR.stats()'))[:900])
+        errs(logs)
+    elif scen == 'lfull':
+        n = int(sys.argv[2]) if len(sys.argv) > 2 else 2; acc = float(sys.argv[3]) if len(sys.argv) > 3 else 0.6
+        grant = sys.argv[4] if len(sys.argv) > 4 else '{}'
+        pg, logs = page_for(b, 960, 540, q='low')
+        pg.evaluate(f'SR.level({n})'); pg.evaluate(f'SR.grant({grant})'); pg.evaluate(f'SR.start({{level:{n}, seed:1}})'); pg.evaluate(f'SR.autopilot(true, {acc})')
+        t_start = time.time()
+        for i in range(400):
+            pg.evaluate('SR.step(3)'); s2 = st(pg)
+            if i % 10 == 0: print(f"t={s2['runT']} s={s2['s']} zone={s2['zone']} score={s2['score']} hull={s2['hull']} ents={s2['ents']} boss={s2['boss']}")
+            if s2['phase'] == 'results': break
+        shot(pg, f'lfull{n}-end')
+        r = pg.evaluate('SR.stats()'); print(json.dumps(r)); print(f'wall {time.time() - t_start:.0f}s')
+        errs(logs)
+    elif scen == 'hangar':
+        pg, logs = page_for(b, 1280, 720)
+        pg.evaluate('SR.wallet(520000)'); pg.evaluate('SR.unlock(3)'); pg.evaluate('SR.menu()'); shot(pg, 'h-menu')
+        pg.evaluate('SR.hangar(3)'); shot(pg, 'h-hangar')
+        for sel in ['#upList .uprow:nth-child(1) button', '#upList .uprow:nth-child(5) button', '#modeList .uprow:nth-child(3) button']:
+            pg.click(sel); print('bought', sel, pg.evaluate('SR.wallet()'))
+        shot(pg, 'h-bought'); print(json.dumps(pg.evaluate('SR.camp()')))
+        pg.evaluate('SR.levels()'); shot(pg, 'h-levels')
+        pg.click('#lvList .lvcard:nth-child(2)'); pg.evaluate('SR.step(3)'); print(json.dumps(st(pg)))
+        pg.evaluate('SR.god(true)'); pg.evaluate('SR.boss()'); pg.evaluate('SR.autopilot(true)');
+        for i in range(40):
+            pg.evaluate('SR.step(4)')
+            if st(pg)['phase'] == 'results': break
+        shot(pg, 'h-results'); print(json.dumps(pg.evaluate('SR.camp()'))[:600])
+        pg.click('#nextBtn'); pg.evaluate('SR.step(0.5)'); shot(pg, 'h-hangar-next')
+        pg.set_viewport_size({'width': 390, 'height': 844}); pg.evaluate('SR.render()'); shot(pg, 'h-hangar-phone', render=False)
+        errs(logs)
+    elif scen == 'modes':
+        pg, logs = page_for(b, 1280, 720)
+        pg.evaluate("SR.grant({scatter:1, beam:1, flak:1, shield:1, warhead:1})"); pg.evaluate('SR.start({level:1, seed:1})'); pg.evaluate('SR.god(true)')
+        for m, sv in [('scatter', 1830), ('beam', 1000), ('flak', 2160), ('cannon', 600)]:
+            pg.evaluate(f"SR.mode('{m}')"); pg.evaluate(f'SR.skip({sv - 250})'); pg.evaluate('SR.autopilot(true)'); pg.evaluate('SR.step(6.2)')
+            shot(pg, f'mode-{m}'); s2 = st(pg); print(m, json.dumps({k: s2[k] for k in ('score', 'mode', 'heat', 'shield', 'ents')}), json.dumps({k: pg.evaluate('SR.stats()')[k] for k in ('shots', 'hits', 'kills')}))
+        errs(logs)
     elif scen == 'js':
         pg, logs = page_for(b, 1280, 720)
         for i, step in enumerate(sys.argv[2:]):

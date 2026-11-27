@@ -10,10 +10,10 @@ const IS_TOUCH = URLQ.has('touch') || (!URLQ.has('desktop') && matchMedia('(poin
 
 // Quality tiers. MAX trades nothing away; HIGH carries the smoothing measures (adaptive render scale, lighter distant splats).
 const QUALITY = [
-  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, shadow: 0, bloom: 0, veg: 0.32, far: 260, adaptive: 0, canopySh: 0, thin: 1, pcf: 0 },
-  { name: 'MEDIUM', dpr: 1, scale: 0.85, msaa: 4, shadow: 1024, bloom: 1, veg: 0.6, far: 330, adaptive: 0, canopySh: 0, thin: 1, pcf: 1 },
-  { name: 'HIGH', dpr: 1.5, scale: 1, msaa: 4, shadow: 2048, bloom: 1, veg: 1, far: 420, adaptive: 1, canopySh: 1, thin: 1, pcf: 1 },
-  { name: 'MAX', dpr: 2, scale: 1, msaa: 4, shadow: 4096, bloom: 1, veg: 1, far: 480, adaptive: 0, canopySh: 1, thin: 0, pcf: 2 },
+  { name: 'LOW', dpr: 1, scale: 0.7, msaa: 0, shadow: 0, bloom: 0, veg: 0.32, far: 260, adaptive: 0, canopySh: 0, thin: 1, pcf: 0, rays: 0, raysDiv: 4, bump: 0 },
+  { name: 'MEDIUM', dpr: 1, scale: 0.85, msaa: 4, shadow: 1024, bloom: 1, veg: 0.6, far: 330, adaptive: 0, canopySh: 0, thin: 1, pcf: 1, rays: 12, raysDiv: 4, bump: 1 },
+  { name: 'HIGH', dpr: 1.5, scale: 1, msaa: 4, shadow: 2048, bloom: 1, veg: 1, far: 420, adaptive: 1, canopySh: 1, thin: 1, pcf: 1, rays: 20, raysDiv: 4, bump: 1 },
+  { name: 'MAX', dpr: 2, scale: 1, msaa: 4, shadow: 4096, bloom: 1, veg: 1, far: 480, adaptive: 0, canopySh: 1, thin: 0, pcf: 2, rays: 32, raysDiv: 2, bump: 1 },
 ];
 const QNAMES = { low: 0, medium: 1, med: 1, high: 2, max: 3 };
 let QI = URLQ.has('q') ? (QNAMES[URLQ.get('q')] ?? 2) : SAVE.get('quality', IS_TOUCH ? 1 : 2);
@@ -22,7 +22,7 @@ let renderScale = 1;               // adaptive scale (HIGH only)
 const PIN_SCALE = URLQ.has('scale') ? parseFloat(URLQ.get('scale')) : 0;
 
 // ---- frame uniform block: generated from one list so GLSL and byte offsets never drift ----
-const FRAME_FIELDS = [['uVP', 16], ['uView', 16], ['uShVP', 16], ['uCam', 4], ['uSunDir', 4], ['uSunCol', 4], ['uSky', 4], ['uGnd', 4], ['uFog', 4], ['uFog2', 4], ['uWind', 4], ['uScr', 4], ['uMisc', 4], ['uCamR', 4], ['uCamU', 4]];
+const FRAME_FIELDS = [['uVP', 16], ['uView', 16], ['uShVP', 16], ['uCam', 4], ['uSunDir', 4], ['uSunCol', 4], ['uSky', 4], ['uGnd', 4], ['uFog', 4], ['uFog2', 4], ['uWind', 4], ['uScr', 4], ['uMisc', 4], ['uCamR', 4], ['uCamU', 4], ['uL1P', 4], ['uL1D', 4], ['uL1C', 4], ['uL2P', 4], ['uL2D', 4], ['uL2C', 4], ['uEnv', 4]];
 const FRAME = {}; let FRAME_SIZE = 0;
 for (const [n, c] of FRAME_FIELDS) { FRAME[n] = FRAME_SIZE; FRAME_SIZE += c; }
 const FRAME_DATA = new Float32Array(FRAME_SIZE);
@@ -32,7 +32,7 @@ gl.bindBuffer(gl.UNIFORM_BUFFER, frameUBO); gl.bufferData(gl.UNIFORM_BUFFER, FRA
 gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, frameUBO);
 function setF(name, arr) { FRAME_DATA.set(arr, FRAME[name]); }
 
-// fixed texture units: 0 per-draw, 1 shadow map, 2 scene colour, 3 bloom, 4 misc
+// fixed texture units: 0 per-draw, 1 shadow map, 2 scene colour, 3 bloom, 4 light shafts
 const UNIT = { tex: 0, shadow: 1, scene: 2, bloom: 3, misc: 4 };
 
 const PROGS = [];
@@ -57,7 +57,7 @@ function program(name, vs, fs, opt = {}) {
   const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
   for (let i = 0; i < n; i++) { const inf = gl.getActiveUniform(p, i); const nm = inf.name.replace(/\[0\]$/, ''); u[nm] = gl.getUniformLocation(p, inf.name); }
   gl.useProgram(p);
-  for (const [k, unit] of [['uTex', UNIT.tex], ['uShadow', UNIT.shadow], ['uScene', UNIT.scene], ['uBloom', UNIT.bloom], ['uMiscTex', UNIT.misc]]) if (u[k]) gl.uniform1i(u[k], unit);
+  for (const [k, unit] of [['uTex', UNIT.tex], ['uShadow', UNIT.shadow], ['uScene', UNIT.scene], ['uBloom', UNIT.bloom], ['uRays', UNIT.misc]]) if (u[k]) gl.uniform1i(u[k], unit);
   const P = { p, u, name }; PROGS.push(P); return P;
 }
 
@@ -71,7 +71,7 @@ function mkTex(w, h, ifmt, fmt, type, filter = gl.LINEAR) {
   return t;
 }
 function freeRT() {
-  for (const k of ['msFB', 'resFB', 'msCol', 'msDep', 'resCol', 'resDep']) { const o = RT[k]; if (!o) continue; if (o instanceof WebGLFramebuffer) gl.deleteFramebuffer(o); else if (o instanceof WebGLRenderbuffer) gl.deleteRenderbuffer(o); else gl.deleteTexture(o); RT[k] = null; }
+  for (const k of ['msFB', 'resFB', 'msCol', 'msDep', 'resCol', 'resDep', 'raysFB', 'raysTex']) { const o = RT[k]; if (!o) continue; if (o instanceof WebGLFramebuffer) gl.deleteFramebuffer(o); else if (o instanceof WebGLRenderbuffer) gl.deleteRenderbuffer(o); else gl.deleteTexture(o); RT[k] = null; }
   if (RT.bloom) for (const b of RT.bloom) { gl.deleteFramebuffer(b.fb); gl.deleteTexture(b.t); } RT.bloom = null;
 }
 function setupRT(w, h) {
@@ -102,6 +102,10 @@ function setupRT(w, h) {
     const t = mkTex(bw, bh, ifmt, gl.RGBA, type); const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); RT.bloom.push({ t, fb, w: bw, h: bh });
   }
+  // light shafts: a small target marched toward the sun over the sky mask kept in the scene's alpha
+  RT.raysW = Math.max(1, Math.round(w / Q.raysDiv)); RT.raysH = Math.max(1, Math.round(h / Q.raysDiv));
+  RT.raysTex = mkTex(RT.raysW, RT.raysH, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE); RT.raysFB = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, RT.raysFB);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, RT.raysTex, 0);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 // shadow map
@@ -134,14 +138,17 @@ const VAO_FS = gl.createVertexArray();
 // unit quad corners for splats / particles
 const QUAD_BUF = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, QUAD_BUF); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
 
+// GPU objects created while a route's world is being built are collected so a route switch can free them
+let RES = null;
+function track(o) { if (RES) RES.push(o); return o; }
 // generic static mesh: interleaved pos(3f) nrm(3f) col(4ub) = 28 bytes
 function makeMeshVAO(verts, idx) {
-  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+  const vao = track(gl.createVertexArray()); gl.bindVertexArray(vao);
+  const vb = track(gl.createBuffer()); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 28, 0);
   gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 28, 12);
   gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, 28, 24);
-  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  const ib = track(gl.createBuffer()); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
   gl.bindVertexArray(null);
   return { vao, vb, ib, n: idx.length, type: idx instanceof Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT };
 }

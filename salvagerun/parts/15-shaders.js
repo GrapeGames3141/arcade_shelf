@@ -118,15 +118,15 @@ void main(){
     emis=alb*vPar.x; alb*=0.15; rough=0.3;
     if(vPar.w<-0.5) emis*=step(0.55,fract(uTime*0.7+vPar.z*0.37))*1.6+0.03;
   } else if(m==5){ // organic
-    vec3 Q = uUseUV>0.5 ? vec3(vUV.x*7., cos(vUV.y*6.2832)*1.3, sin(vUV.y*6.2832)*1.3) : P*0.6;
+    vec3 Q = uUseUV>0.5 ? vec3(vUV.x*7., cos(vUV.y*6.2832)*1.3, sin(vUV.y*6.2832)*1.3) : (vS>20. ? vO*vS*0.045+vPar.z*7.13 : P*0.6); // big organic shells get world-sized veins
     float n1=fbm3(Q*1.1), v=abs(fbm3(Q*1.6+2.)-0.5);
     float vein=smoothstep(0.045,0.0,v);
-    float pulse=0.6+0.4*sin(uTime*2.3-Q.x*1.3);
-    alb*=0.6+0.55*n1; alb=mix(alb, alb*vec3(1.4,0.8,1.6), vein*0.5);
-    emis+=vec3(0.15,1.,0.8)*vein*pulse*(0.35+vPar.x);
+    float pulse=0.6+0.4*sin(uTime*2.3-Q.x*1.3), bg=vPar.w<-0.5?0.22:1.; // special -1: background flesh, faint veins
+    alb*=0.6+0.55*n1; alb=mix(alb, alb*vec3(1.4,0.8,1.6), vein*0.5*bg);
+    emis+=vec3(0.15,1.,0.8)*vein*pulse*(0.35+vPar.x)*bg;
     N=bumpN(N, (vn(Q*5.)*0.6+n1*0.4)*vS*(uUseUV>0.5?0.012:0.03), 1.);
     rough=0.32; wrap=0.45;
-    if(uUseUV>0.5){
+    if(uUseUV>0.5 && vPar.w>-0.5){
       float under=smoothstep(0.1,-0.4,sin(vUV.y*6.2832));
       vec2 sq=vec2(vUV.x*46., vUV.y*12.); vec2 fq=fract(sq)-0.5;
       float sk=smoothstep(0.38,0.3,length(fq))*smoothstep(0.12,0.2,length(fq));
@@ -142,6 +142,17 @@ void main(){
     alb=mix(vec3(0.35,0.06,0.07), vec3(0.04), iris);
     emis+=mix(vec3(1.,0.55,0.08), vec3(1.,0.95,0.5), smoothstep(0.85,1.,f))*iris*(1.-pupil)*rings*vPar.x*2.5;
     rough=0.06; metal=0.;
+  } else if(m==10){ // glowing crystal, tinted by the instance colour
+    float fr=pow(1.-abs(dot(N,V)),2.);
+    vec3 tint=vCol.rgb; alb=tint*0.16; rough=0.06;
+    emis+=tint*(0.3+1.3*fr)*max(vPar.x,0.5)+tint*smoothstep(0.03,0.0,abs(vn(P*4.)-0.5))*0.7;
+  } else if(m==11){ // dirty comet ice: dark dusty crust, bright ice where it is chipped
+    float n1=fbm3(P*1.2), n2=vn(P*6.);
+    N=bumpN(N,(n1*0.6+n2*0.4)*vS*0.06,1.);
+    float icy=smoothstep(0.56,0.72,n1+n2*0.25);
+    alb=mix(vec3(0.17,0.16,0.155)*(0.7+0.5*n2), vec3(0.5,0.64,0.78), icy);
+    rough=mix(0.92,0.12,icy); ao=0.6+0.4*smoothstep(0.2,0.7,n1);
+    emis+=vec3(0.2,0.45,0.7)*icy*0.15*pow(1.-abs(dot(N,V)),2.);
   } else if(m==9){ // glass
     alb=vec3(0.02,0.035,0.045); rough=0.05; emis+=vec3(0.15,0.45,0.55)*0.25*max(vPar.x,0.4);
   }
@@ -191,7 +202,8 @@ precision highp float;
 in vec2 vP; out vec4 o;
 uniform mat4 uInvVP; uniform samplerCube uNeb;
 uniform vec3 uSunDir, uSunCol, uPlanetDir, uPlanetAx, uRingN, uBandN;
-uniform float uPlanetR, uPixAng, uTime, uNebGain, uStarGain;
+uniform float uPlanetR, uPixAng, uTime, uNebGain, uStarGain, uRingOn, uSunSize;
+uniform mat3 uSkyRot; uniform vec3 uPlanetTint;
 ${GLSL_NOISE}
 vec3 stars(vec3 d){
   vec3 col=vec3(0.);
@@ -215,14 +227,15 @@ vec3 stars(vec3 d){
 }
 void main(){
   vec4 pw=uInvVP*vec4(vP,1.,1.); vec3 d=normalize(pw.xyz/pw.w);
-  vec3 col=stars(d)*uStarGain;
-  float bd=dot(d,uBandN);
-  float band=exp(-bd*bd/0.025)*(0.35+0.65*fbm3(d*6.))*smoothstep(0.25,0.6,fbm3(d*3.+5.));
-  col+=mix(vec3(0.55,0.45,0.4),vec3(0.35,0.4,0.6),fbm3(d*2.))*band*0.07;
-  vec4 neb=texture(uNeb,d);
+  vec3 ds=uSkyRot*d;
+  vec3 col=stars(ds)*uStarGain;
+  float bd=dot(ds,uBandN);
+  float band=exp(-bd*bd/0.025)*(0.35+0.65*fbm3(ds*6.))*smoothstep(0.25,0.6,fbm3(ds*3.+5.));
+  col+=mix(vec3(0.55,0.45,0.4),vec3(0.35,0.4,0.6),fbm3(ds*2.))*band*0.07;
+  vec4 neb=texture(uNeb,ds);
   col=col*neb.a+neb.rgb*uNebGain;
   float sd=dot(d,uSunDir);
-  col+=uSunCol*(smoothstep(0.99975,0.9999,sd)*60.+pow(max(sd,0.),900.)*4.+pow(max(sd,0.),60.)*0.25+pow(max(sd,0.),6.)*0.03);
+  col+=uSunCol*(smoothstep(1.-0.00025*uSunSize*uSunSize,1.-0.0001*uSunSize*uSunSize,sd)*60.+pow(max(sd,0.),900./uSunSize)*4.+pow(max(sd,0.),60./uSunSize)*0.25*uSunSize+pow(max(sd,0.),6.)*0.03*uSunSize);
   // gas giant
   vec3 C=uPlanetDir; float R=uPlanetR;
   float b=dot(d,C), c=1.-R*R, disc=b*b-c;
@@ -238,6 +251,7 @@ void main(){
     float NL=dot(n,uSunDir);
     float dif=clamp(NL*1.1+0.08,0.,1.);
     float mu=max(dot(n,-d),0.);
+    pcol*=uPlanetTint;
     pc=pcol*uSunCol*0.85*dif+pcol*0.012;
     pc+=vec3(0.45,0.6,1.)*pow(1.-mu,3.)*clamp(NL+0.35,0.,1.)*0.9;
     pa=1.;
@@ -248,7 +262,7 @@ void main(){
   col=mix(col,pc,pa);
   // rings
   float den=dot(d,uRingN);
-  if(abs(den)>1e-4){
+  if(abs(den)>1e-4&&uRingOn>0.5){
     float tr=dot(C,uRingN)/den;
     if(tr>0.){
       vec3 P=d*tr; float rr=length(P-C)/R;

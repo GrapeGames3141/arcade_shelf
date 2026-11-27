@@ -1,7 +1,16 @@
 // ---------- weapons: twin rapid-fire cannon and the lock-on volley ----------
-const BOLT_SPEED = 720, FIRE_RATE = 11, MAX_LOCKS = 8;
+const BOLT_SPEED = 720, FIRE_RATE = 11; let MAX_LOCKS = 8;
 const BOLTS = [], MISSILES = [];
-const WEAP = { cool: 0, barrel: 0, heat: 0 };
+// fire modes (unlocked in the hangar): cannon, scatter, beam, flak. Toggle with Q / mouse wheel / MODE / gamepad Y.
+const WEAP = { cool: 0, barrel: 0, heat: 0, over: false, mode: 'cannon', beamOn: false, beamEnd: null, beamHit: null };
+const MODE_ORDER = ['cannon', 'scatter', 'beam', 'flak'];
+function unlockedModes() { return MODE_ORDER.filter(m => CAMP.modes[m]); }
+function cycleMode(dir = 1) {
+  const list = unlockedModes(); if (list.length < 2) { popup('BUY FIRE MODES IN THE HANGAR', TUG.W, '#9cf'); return; }
+  const i = list.indexOf(WEAP.mode); WEAP.mode = CAMP.mode = list[(i + dir + list.length) % list.length]; SFX.mode();
+  popup(MODES.find(m => m.id === WEAP.mode).name, vmad(TUG.W, TUG.frame.U, 4), '#9ef', true);
+}
+function setMode(m) { if (CAMP.modes[m]) WEAP.mode = m; }
 const LOCK = { on: false, list: [], cool: 0, volley: 0, sweepT: 0 };
 let VOLLEYS = {};
 // screen projection of a world point (CSS pixels); returns null behind the camera
@@ -50,18 +59,45 @@ function updateWeapons(dt) {
   const dir = vnorm(vsub(ap.p, base)), up = qrot(TUG.q, [0, 1, 0]);
   const want = frameQ(dir, vlen(vcross(dir, up)) > 0.05 ? up : qrot(TUG.q, [0, 0, -1]));
   TUG.turQ = TUG.turQ ? qslerp(TUG.turQ, want, 1 - Math.exp(-18 * dt)) : want;
-  const firing = (IN.fire || (SET.auto && ap.tgt && !LOCK.on)) && G.phase === 'play' && !TUG.dead;
-  if (firing && WEAP.cool <= 0 && !LOCK.on) {
-    WEAP.cool = 1 / FIRE_RATE;
-    const m = muzzles()[WEAP.barrel ^= 1];
-    const d = vnorm(vsub(ap.p, m));
-    BOLTS.push({ p: m, v: vmad(TUG.vel, d, BOLT_SPEED), life: 0.9 });
-    sprite(m, null, 0.9, 0.9, [6, 4, 2], 1, 0); addLight(m, [5, 3, 1.4], 18, 0.06);
-    G.stats.shots++; SFX.fire();
+  const firing = (IN.fire || (SET.auto && ap.tgt && !LOCK.on)) && G.phase === 'play' && !TUG.dead && !LOCK.on;
+  const mode = WEAP.mode;
+  WEAP.beamOn = false;
+  if (mode === 'beam') {
+    if (firing && !WEAP.over) {
+      WEAP.heat += dt / 3.0; if (WEAP.heat >= 1) { WEAP.heat = 1; WEAP.over = true; SFX.overheat(); }
+      fireBeam(dt, ap);
+    } else WEAP.heat = Math.max(0, WEAP.heat - dt * (WEAP.over ? 0.42 : 0.6));
+    if (WEAP.over && WEAP.heat < 0.3) WEAP.over = false;
+  } else WEAP.heat = Math.max(0, WEAP.heat - dt);
+  SFX.beam(WEAP.beamOn);
+  if (firing && WEAP.cool <= 0 && mode !== 'beam') {
+    const ms = muzzles(), m = ms[WEAP.barrel ^= 1], d = vnorm(vsub(ap.p, m));
+    if (mode === 'cannon') {
+      WEAP.cool = 1 / (FIRE_RATE * STATS.rateK);
+      BOLTS.push({ p: m, v: vmad(TUG.vel, d, BOLT_SPEED), life: 0.9, dmg: STATS.dmgK, kind: 'bolt' });
+      sprite(m, null, 0.9, 0.9, [6, 4, 2], 1, 0); addLight(m, [5, 3, 1.4], 18, 0.06); SFX.fire();
+    } else if (mode === 'scatter') {
+      WEAP.cool = 1 / (3.4 * STATS.rateK);
+      const up = TUG.frame.U, side = vnorm(vcross(d, up));
+      for (let i = 0; i < 6; i++) { const a = frnd() * TAU, r = Math.sqrt(frnd()) * 0.055, dd = vnorm(vadd(d, vadd(vscl(side, Math.cos(a) * r), vscl(up, Math.sin(a) * r)))); BOLTS.push({ p: ms[i % 2], v: vmad(TUG.vel, dd, 560), life: 0.5, dmg: 0.85 * STATS.dmgK, kind: 'pellet', hitW: 1 / 6 }); }
+      for (const mm of ms) sprite(mm, null, 1.4, 1.4, [7, 4, 1.6], 1, 0); addLight(m, [7, 4, 1.5], 22, 0.08); SFX.scatter(); shake(0.06);
+    } else if (mode === 'flak') {
+      WEAP.cool = 1 / (2.6 * STATS.rateK);
+      const dist = vdist(ap.p, m), fuse = clamp(dist / 420, 0.22, 1.4);
+      BOLTS.push({ p: m, v: vmad(TUG.vel, d, 420), life: fuse, dmg: STATS.dmgK, kind: 'flak' });
+      sprite(m, null, 1.6, 1.6, [7, 3.5, 1.2], 1, 0); addLight(m, [6, 3, 1], 20, 0.08); SFX.flak();
+    }
+    G.stats.shots++;
   }
-  // bolts
+  // bolts, pellets and flak shells
   for (let i = BOLTS.length - 1; i >= 0; i--) {
     const b = BOLTS[i], np = vmad(b.p, b.v, dt); b.life -= dt;
+    if (b.kind === 'flak') {
+      let burst = b.life <= 0;
+      if (!burst) for (const e of ENTS) { if (hittable(e) && !e.hidden && vdist(e.W, np) < e.r + 6) { burst = true; break; } }
+      if (burst) { flakBurst(np, b.dmg); BOLTS.splice(i, 1); continue; }
+      b.p = np; continue;
+    }
     let hit = null, ht = 1;
     const seg = vsub(np, b.p), L2 = vdot(seg, seg);
     for (const e of ENTS) {
@@ -69,8 +105,8 @@ function updateWeapons(dt) {
       const rel = vsub(e.W, b.p), t = clamp(vdot(rel, seg) / L2, 0, 1), cp = vmad(b.p, seg, t), rr2 = e.r + 0.6;
       if (vdist(cp, e.W) < rr2 && t < ht) { ht = t; hit = e; }
     }
-    if (!hit && BOSS.active && BOSS.headP && BOSS.emerge > 0.3 && vdist(np, BOSS.headP) < 19) { FX.sparks(np, 4, [0, 0, 0], [0.6, 3, 2], 10); BOLTS.splice(i, 1); continue; }
-    if (hit) { G.stats.hits++; damageE(hit, 1, { kind: 'bolt' }); BOLTS.splice(i, 1); continue; }
+    if (!hit && BOSS.active && BOSS.solid && BOSS.solid(np)) { FX.sparks(np, 4, [0, 0, 0], [0.6, 3, 2], 10); BOLTS.splice(i, 1); continue; }
+    if (hit) { G.stats.hits += b.hitW || 1; damageE(hit, b.dmg || 1, { kind: 'bolt' }); BOLTS.splice(i, 1); continue; }
     b.p = np; if (b.life <= 0) BOLTS.splice(i, 1);
   }
   // lock-on sweep
@@ -111,12 +147,39 @@ function updateWeapons(dt) {
     const step = sp * dt;
     if (d < t.r + 1.2 + step || m.age > 1.9) {
       t.pending = Math.max(0, t.pending - MISSILE_DMG);
-      FX.boom(t.W, 1.6, [1, 0.6, 0.3], t.vel); SFX.pop();
+      FX.boom(t.W, 1.6 + STATS.splash * 0.15, [1, 0.6, 0.3], t.vel); SFX.pop();
+      const tw = t.W.slice();
       damageE(t, MISSILE_DMG, { kind: 'missile', volley: m.volley });
+      if (STATS.splash) for (const o of ENTS) if (o !== t && hittable(o) && !o.K.boss && vdist(o.W, tw) < STATS.splash + o.r) damageE(o, 2 * STATS.dmgK, { kind: 'blast', volley: m.volley });
       MISSILES.splice(i, 1); continue;
     }
     m.p = vmad(m.p, m.v, dt);
     m.trail -= dt; if (m.trail <= 0) { m.trail = 0.012; spawnP({ p: m.p.slice(), v: vscl(m.v, 0.05), life: 0.5, s0: 0.35, s1: 1.2, c0: [1.2, 1, 0.9], c1: [0.15, 0.15, 0.18], a0: 0.5, a1: 0, shape: 3, drag: 2 }); }
+  }
+}
+function flakBurst(p, k) {
+  FX.boom(p, 2.6, [1, 0.6, 0.25]); spawnP({ p, life: 0.3, s0: 2, s1: 13, c0: [5, 3, 1.2], c1: [0.5, 0.2, 0.05], a0: 0.9, a1: 0, shape: 1 }); SFX.pop();
+  let any = false;
+  for (const e of ENTS) { if (!hittable(e) || e.hidden) continue; const d = vdist(e.W, p) - e.r; if (d < 12) { any = true; damageE(e, 3 * k * (1 - Math.max(0, d) / 14), { kind: 'flak' }); } }
+  if (any) G.stats.hits++;
+}
+// cutting beam: continuous damage on the first thing along the aim line
+function fireBeam(dt, ap) {
+  const ms = muzzles(), o = vlerp(ms[0], ms[1], 0.5), dir = vnorm(vsub(ap.p, o));
+  let best = null, bt = 650;
+  for (const e of ENTS) {
+    if (!hittable(e) || e.hidden) continue;
+    const rel = vsub(e.W, o), t = vdot(rel, dir); if (t < 0 || t > bt) continue;
+    const r = e.r + 0.4, d2 = vdot(rel, rel) - t * t; if (d2 > r * r) continue;
+    const th = t - Math.sqrt(Math.max(0, r * r - d2)); if (th < bt) { bt = Math.max(0, th); best = e; }
+  }
+  const end = vmad(o, dir, best ? bt : Math.min(500, vdist(o, ap.p)));
+  WEAP.beamOn = true; WEAP.beamEnd = end; WEAP.beamO = o; WEAP.beamHit = best;
+  WEAP.beamAcc = (WEAP.beamAcc || 0) + dt; if (WEAP.beamAcc > 0.25) { WEAP.beamAcc = 0; G.stats.shots++; if (best) G.stats.hits++; } // a quarter second of beam counts as one shot
+  if (best) {
+    best.flash = Math.max(best.flash, 0.35);
+    damageE(best, 11 * STATS.dmgK * dt, { kind: 'beam' });
+    if (frnd() < dt * 30) FX.sparks(end, 2, best.vel || [0, 0, 0], [3, 6, 8], 12);
   }
 }
 function qslerp(a, b, t) { let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; if (d < 0) { b = b.map(x => -x); d = -d; } return qnorm(a.map((x, i) => x + (b[i] - x) * t)); }
@@ -136,7 +199,19 @@ function launchMissile(m) {
   sprite(pod, null, 1.6, 1.6, [5, 3, 2], 1, 0); SFX.launch();
 }
 function drawWeapons() {
-  for (const b of BOLTS) sprite(b.p, vscl(vsub(b.v, TUG.vel), 0.012), 0.22, 0.22, [9, 5.5, 2.2], 1, 2);
+  for (const b of BOLTS) {
+    if (b.kind === 'pellet') sprite(b.p, vscl(vsub(b.v, TUG.vel), 0.01), 0.16, 0.16, [9, 6, 3], 1, 2);
+    else if (b.kind === 'flak') { sprite(b.p, vscl(vsub(b.v, TUG.vel), 0.006), 0.35, 0.35, [8, 4, 1.4], 1, 2); sprite(b.p, null, 0.9, 0.9, [3, 1.4, 0.5], 0.8, 0); }
+    else sprite(b.p, vscl(vsub(b.v, TUG.vel), 0.012), 0.22, 0.22, [9, 5.5, 2.2], 1, 2);
+  }
+  if (WEAP.beamOn && WEAP.beamEnd) {
+    const o = WEAP.beamO, e = WEAP.beamEnd, L = vsub(e, o), flick = 0.85 + 0.15 * Math.sin(G.t * 90);
+    sprite(vlerp(o, e, 0.5), L, 0.32 * flick, 0.05, [3, 9, 12], 1, 2);
+    sprite(vlerp(o, e, 0.5), L, 0.9, 0.05, [0.4, 1.6, 2.4], 0.6, 0);
+    sprite(e, null, WEAP.beamHit ? 2.6 : 1.2, WEAP.beamHit ? 2.6 : 1.2, [3, 8, 10], 1, 0);
+    sprite(o, null, 1.1, 1.1, [3, 8, 10], 1, 0);
+    if (WEAP.beamHit) addLight(e, [2, 5, 7], 26, 0.05);
+  }
   for (const m of MISSILES) {
     if (m.delay > 0) continue;
     inst('missile', m.p, frameQ(vnorm(m.v), [0, 1, 0]), 1.4, [1, 1, 1], 2, 1, 0, 0, 0.2);

@@ -4,7 +4,7 @@ const SET = {
   lockMode: SAVE.get('lockMode', 'right'), auto: SAVE.get('auto', IS_TOUCH), sens: SAVE.get('sens', 1)
 };
 const AIM = { x: innerWidth / 2, y: innerHeight * 0.42 };
-const IN = { fire: false, mouseFire: false, keyFire: false, touchFire: false, padFire: false, holdLock: false, holdT: 0, keys: {}, touch: IS_TOUCH, drag: null, padLock: false, padStart: false, override: null };
+const IN = { fire: false, mouseFire: false, keyFire: false, touchFire: false, padFire: false, holdLock: false, holdT: 0, keys: {}, touch: IS_TOUCH, drag: null, padLock: false, padStart: false, padMode: false, override: null, wheelT: 0 };
 function clampAim() { AIM.x = clamp(AIM.x, 8, VIEW.cssW - 8); AIM.y = clamp(AIM.y, 8, VIEW.cssH - 8); }
 function showTouch() { if (IN.touchShown) return; IN.touch = true; IN.touchShown = true; $('touch').classList.remove('hidden'); document.body.classList.add('touchmode'); updateSettingsUI(); }
 const isUI = el => !!(el && el.closest && el.closest('button, .screen, #touch, .settings'));
@@ -15,7 +15,10 @@ addEventListener('pointerdown', e => {
   AIM.x = e.clientX; AIM.y = e.clientY;
   if (e.button === 0) { IN.mouseFire = true; if (SET.lockMode === 'hold') { IN.holdT = 0; IN.holdArmed = true; } }
   if (e.button === 2 && SET.lockMode === 'right') lockStart();
+  if (e.button === 1) { e.preventDefault(); cycleMode(1); }
 });
+// mouse wheel or middle click cycles the fire mode
+addEventListener('wheel', e => { if (G.phase !== 'play' || G.paused || isUI(e.target)) return; e.preventDefault(); const t = performance.now(); if (t - IN.wheelT < 180) return; IN.wheelT = t; cycleMode(e.deltaY > 0 ? 1 : -1); }, { passive: false });
 addEventListener('pointermove', e => {
   if (e.pointerType === 'touch') {
     if (IN.drag && e.pointerId === IN.drag.id) { const k = 1.55 * SET.sens; AIM.x += (e.clientX - IN.drag.x) * k; AIM.y += (e.clientY - IN.drag.y) * k; IN.drag.x = e.clientX; IN.drag.y = e.clientY; clampAim(); }
@@ -39,6 +42,9 @@ addEventListener('keydown', e => {
   if (G.phase === 'play' && !G.paused) {
     if (FIRE_KEYS.includes(e.code)) { IN.keyFire = true; e.preventDefault(); }
     if (LOCK_KEYS.includes(e.code)) lockStart();
+    if (e.code === 'KeyQ' || e.code === 'Tab') { cycleMode(e.shiftKey ? -1 : 1); e.preventDefault(); }
+    if (e.code === 'KeyE') cycleMode(-1);
+    const dg = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code); if (dg >= 0 && CAMP.modes[MODE_ORDER[dg]] && WEAP.mode !== MODE_ORDER[dg]) { WEAP.mode = CAMP.mode = MODE_ORDER[dg]; SFX.mode(); popup(MODES[dg].name, vmad(TUG.W, TUG.frame.U, 4), '#9ef', true); }
   }
   if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
 });
@@ -58,6 +64,7 @@ function holdBtn(id, down, up) {
 holdBtn('tFire', () => { IN.touchFire = true; }, () => { IN.touchFire = false; });
 holdBtn('tLock', () => lockStart(), () => lockRelease());
 $('tAuto').addEventListener('click', e => { e.stopPropagation(); setSetting('auto', !SET.auto); });
+$('tMode').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); AU.init(); AU.apply(); cycleMode(1); });
 function updateInput(dt) {
   if (IN.override) { const o = IN.override; IN.fire = !!o.fire; return; }
   // keyboard aim
@@ -76,6 +83,7 @@ function updateInput(dt) {
     const lk = bt(6) || bt(5) || bt(2);
     if (lk && !IN.padLock) lockStart(); if (!lk && IN.padLock) lockRelease(); IN.padLock = lk;
     if (bt(9) && !IN.padStart) togglePause(); IN.padStart = bt(9);
+    if (bt(3) && !IN.padMode && G.phase === 'play' && !G.paused) cycleMode(1); IN.padMode = bt(3);
   }
   if (kx || ky) { const sp = 950 * Math.min(VIEW.cssW, VIEW.cssH) / 800; AIM.x += kx * sp * dt; AIM.y += ky * sp * dt; clampAim(); }
   // classic mode: hold left button to lock

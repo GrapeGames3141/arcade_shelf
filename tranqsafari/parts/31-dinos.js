@@ -1,4 +1,4 @@
-// ===== Species: rigs, signed-distance bodies, paint, darts needed, weak spots =====
+// ===== Species: rigs, signed-distance bodies, paint, darts needed, weak spots, armour =====
 // Regions (vertex colour alpha): 0 skin, 1 belly, 2 claw/horn, 3 teeth, 4 mouth, 5 crest/frill, 6 membrane
 const cone = (a, b, ra, rb, bone, o = {}) => Object.assign({ t: 'cone', a, b, ra, rb, bone }, o);
 const ell = (c, r, bone, o = {}) => Object.assign({ t: 'ell', c, r, bone }, o);
@@ -297,18 +297,66 @@ function defineSpecies() {
   Object.assign(SPECIES.ptero, { id: 'ptero', name: 'Glider', need: 1, score: 150, cell: 0.022, lodCell: 0.045, eyeCol: [0.9, 0.5, 0.1], scale: 30,
     paint: painter({ back: [0.42, 0.34, 0.28], belly: [0.72, 0.64, 0.55], spot: [0.25, 0.2, 0.16], spotF: 9, spotAmt: 0.4, crest: [0.75, 0.15, 0.12], crest2: [0.15, 0.5, 0.5], crestF: 2.5, membrane: [0.62, 0.42, 0.28], horn: [0.75, 0.68, 0.5] }) });
 
+  // ---- Dusk Delta cast ----
+  SPECIES.nipper = theropod({
+    hipY: 0.36, pelvisR: [0.12, 0.085, 0.07], torsoL: 0.2, torsoRise: 0.05, torsoR0: 0.08, torsoR1: 0.065, neckL: 0.2, neckA: 1.1, neckR0: 0.042, neckR1: 0.03,
+    headL: 0.17, headR: 0.044, snoutR: 0.027, headTilt: 0.15, jawR: 0.02, eyeR: 0.46, brow: 0, teeth: 0, headWeak: 1,
+    tail: [[-0.09, 0.38], [-0.27, 0.38, 0.045], [-0.45, 0.365, 0.03], [-0.63, 0.35, 0.018], [-0.8, 0.335, 0.007]],
+    legZ: 0.058, legR: 0.05, toeL: 0.06, toeR: 0.013, armL: 0.13, armR: 0.015, K: 0.022, sigma: 0.022,
+  });
+  Object.assign(SPECIES.nipper, { id: 'nipper', name: 'Nipper', need: 1, score: 40, cell: 0.013, lodCell: 0.026, eyeCol: [0.98, 0.8, 0.2], scale: 75, assist: 0.07,
+    paint: painter({ back: [0.3, 0.5, 0.2], belly: [0.86, 0.83, 0.55], stripe: [0.13, 0.24, 0.12], stripeF: 30, stripeAmt: 0.8, chevron: 14, stripeMaxX: 0.3, horn: [0.25, 0.22, 0.2] }) });
+
+  SPECIES.clubtail = quadruped({
+    hipY: 1.35, chestX: 1.7, chestY: 1.3, bodyC0: 0.2, bodyR: [1.35, 0.72, 1.05], chestR: [1.1, 0.66, 0.95],
+    neck: [[2.35, 1.2], [2.75, 1.05]], neckR: [0.4, 0.32], headL: 0.8, headR: 0.34, snoutR: 0.22, headTilt: 0.25, jawR: 0.17, eyeR: 0.2,
+    tail: [[-1.1, 1.3], [-2.1, 1.2, 0.3], [-3.0, 1.1, 0.2], [-3.8, 1.02, 0.14], [-4.5, 0.98, 0.12]], tailR0: 0.5,
+    frontX: 0.1, backX: 0.0, legZ: 0.7, legRF: 0.21, legRB: 0.25, footR: 0.13, K: 0.14, sigma: 0.13,
+    extras(sp, P, rig, g) {
+      // armour: the two big back ellipsoids deflect darts; knob rows, shoulder spikes and the tail club ride on them
+      const pel = rig.b('pelvis'), ch = rig.b('chest');
+      P.forEach(p => { if (p.t === 'ell' && (p.bone === pel || p.bone === ch) && p.reg !== 1) p.armor = 1; });
+      const topY = (x, z) => { const e = (cx, cy, rx, ry, rz) => { const q = 1 - ((x - cx) / rx) ** 2 - (z / rz) ** 2; return q > 0 ? cy + ry * Math.sqrt(q) : 0; }; return Math.max(e(0.2, 1.35, 1.35, 0.72, 1.05), e(1.445, 1.3, 1.1, 0.66, 0.95)); };
+      for (let i = 0; i < 8; i++) for (const z of [-0.66, -0.22, 0.22, 0.66]) { const x = 2.2 - i * 0.42; const y = topY(x, z); if (!y) continue; P.push(cone([x, y - 0.06, z], [x - 0.04, y + 0.15, z * 1.1], 0.1, 0.02, x > 0.95 ? ch : pel, { reg: 2, k: 0.05, armor: 1 })); }
+      for (const s of [1, -1]) { P.push(cone([1.7, 1.35, 0.8 * s], [1.95, 1.52, 1.4 * s], 0.13, 0.02, ch, { reg: 2, k: 0.05, armor: 1 })); P.push(cone([g.hj[0] + 0.05, g.hj[1] + 0.22, 0.2 * s], [g.hj[0] - 0.2, g.hj[1] + 0.42, 0.34 * s], 0.07, 0.015, rig.b('head'), { reg: 2, k: 0.03 })); }
+      P.push(ell([-4.8, 0.98, 0], [0.42, 0.27, 0.52], rig.b('tail3'), { reg: 2, k: 0.07 }));
+    },
+  });
+  Object.assign(SPECIES.clubtail, { id: 'clubtail', name: 'Clubtail', need: 14, score: 400, cell: 0.06, lodCell: 0.12, eyeCol: [0.35, 0.25, 0.1], scale: 8,
+    paint: painter({ back: [0.27, 0.29, 0.31], belly: [0.62, 0.56, 0.45], spot: [0.4, 0.34, 0.24], spotF: 2.4, spotAmt: 0.5, horn: [0.74, 0.64, 0.42] }) });
+
+  SPECIES.sailback = theropod({
+    hipY: 3.3, pelvisR: [1.2, 0.85, 0.72], torsoL: 2.3, torsoRise: 0.1, torsoR0: 0.9, torsoR1: 0.72, neckL: 1.7, neckA: 0.55, neckR0: 0.52, neckR1: 0.36,
+    headL: 2.3, headR: 0.4, snoutR: 0.24, headTilt: 0.1, jawR: 0.2, eyeR: 0.2, brow: 0, teeth: 11, headWeak: 1,
+    tail: [[-1.0, 3.4], [-2.8, 3.3, 0.6], [-4.8, 3.1, 0.42], [-6.8, 2.9, 0.26], [-8.8, 2.7, 0.1]],
+    legZ: 0.55, legR: 0.5, toeL: 0.6, toeR: 0.14, armL: 1.1, armR: 0.14, K: 0.24, sigma: 0.22, hipX: 0.1,
+    extras(sp, P, rig, g) {
+      P.push(ell([0.6, 5.05, 0], [3.0, 1.6, 0.17], rig.b('pelvis'), { reg: 5, k: 0.1 }));      // the sail
+      P.push(ell([-5.9, 3.0, 0], [2.6, 0.56, 0.15], rig.b('tail2'), { reg: 5, k: 0.1 }));      // paddle fin on the tail
+    },
+  });
+  Object.assign(SPECIES.sailback, { id: 'sailback', name: 'Sailback', need: 72, score: 5000, boss: true, cell: 0.1, lodCell: 0.2, eyeCol: [0.95, 0.75, 0.2], scale: 5,
+    paint: painter({ back: [0.2, 0.3, 0.34], belly: [0.58, 0.55, 0.44], stripe: [0.09, 0.14, 0.17], stripeF: 2.3, stripeAmt: 0.75, chevron: 1.2, stripeMaxX: 3.6, crest: [0.6, 0.2, 0.1], crest2: [0.8, 0.55, 0.22], crestF: 0.62, horn: [0.3, 0.28, 0.24] }) });
+  SPECIES.boss.boss = true;
+
   for (const k in SPECIES) {
     const sp = SPECIES[k]; sp.prims.forEach(primPrep);
     // hit capsules: cones as-is, ellipsoids as capsules along their longest axis
     sp.hit = sp.prims.filter(p => p.reg !== 3).map(p => {
-      if (p.t === 'cone') return { a: p.a, b: p.b, r: Math.max(p.ra, p.rb) * 1.08, bone: p.bone, weak: p.weak || 0 };
+      if (p.t === 'cone') return { a: p.a, b: p.b, r: Math.max(p.ra, p.rb) * 1.08, bone: p.bone, weak: p.weak || 0, armor: p.armor || 0 };
       const r = p.r.slice(); const i = r.indexOf(Math.max(...r)); const rest = r.filter((_, j) => j !== i); const rm = Math.max(...rest);
       const ax = p.R[i]; const h = Math.max(0, r[i] - rm);
-      return { a: V.sub(p.c, V.mul(ax, h)), b: V.add(p.c, V.mul(ax, h)), r: rm * 1.05, bone: p.bone, weak: p.weak || 0 };
+      return { a: V.sub(p.c, V.mul(ax, h)), b: V.add(p.c, V.mul(ax, h)), r: rm * 1.05, bone: p.bone, weak: p.weak || 0, armor: p.armor || 0 };
     });
     let top = 0; for (const p of sp.prims) top = Math.max(top, p.mx[1]); sp.top = top;
     let mnx = 1e9, mxx = -1e9; for (const p of sp.prims) { mnx = Math.min(mnx, p.mn[0]); mxx = Math.max(mxx, p.mx[0]); } sp.len = mxx - mnx; sp.radius = Math.max(sp.len, top) * 0.6;
   }
+}
+// creature meshes are built on demand: only the cast of the route being loaded
+function ensureSpecies(ids) {
+  const out = {};
+  for (const k of ids) { const sp = SPECIES[k]; if (!sp || sp.mesh) continue; const t0 = performance.now(); const m0 = buildCreatureMesh(sp, sp.cell), m1 = buildCreatureMesh(sp, sp.lodCell); sp.mesh = [creatureVAO(m0), creatureVAO(m1)]; out[k] = Math.round(performance.now() - t0); }
+  return out;
 }
 function buildSpeciesMeshes(progress) {
   const out = {};

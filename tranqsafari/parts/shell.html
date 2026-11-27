@@ -22,7 +22,7 @@
     <div class="pill"><div class="cap">SCORE</div><div id="score">0</div></div>
     <div id="combo" class="pill dim"><div class="cap">COMBO</div><div id="mult">x1</div></div>
   </div>
-  <div id="tc"><div id="bossbar" class="hidden"><div class="bname">RUMBLEJAW <span>sleepiness</span></div><div class="track"><div id="bossfill"></div><i style="left:34%"></i><i style="left:67%"></i></div></div></div>
+  <div id="tc"><div id="bossbar" class="hidden"><div class="bname"><b id="bossName">RUMBLEJAW</b> <span>sleepiness</span></div><div class="track"><div id="bossfill"></div><i style="left:34%"></i><i style="left:67%"></i></div></div></div>
   <div id="tr"><div class="pill hp"><div class="cap">JEEP</div><div class="track"><div id="hpfill"></div></div></div></div>
   <div id="radio" class="hidden"><div class="who"><span class="dot"></span><b id="rwho">DOT</b> <span id="rrole">driver</span></div><div id="rtext"></div></div>
   <div id="ammo"><div id="darts"></div><div id="reloadbar"><div id="reloadfill"></div></div><div id="ammohint">R / right click</div></div>
@@ -36,7 +36,9 @@
   <div class="card">
     <div class="logo"><span class="l1">TRANQ</span><span class="l2">SAFARI</span></div>
     <div class="tag">No dinosaurs were harmed. Several got very sleepy.</div>
-    <div class="how">Ride shotgun through a prehistoric valley. Dot drives; you keep the dinosaurs off the jeep with a tranquilizer dart rifle. Bigger animals take more darts, and weak spots count extra. Then something big comes down the river.</div>
+    <div class="how">Ride shotgun through a prehistoric valley. Dot drives; you keep the dinosaurs off the jeep with a tranquilizer dart rifle. Bigger animals take more darts, and weak spots count extra. Two routes: a morning run up the valley, and a drive through the delta from sunset into the night.</div>
+    <div class="row"><span class="lab">Route</span><div class="seg" data-set="route"><button data-v="0">1 &middot; Valley Run</button><button data-v="1">2 &middot; Dusk Delta</button></div></div>
+    <div id="routeTag" class="best"></div>
     <div class="row"><span class="lab">Difficulty</span><div class="seg" data-set="diff"><button data-v="0">Easy</button><button data-v="1">Normal</button><button data-v="2">Hard</button></div></div>
     <div class="row"><span class="lab">Quality</span><div class="seg" data-set="quality"><button data-v="0">Low</button><button data-v="1">Med</button><button data-v="2">High</button><button data-v="3">Max</button></div></div>
     <div class="row"><span class="lab">Sound</span><div class="seg" data-set="sound"><button data-v="1">On</button><button data-v="0">Off</button></div><span class="lab">Music</span><div class="seg" data-set="music"><button data-v="1">On</button><button data-v="0">Off</button></div></div>
@@ -66,7 +68,7 @@
     <div id="rtitle" class="ptitle">SAFARI COMPLETE</div>
     <div id="rsub" class="tag"></div>
     <div id="rbody"></div>
-    <button id="againBtn" class="go">RETRY</button><button id="menuBtn" class="go alt">TITLE</button><button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
+    <button id="nextBtn" class="go">NEXT ROUTE</button><button id="againBtn" class="go alt">RETRY</button><button id="menuBtn" class="go alt">TITLE</button><button type="button" class="go alt" data-arcade-home onclick="location.href='../index.html'">ARCADE SHELF</button>
   </div>
 </div>
 <div id="nogl" class="overlay" style="display:none"><div class="card small"><div class="ptitle">WebGL2 needed</div><div class="how">This game needs a browser with WebGL2.</div></div></div>

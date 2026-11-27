@@ -61,17 +61,25 @@ const SFX = {
     else if (k === 'runner') tone('triangle', 800 * p, 500 * p, 0.2, v);
     else if (k === 'hornback') tone('sawtooth', 160 * p, 100 * p, 0.35, v * 1.2, { filter: 'lowpass', ff: 600 });
     else if (k === 'longneck') SFX.longneck(a);
-    else if (k === 'boss') noiseHit(0.5, 0.4, 'lowpass', 700, 1, { f1: 250, rate: 0.7 });
+    else if (k === 'boss' || k === 'sailback') noiseHit(0.5, 0.4, 'lowpass', 700, 1, { f1: 250, rate: 0.7 });
+    else if (k === 'nipper') tone('sawtooth', 2100 * p, 1300 * p, 0.1, v * 0.8, { filter: 'bandpass', ff: 2400, q: 2 });
+    else if (k === 'clubtail') tone('sawtooth', 120 * p, 80 * p, 0.4, v * 1.2, { filter: 'lowpass', ff: 500 });
   },
-  snore(a) { const v = distVol(a, 0.12); noiseHit(1.1, v, 'lowpass', a.sp.id === 'boss' ? 300 : 700, 1, { a: 0.4 }); },
+  snore(a) { const v = distVol(a, 0.12); noiseHit(1.1, v, 'lowpass', a.sp.boss ? 300 : 700, 1, { a: 0.4 }); },
   ui() { tone('triangle', 900, 1200, 0.06, 0.12); },
+  plink() { tone('triangle', 2100, 1500, 0.07, 0.18); tone('sine', 3300, 2900, 0.05, 0.1, { delay: 0.01 }); noiseHit(0.03, 0.12, 'highpass', 4000); },
+  plop() { tone('sine', 420, 160, 0.12, 0.2); noiseHit(0.1, 0.12, 'lowpass', 1200); },
+  cricket(v = 1) { for (let i = 0; i < 3; i++) tone('sine', 4300 + Math.random() * 500, 4300, 0.035, 0.035 * v, { delay: i * 0.07 }); },
+  frog(v = 1) { tone('sawtooth', 150 + Math.random() * 60, 110, 0.16, 0.06 * v, { filter: 'bandpass', ff: 500, q: 4, vib: 28, vibA: 20 }); },
 };
 function audioUpdate(dt) {
   if (!AUD.ctx) return; const t = AUD.ctx.currentTime, J = JEEP; const playing = G.phase === 'play' || G.phase === 'over';
   const b = AUD.beds; const sp = playing ? J.v : 0;
   b.eng.g.gain.setTargetAtTime(playing ? 0.09 + sp * 0.006 : 0, t, 0.2); b.eng.o1.frequency.setTargetAtTime(38 + sp * 3.2 + J.bump * 2, t, 0.15); b.eng.o2.frequency.setTargetAtTime(77 + sp * 6.4, t, 0.15); b.eng.lp.frequency.setTargetAtTime(220 + sp * 30, t, 0.2);
   b.wind.g.gain.setTargetAtTime(playing ? 0.015 + sp * 0.004 : 0, t, 0.3);
-  const riv = playing ? secAt(J.s).river : 0; b.river.g.gain.setTargetAtTime(riv * 0.09, t, 0.5);
+  const sec = secAt(J.s); const riv = playing ? Math.max(sec.river, sec.sea * 0.5) : 0; b.river.g.gain.setTargetAtTime(riv * 0.09, t, 0.5);
+  // dusk and night: crickets, frogs in the mire, a low rumble over the lava
+  if (playing && LIGHT.lamp > 0.05) { AUD.night = (AUD.night ?? 1) - dt; if (AUD.night <= 0) { AUD.night = 0.25 + Math.random() * 0.7; if (sec.lava < 0.5) SFX.cricket(Math.min(1, LIGHT.lamp * 2)); if (sec.marsh > 0.5 && Math.random() < 0.4) SFX.frog(1); if (sec.lava > 0.5 && Math.random() < 0.3) noiseHit(1.2, 0.07, 'lowpass', 120, 1, { a: 0.4 }); } }
   // snoring sleepers nearby
   if (playing) for (const a of ACTORS) if (a.asleep && a.an.sleep >= 1) { a.snoreT = (a.snoreT ?? Math.random() * 3) - dt; if (a.snoreT <= 0) { a.snoreT = 2.6 + Math.random(); if (V.dist(a.pos, CAM.pos) < 40) SFX.snore(a); } }
   // music: marimba ostinato, faster with drums during the chase
@@ -80,7 +88,7 @@ function audioUpdate(dt) {
   if (AUD.nextBeat < t) AUD.nextBeat = t + 0.05;
   while (AUD.nextBeat < t + 0.2) {
     const i = AUD.beat++ % 16; const bt = AUD.nextBeat - t;
-    const scale = [0, 3, 5, 7, 10, 12, 15]; const root = chase ? 110 : 146.8; const pat = chase ? [0, 0, 3, 0, 5, 0, 3, 4, 0, 0, 3, 0, 6, 5, 3, 2] : [0, 2, 4, 2, 5, 4, 2, 1, 0, 2, 4, 6, 5, 4, 2, 1];
+    const scale = [0, 3, 5, 7, 10, 12, 15]; const root = (chase ? 110 : 146.8) * (LIGHT.night > 0.5 ? 0.75 : 1); const pat = chase ? [0, 0, 3, 0, 5, 0, 3, 4, 0, 0, 3, 0, 6, 5, 3, 2] : [0, 2, 4, 2, 5, 4, 2, 1, 0, 2, 4, 6, 5, 4, 2, 1];
     if (i % 2 === 0 || chase) tone('triangle', root * Math.pow(2, scale[pat[i]] / 12) * 2, root * Math.pow(2, scale[pat[i]] / 12) * 2, 0.18, 0.12, { delay: bt, out: AUD.mus });
     if (i % 4 === 0) tone('sine', root / 2, root / 2.2, 0.3, chase ? 0.35 : 0.2, { delay: bt, out: AUD.mus });
     if (chase && i % 4 === 2) noiseHit(0.12, 0.25, 'bandpass', 180, 1, { delay: bt, out: AUD.mus });
