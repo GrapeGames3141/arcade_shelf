@@ -1,0 +1,7 @@
+{
+  "title": "Staff Training",
+  "description": "You are the cat. Your staff are a human couple who mean well and have learned nothing. Work through the manual: breakfast at 5 AM, second breakfast, the laptop is a bed, doors are a suggestion, teach them to fetch, and take 70% of the bed.",
+  "category": "Simulation",
+  "controls": "W/S walk, A/D turn, Space jump, Q meow, Shift zoomies, E mischief, F charm, Esc pause. Touch: joystick on the left (up walks, sideways turns), buttons on the right. Gamepad supported.",
+  "requirements": "WebGL2 browser"
+}

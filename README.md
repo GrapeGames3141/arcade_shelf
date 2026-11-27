@@ -53,6 +53,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Backyard Open | `backyard-open/backyard-open.html` | `http://127.0.0.1:8000/backyard-open/backyard-open.html` |
 | Shadow Cabinet | `shadowcabinet/shadowcabinet.html` | `http://127.0.0.1:8000/shadowcabinet/shadowcabinet.html` |
 | Ghost Shift | `ghostshift/ghostshift.html` | `http://127.0.0.1:8000/ghostshift/ghostshift.html` |
+| Staff Training | `stafftraining/stafftraining.html` | `http://127.0.0.1:8000/stafftraining/stafftraining.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 

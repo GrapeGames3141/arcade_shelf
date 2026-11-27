@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1f2a44">
+<title>Staff Training</title>
+<style>
+/*@CSS*/
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+<div id="hud" class="hidden">
+  <div id="top">
+    <button id="pauseBtn" aria-label="Pause">II</button>
+    <div id="lessonBox"><div id="lessonTitle"></div><div id="clock"></div></div>
+    <div id="dig"><span>DIGNITY</span><div class="bar"><i id="digBar"></i></div></div>
+  </div>
+  <div id="staff"></div>
+  <div id="objs"></div>
+  <div id="narr"></div>
+  <div id="toast"></div>
+  <button id="finishBtn" class="hidden">FINISH LESSON &#10004;</button>
+  <div id="btns">
+    <button id="bMeow" class="rnd">MEOW<kbd>Q</kbd></button>
+    <button id="bZoom" class="rnd">ZOOM<kbd>Shift</kbd></button>
+    <button id="bMis" class="act mis"><small>MISCHIEF <kbd>E</kbd></small><span></span></button>
+    <button id="bCharm" class="act charm"><small>CHARM <kbd>F</kbd></small><span></span></button>
+    <button id="bJump" class="rnd big">JUMP<kbd>Space</kbd></button>
+  </div>
+</div>
+<div id="touch"><div id="joyBase"><div id="joyKnob"></div></div></div>
+
+<div id="menu" class="overlay">
+  <div class="page">
+    <div class="eyebrow">A PRACTICAL MANUAL FOR THE HOUSEHOLD CAT</div>
+    <h1>STAFF<br>TRAINING</h1>
+    <div class="tag">You do not have owners. You have staff. They are a couple, they mean well, and they have learned nothing.</div>
+    <div class="toc" id="toc"></div>
+    <div class="row"><span class="lbl">YOUR COAT</span><div id="coats"></div></div>
+    <div class="row btnrow">
+      <button id="sndBtn" class="mini"></button><button id="qBtn" class="mini"></button><button id="howBtn" class="mini">HOW TO PLAY</button><button id="unlockBtn" class="mini ghost">UNLOCK ALL</button>
+    </div>
+    <div id="how" class="hidden"></div>
+  </div>
+</div>
+<div id="brief" class="overlay hidden"><div class="page"><div class="eyebrow" id="bNum"></div><h2 id="bTitle"></h2><div class="rule" id="bRule"></div><ul id="bTips"></ul><div class="sub">TO PASS</div><ul id="bObj" class="chk"></ul><div class="row btnrow"><button id="bBegin" class="big">BEGIN LESSON</button><button id="bBack" class="mini">BACK</button></div></div></div>
+<div id="pause" class="overlay hidden"><div class="page small"><h2>PAUSED</h2><div class="rule" id="pRule"></div><ul id="pTips"></ul><div class="row btnrow col"><button id="pResume" class="big">RESUME</button><button id="pRestart" class="mini">RESTART LESSON</button><button id="pSnd" class="mini"></button><button id="pQ" class="mini"></button><button id="pQuit" class="mini">QUIT TO MANUAL</button></div></div></div>
+<div id="report" class="overlay hidden"><div class="page"><div class="eyebrow">REPORT CARD</div><h2 id="rTitle"></h2><div id="stamp"></div><div class="rule" id="rText"></div><ul id="rObj" class="chk"></ul><div class="sub">EXTRA CREDIT</div><ul id="rExtra" class="chk"></ul><div class="sub">STAFF EVALUATIONS</div><div id="rStaff"></div><div id="rStats"></div><div class="row btnrow"><button id="rNext" class="big">NEXT LESSON</button><button id="rRetry" class="mini">RETRY</button><button id="rMenu" class="mini">MANUAL</button></div></div></div>
+<script>
+/*@JS*/
+</script>
+</body>
+</html>
