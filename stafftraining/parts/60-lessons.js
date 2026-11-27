@@ -22,7 +22,7 @@ function genericDoorDemand(h, type, m) {
   if (type !== 'paw' && !type.startsWith('meow')) return null;
   const d = (m && m.door) || closedDoorNearCat(); if (!d || d.id === 'front') return null;
   if (!h.awake || h.pinned || h.pri >= 2 || HUM.some(o => o.planName === 'door')) return null;
-  return { id: 'door', will: h.id ? 70 : 55, comply: hh => planDoorOpen(hh, d) };
+  return { id: 'door:' + d.id, train: 'door', will: h.id ? 70 : 55, comply: hh => planDoorOpen(hh, d) };
 }
 function baseLesson(o) {
   return Object.assign({
@@ -216,7 +216,7 @@ const LESSONS = [
       if (inBath || h.pri >= 2) return null;
       if (d.id === 'bath' && partner(h).planName === 'shower') { sayCd(h, 'bathOther', 7); return null; }
       const o = partner(h); if (S.last === h && o.awake && !o.pinned && o.planName !== 'shower' && o.pri < 2) { if (sayCd(h, 'yourDoor', 7)) narr('MANUAL: Staff take turns at door duty. Keep complaining and the other one will come.', 'turns'); return null; }
-      return { id: 'door', will: (h.id ? 78 : 60) * Math.pow(0.85, S.reps[h.id]), comply: hh => this.planDoor(hh, d, false) };
+      return { id: 'door:' + d.id, train: 'door', will: (h.id ? 78 : 60) * Math.pow(0.85, S.reps[h.id]), comply: hh => this.planDoor(hh, d, false) };
     },
     planDoor(h, d, bath) {
       const S = this.S, [x, z] = d.id === 'front' ? [d.inX, d.inZ] : doorSide(h, d);

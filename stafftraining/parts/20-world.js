@@ -234,6 +234,13 @@ function losClear(ax, az, bx, bz) {
   for (const k in DOORS) { const d = DOORS[k]; if (d.open < 0.45 && segBox(ax, az, bx, bz, d.x0, d.x1, d.z - 0.06, d.z + 0.06)) return false; }
   return true;
 }
+// can the cat travel in a straight line from a to b? walls, closed doors and the front door block
+function pathClear(ax, az, bx, bz) {
+  const m = 0.05;
+  for (const w of WALLS) if (segBox(ax, az, bx, bz, w.x0 - m, w.x1 + m, w.z0 - m, w.z1 + m)) return false;
+  for (const k in DOORS) { const d = DOORS[k]; if (doorBlocks(d) && segBox(ax, az, bx, bz, d.x0, d.x1, d.z - 0.06 - m, d.z + 0.06 + m)) return false; }
+  return bx > APT.x0 && bx < APT.x1 && bz > APT.z0 && bz < APT.z1;
+}
 function roomOf(x, z) { if (x < -1.6 && z < -0.6) return 'bed'; if (x > 3.2 && z < -1.8) return 'bath'; return 'main'; }
 // 3D ray vs boxes for the chase camera: returns the nearest hit fraction (0..1)
 function camRay(ox, oy, oz, tx, ty, tz, skip) {

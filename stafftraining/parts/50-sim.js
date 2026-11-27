@@ -179,7 +179,7 @@ function propsUpdate(dt) {
       const g = supportAt(p.x, p.z, p.y + 0.05).y;
       if (p.y <= g) { p.y = g; propLanded(p); }
     } else if (p.st === 'floor' && (Math.abs(p.vx) > 0.02 || Math.abs(p.vz) > 0.02)) {
-      const q = { x: p.x + p.vx * dt, z: p.z + p.vz * dt }, bx = q.x, bz = q.z; collideCat(q, 0.05, p.y);
+      const q = { x: p.x, z: p.z }; for (let i = 0, n = Math.max(1, Math.ceil(hyp(p.vx, p.vz) * dt / 0.05)); i < n; i++) { q.x += p.vx * dt / n; q.z += p.vz * dt / n; collideCat(q, 0.05, p.y); } const bx = p.x + p.vx * dt, bz = p.z + p.vz * dt;
       if (Math.abs(q.x - bx) > 1e-4) p.vx *= -0.5; if (Math.abs(q.z - bz) > 1e-4) p.vz *= -0.5; p.x = q.x; p.z = q.z;
       const f = Math.exp(-(p.def.shape === 'orange' ? 0.7 : 4) * dt); p.vx *= f; p.vz *= f; p.rot += hyp(p.vx, p.vz) * dt * 8;
       const s = supportAt(p.x, p.z, p.y + 0.02); if (s.y < p.y - 0.03) { p.st = 'fall'; p.vy = 0; p.spin = 3; }
@@ -242,10 +242,11 @@ const MOVES = {
   trap: { press: 24, annoy: 10 }, sitOn: { press: 20, annoy: 9 }, boxCute: { cute: 3, soothe: 1.5 }
 };
 function unitedFront(h) { const p = partner(h); return p.awake && !p.hidden && p.guilt < 60 && p.planName !== 'shower' && p.planName !== 'fetch' && d2(h.x, h.z, p.x, p.z) < 5 && losClear(h.x, h.z, p.x, p.z); }
-function pressure(h, amt, type) {
+function pressure(h, amt, type, m) {
   if (!h.awake || amt <= 0) return;
-  const d = LESSON.demandFor(h, type); if (!d) return;
-  if (!h.demand || h.demand.id !== d.id) { const tr = (SAVE.get('train', {})[d.id] || [0, 0])[h.id] || 0; h.demand = { id: d.id, will: d.will * (1 - 0.45 * tr), max: d.will * (1 - 0.45 * tr), def: d }; }
+  const d = LESSON.demandFor(h, type, m); if (!d) return;
+  if (!h.demand || h.demand.id !== d.id) { const tr = (SAVE.get('train', {})[d.train || d.id] || [0, 0])[h.id] || 0; h.demand = { id: d.id, will: d.will * (1 - 0.45 * tr), max: d.will * (1 - 0.45 * tr), def: d }; }
+  h.demand.def = d;   // always the newest request: what they do when they give in must match what was just asked
   const uni = unitedFront(h);
   h.demand.will -= amt * (1 + h.guilt / 100) * h.pers.push * (uni ? 0.5 : 1) * (d.mult || 1); h.demandIdle = 0; h.lookCat = 3;
   if (h.demand.will <= 0) { const def = h.demand.def; h.demand = null; h.guilt = Math.max(0, h.guilt - 35); h.stats.caves++; pop('GAVE IN!', h.x, 2.0, h.z, 'good'); AU.ding(); def.comply(h); }
@@ -262,7 +263,7 @@ function applyStim(h, type, k, o) {
   }
   if (m.annoy) { h.patience -= m.annoy * k * h.pers.annoy * (1 - h.guilt / 250) * (night && type === 'zoom' ? 4 : 1); h.charm = 0; h.calmT = 0; }
   if (m.cute) { const dim = 1 / (1 + 0.4 * (h.charm || 0)); h.guilt = Math.min(100, h.guilt + m.cute * h.pers.cute * dim * k); h.patience = Math.min(100, h.patience + (m.soothe || 0) * dim * k); if (type !== 'purr' && type !== 'boxCute') h.charm = (h.charm || 0) + 1; h.lookCat = 3; }
-  if (m.press) pressure(h, m.press * k, type);
+  if (m.press) pressure(h, m.press * k, type, m);
   LESSON.onStim(h, type, m, k);
   if (h.patience <= 0) retaliate(h);
 }

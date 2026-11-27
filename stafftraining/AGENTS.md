@@ -61,6 +61,8 @@ Grade: 62 + 10 per extra credit + up to 4 for dignity + up to 4 for staff patien
   - The ink edge test is now a second difference of depth (`2*d0 - left - right`), which is zero on any flat surface however steeply it is viewed.
   - Procedural patterns (planks, tiles, rug and pyjama stripes, quilt) fade out by `fwidth` as they approach pixel size; hard `step()` patterns shimmer at a distance. The wall stripes were removed.
   - Two walls that meet at a corner must not share a coplanar face. The two-skin interior walls overlapped at the bedroom and bathroom corners and z-fought in flickering stripes; one wall now stops at the other and a thin cap hides the two-colour end.
+- Walls (found by the user): a jump is a scripted arc, so its landing point must be checked with `pathClear()` (walls, closed doors, the front door) before it starts. The first build picked furniture or a pounce point on the far side of a wall. Ordinary movement is sub-stepped in 6 cm pieces, because zoomies at 20 fps move 29 cm a frame and a wall is 12 cm thick.
+- Door requests are keyed per door (`door:bed`, `door:front`) and the demand's `def` is refreshed on every press. The first build kept the first door's `comply` closure, so pawing the front door after the bedroom door sent Marcus to the bedroom. `python test/shot.py walls` covers both.
 - `showBrief` must hide the report card. It did not, so NEXT LESSON seemed to do nothing, and repeated taps walked `G.li` past the last lesson and threw. `python test/shot.py next` taps through every lesson to the diploma.
 - Delayed lines use `later(sec, fn)` on game time, not `setTimeout`, so headless stepping stays deterministic.
 
@@ -71,6 +73,7 @@ python test/shot.py menu                 # menu screenshot
 python test/shot.py lessons 0 1 2 3 4 5  # a scripted bot plays each lesson to completion and prints objectives (run two or three at a time: they are slow)
 python test/shot.py fuzz                 # 130 s of random input per lesson; fails on NaN positions, prints the context actions it saw and any console errors
 python test/shot.py mobile               # 390x844, real loop, real taps and a real touch joystick drag; add `sandbox` to make the Gamepad API and localStorage throw
+python test/shot.py walls                # jumps, hops, edge drops and 20 fps zoomies against walls and closed doors; front-door request opens the front door
 python test/shot.py next                 # real taps: report card -> NEXT LESSON -> BEGIN for every lesson, in a locked-down frame
 python test/shot.py card                 # stages and renders the arcade card (test/out/stafftraining.webp, 800x560); the lobby copy is assets/arcade/stafftraining.webp
 python test/shot.py js "ST.start(2)" "ST.step(3)" "shot:name" "ST.state()"   # prefix with size:390x844 for a phone viewport

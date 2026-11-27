@@ -35,12 +35,16 @@ function catJump() {
     if (t.f && t.y > c.y + 0.12) {
       const b = t.f, mx = Math.min(0.14, (b.x1 - b.x0) / 2), mz = Math.min(0.14, (b.z1 - b.z0) / 2);
       const lx = clamp(px + fx * 0.16, b.x0 + mx, b.x1 - mx), lz = clamp(pz + fz * 0.16, b.z0 + mz, b.z1 - mz);
+      if (!pathClear(c.x, c.z, lx, lz)) break;   // that furniture is on the far side of a wall or a closed door
       const tt = topAt(lx, lz, c.y + CATK.jumpRise);
       startJump(lx, tt.y, lz, true); return true;
     }
   }
   // nothing to climb: pounce forward
-  const p = { x: c.x + fx * 0.9, z: c.z + fz * 0.9 }; const s = supportAt(p.x, p.z, c.y); collideCat(p, CATK.R, s.y);
+  let hop = 0.9; while (hop > 0.05 && !pathClear(c.x, c.z, c.x + fx * (hop + CATK.R), c.z + fz * (hop + CATK.R))) hop -= 0.15;   // shorten the pounce to stop short of a wall
+  hop = Math.max(0, hop);
+  const p = { x: c.x + fx * hop, z: c.z + fz * hop }; const s = supportAt(p.x, p.z, c.y); collideCat(p, CATK.R, s.y);
+  if (!pathClear(c.x, c.z, p.x, p.z)) { p.x = c.x; p.z = c.z; }
   startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); return true;
 }
 function catSit(kind, ref, x, z, y, h) {
@@ -71,7 +75,7 @@ function catUpdate(dt) {
     }
   } else if (c.mode === 'flee') {
     const f = c.flee; f.t -= dt; const a = angTo(c.x, c.z, f.x, f.z) + Math.PI; c.h = angAppr(c.h, a, 9 * dt);
-    const p = { x: c.x + Math.sin(c.h) * 5 * dt, z: c.z + Math.cos(c.h) * 5 * dt }; collideCat(p, CATK.R, c.y); c.x = p.x; c.z = p.z; c.speed = 5; c.gait += dt * 26;
+    const p = { x: c.x, z: c.z }; for (let i = 0, n = Math.max(1, Math.ceil(5 * dt / 0.06)); i < n; i++) { p.x += Math.sin(c.h) * 5 * dt / n; p.z += Math.cos(c.h) * 5 * dt / n; collideCat(p, CATK.R, c.y); } c.x = p.x; c.z = p.z; c.speed = 5; c.gait += dt * 26;
     const g = supportAt(c.x, c.z, c.y); if (c.y > g.y) { c.vy -= 12 * dt; c.y = Math.max(g.y, c.y + c.vy * dt); } else c.vy = 0;
     if (f.t <= 0) { c.mode = 'free'; c.flee = null; }
   } else if (c.mode === 'free') {
@@ -91,7 +95,9 @@ function catUpdate(dt) {
         if (thr > 0.5 || zoom) c.edgeT += dt; else c.edgeT = 0;
         if (c.edgeT > (zoom ? 0.05 : 0.32)) {
           c.edgeT = 0; const l = hyp(c.vx, c.vz) || 1, ux = c.vx / l, uz = c.vz / l; const p = { x: c.x + ux * 0.6, z: c.z + uz * 0.6 };
-          const gy = supportAt(p.x, p.z, c.y).y; collideCat(p, CATK.R, gy); const z2 = c.zoomT; startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); c.zoomT = z2; return;
+          const gy = supportAt(p.x, p.z, c.y).y; collideCat(p, CATK.R, gy);
+          if (pathClear(c.x, c.z, p.x, p.z)) { const z2 = c.zoomT; startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); c.zoomT = z2; return; }
+          nx = c.x; nz = c.z; c.vx = c.vz = 0;   // a wall is in the way: stay on the furniture
         }
         if (supportAt(nx, c.z, c.y).y >= c.y - 0.13) nz = c.z; else if (supportAt(c.x, nz, c.y).y >= c.y - 0.13) nx = c.x; else { nx = c.x; nz = c.z; }
         c.vx *= 0.5; c.vz *= 0.5;
@@ -99,7 +105,8 @@ function catUpdate(dt) {
     }
     const p = { x: nx, z: nz };
     if (c.y < 0.3) for (const h of HUM) if (!h.lying && !h.seat && !h.hidden) { const dx = p.x - h.x, dz = p.z - h.z, d = hyp(dx, dz); if (d < 0.27 && d > 1e-4) { p.x = h.x + dx / d * 0.27; p.z = h.z + dz / d * 0.27; } }
-    const bx = p.x, bz = p.z; collideCat(p, CATK.R, c.y);
+    const bx = p.x, bz = p.z;
+    { const mx = p.x - c.x, mz = p.z - c.z, n = Math.max(1, Math.ceil(hyp(mx, mz) / 0.06)), q = { x: c.x, z: c.z }; for (let i = 0; i < n; i++) { q.x += mx / n; q.z += mz / n; collideCat(q, CATK.R, c.y); } p.x = q.x; p.z = q.z; }
     if (zoom && d2(bx, bz, p.x, p.z) > 0.03 && hyp(c.vx, c.vz) > 3.5) { onCatBonk(); c.vx *= -0.3; c.vz *= -0.3; }
     c.x = p.x; c.z = p.z;
     const g = supportAt(c.x, c.z, c.y);

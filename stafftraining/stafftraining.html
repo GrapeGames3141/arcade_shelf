@@ -862,6 +862,13 @@ function losClear(ax, az, bx, bz) {
   for (const k in DOORS) { const d = DOORS[k]; if (d.open < 0.45 && segBox(ax, az, bx, bz, d.x0, d.x1, d.z - 0.06, d.z + 0.06)) return false; }
   return true;
 }
+// can the cat travel in a straight line from a to b? walls, closed doors and the front door block
+function pathClear(ax, az, bx, bz) {
+  const m = 0.05;
+  for (const w of WALLS) if (segBox(ax, az, bx, bz, w.x0 - m, w.x1 + m, w.z0 - m, w.z1 + m)) return false;
+  for (const k in DOORS) { const d = DOORS[k]; if (doorBlocks(d) && segBox(ax, az, bx, bz, d.x0, d.x1, d.z - 0.06 - m, d.z + 0.06 + m)) return false; }
+  return bx > APT.x0 && bx < APT.x1 && bz > APT.z0 && bz < APT.z1;
+}
 function roomOf(x, z) { if (x < -1.6 && z < -0.6) return 'bed'; if (x > 3.2 && z < -1.8) return 'bath'; return 'main'; }
 // 3D ray vs boxes for the chase camera: returns the nearest hit fraction (0..1)
 function camRay(ox, oy, oz, tx, ty, tz, skip) {
@@ -962,12 +969,16 @@ function catJump() {
     if (t.f && t.y > c.y + 0.12) {
       const b = t.f, mx = Math.min(0.14, (b.x1 - b.x0) / 2), mz = Math.min(0.14, (b.z1 - b.z0) / 2);
       const lx = clamp(px + fx * 0.16, b.x0 + mx, b.x1 - mx), lz = clamp(pz + fz * 0.16, b.z0 + mz, b.z1 - mz);
+      if (!pathClear(c.x, c.z, lx, lz)) break;   // that furniture is on the far side of a wall or a closed door
       const tt = topAt(lx, lz, c.y + CATK.jumpRise);
       startJump(lx, tt.y, lz, true); return true;
     }
   }
   // nothing to climb: pounce forward
-  const p = { x: c.x + fx * 0.9, z: c.z + fz * 0.9 }; const s = supportAt(p.x, p.z, c.y); collideCat(p, CATK.R, s.y);
+  let hop = 0.9; while (hop > 0.05 && !pathClear(c.x, c.z, c.x + fx * (hop + CATK.R), c.z + fz * (hop + CATK.R))) hop -= 0.15;   // shorten the pounce to stop short of a wall
+  hop = Math.max(0, hop);
+  const p = { x: c.x + fx * hop, z: c.z + fz * hop }; const s = supportAt(p.x, p.z, c.y); collideCat(p, CATK.R, s.y);
+  if (!pathClear(c.x, c.z, p.x, p.z)) { p.x = c.x; p.z = c.z; }
   startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); return true;
 }
 function catSit(kind, ref, x, z, y, h) {
@@ -998,7 +1009,7 @@ function catUpdate(dt) {
     }
   } else if (c.mode === 'flee') {
     const f = c.flee; f.t -= dt; const a = angTo(c.x, c.z, f.x, f.z) + Math.PI; c.h = angAppr(c.h, a, 9 * dt);
-    const p = { x: c.x + Math.sin(c.h) * 5 * dt, z: c.z + Math.cos(c.h) * 5 * dt }; collideCat(p, CATK.R, c.y); c.x = p.x; c.z = p.z; c.speed = 5; c.gait += dt * 26;
+    const p = { x: c.x, z: c.z }; for (let i = 0, n = Math.max(1, Math.ceil(5 * dt / 0.06)); i < n; i++) { p.x += Math.sin(c.h) * 5 * dt / n; p.z += Math.cos(c.h) * 5 * dt / n; collideCat(p, CATK.R, c.y); } c.x = p.x; c.z = p.z; c.speed = 5; c.gait += dt * 26;
     const g = supportAt(c.x, c.z, c.y); if (c.y > g.y) { c.vy -= 12 * dt; c.y = Math.max(g.y, c.y + c.vy * dt); } else c.vy = 0;
     if (f.t <= 0) { c.mode = 'free'; c.flee = null; }
   } else if (c.mode === 'free') {
@@ -1018,7 +1029,9 @@ function catUpdate(dt) {
         if (thr > 0.5 || zoom) c.edgeT += dt; else c.edgeT = 0;
         if (c.edgeT > (zoom ? 0.05 : 0.32)) {
           c.edgeT = 0; const l = hyp(c.vx, c.vz) || 1, ux = c.vx / l, uz = c.vz / l; const p = { x: c.x + ux * 0.6, z: c.z + uz * 0.6 };
-          const gy = supportAt(p.x, p.z, c.y).y; collideCat(p, CATK.R, gy); const z2 = c.zoomT; startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); c.zoomT = z2; return;
+          const gy = supportAt(p.x, p.z, c.y).y; collideCat(p, CATK.R, gy);
+          if (pathClear(c.x, c.z, p.x, p.z)) { const z2 = c.zoomT; startJump(p.x, supportAt(p.x, p.z, c.y).y, p.z, false); c.zoomT = z2; return; }
+          nx = c.x; nz = c.z; c.vx = c.vz = 0;   // a wall is in the way: stay on the furniture
         }
         if (supportAt(nx, c.z, c.y).y >= c.y - 0.13) nz = c.z; else if (supportAt(c.x, nz, c.y).y >= c.y - 0.13) nx = c.x; else { nx = c.x; nz = c.z; }
         c.vx *= 0.5; c.vz *= 0.5;
@@ -1026,7 +1039,8 @@ function catUpdate(dt) {
     }
     const p = { x: nx, z: nz };
     if (c.y < 0.3) for (const h of HUM) if (!h.lying && !h.seat && !h.hidden) { const dx = p.x - h.x, dz = p.z - h.z, d = hyp(dx, dz); if (d < 0.27 && d > 1e-4) { p.x = h.x + dx / d * 0.27; p.z = h.z + dz / d * 0.27; } }
-    const bx = p.x, bz = p.z; collideCat(p, CATK.R, c.y);
+    const bx = p.x, bz = p.z;
+    { const mx = p.x - c.x, mz = p.z - c.z, n = Math.max(1, Math.ceil(hyp(mx, mz) / 0.06)), q = { x: c.x, z: c.z }; for (let i = 0; i < n; i++) { q.x += mx / n; q.z += mz / n; collideCat(q, CATK.R, c.y); } p.x = q.x; p.z = q.z; }
     if (zoom && d2(bx, bz, p.x, p.z) > 0.03 && hyp(c.vx, c.vz) > 3.5) { onCatBonk(); c.vx *= -0.3; c.vz *= -0.3; }
     c.x = p.x; c.z = p.z;
     const g = supportAt(c.x, c.z, c.y);
@@ -1541,7 +1555,7 @@ function propsUpdate(dt) {
       const g = supportAt(p.x, p.z, p.y + 0.05).y;
       if (p.y <= g) { p.y = g; propLanded(p); }
     } else if (p.st === 'floor' && (Math.abs(p.vx) > 0.02 || Math.abs(p.vz) > 0.02)) {
-      const q = { x: p.x + p.vx * dt, z: p.z + p.vz * dt }, bx = q.x, bz = q.z; collideCat(q, 0.05, p.y);
+      const q = { x: p.x, z: p.z }; for (let i = 0, n = Math.max(1, Math.ceil(hyp(p.vx, p.vz) * dt / 0.05)); i < n; i++) { q.x += p.vx * dt / n; q.z += p.vz * dt / n; collideCat(q, 0.05, p.y); } const bx = p.x + p.vx * dt, bz = p.z + p.vz * dt;
       if (Math.abs(q.x - bx) > 1e-4) p.vx *= -0.5; if (Math.abs(q.z - bz) > 1e-4) p.vz *= -0.5; p.x = q.x; p.z = q.z;
       const f = Math.exp(-(p.def.shape === 'orange' ? 0.7 : 4) * dt); p.vx *= f; p.vz *= f; p.rot += hyp(p.vx, p.vz) * dt * 8;
       const s = supportAt(p.x, p.z, p.y + 0.02); if (s.y < p.y - 0.03) { p.st = 'fall'; p.vy = 0; p.spin = 3; }
@@ -1604,10 +1618,11 @@ const MOVES = {
   trap: { press: 24, annoy: 10 }, sitOn: { press: 20, annoy: 9 }, boxCute: { cute: 3, soothe: 1.5 }
 };
 function unitedFront(h) { const p = partner(h); return p.awake && !p.hidden && p.guilt < 60 && p.planName !== 'shower' && p.planName !== 'fetch' && d2(h.x, h.z, p.x, p.z) < 5 && losClear(h.x, h.z, p.x, p.z); }
-function pressure(h, amt, type) {
+function pressure(h, amt, type, m) {
   if (!h.awake || amt <= 0) return;
-  const d = LESSON.demandFor(h, type); if (!d) return;
-  if (!h.demand || h.demand.id !== d.id) { const tr = (SAVE.get('train', {})[d.id] || [0, 0])[h.id] || 0; h.demand = { id: d.id, will: d.will * (1 - 0.45 * tr), max: d.will * (1 - 0.45 * tr), def: d }; }
+  const d = LESSON.demandFor(h, type, m); if (!d) return;
+  if (!h.demand || h.demand.id !== d.id) { const tr = (SAVE.get('train', {})[d.train || d.id] || [0, 0])[h.id] || 0; h.demand = { id: d.id, will: d.will * (1 - 0.45 * tr), max: d.will * (1 - 0.45 * tr), def: d }; }
+  h.demand.def = d;   // always the newest request: what they do when they give in must match what was just asked
   const uni = unitedFront(h);
   h.demand.will -= amt * (1 + h.guilt / 100) * h.pers.push * (uni ? 0.5 : 1) * (d.mult || 1); h.demandIdle = 0; h.lookCat = 3;
   if (h.demand.will <= 0) { const def = h.demand.def; h.demand = null; h.guilt = Math.max(0, h.guilt - 35); h.stats.caves++; pop('GAVE IN!', h.x, 2.0, h.z, 'good'); AU.ding(); def.comply(h); }
@@ -1624,7 +1639,7 @@ function applyStim(h, type, k, o) {
   }
   if (m.annoy) { h.patience -= m.annoy * k * h.pers.annoy * (1 - h.guilt / 250) * (night && type === 'zoom' ? 4 : 1); h.charm = 0; h.calmT = 0; }
   if (m.cute) { const dim = 1 / (1 + 0.4 * (h.charm || 0)); h.guilt = Math.min(100, h.guilt + m.cute * h.pers.cute * dim * k); h.patience = Math.min(100, h.patience + (m.soothe || 0) * dim * k); if (type !== 'purr' && type !== 'boxCute') h.charm = (h.charm || 0) + 1; h.lookCat = 3; }
-  if (m.press) pressure(h, m.press * k, type);
+  if (m.press) pressure(h, m.press * k, type, m);
   LESSON.onStim(h, type, m, k);
   if (h.patience <= 0) retaliate(h);
 }
@@ -1833,7 +1848,7 @@ function genericDoorDemand(h, type, m) {
   if (type !== 'paw' && !type.startsWith('meow')) return null;
   const d = (m && m.door) || closedDoorNearCat(); if (!d || d.id === 'front') return null;
   if (!h.awake || h.pinned || h.pri >= 2 || HUM.some(o => o.planName === 'door')) return null;
-  return { id: 'door', will: h.id ? 70 : 55, comply: hh => planDoorOpen(hh, d) };
+  return { id: 'door:' + d.id, train: 'door', will: h.id ? 70 : 55, comply: hh => planDoorOpen(hh, d) };
 }
 function baseLesson(o) {
   return Object.assign({
@@ -2027,7 +2042,7 @@ const LESSONS = [
       if (inBath || h.pri >= 2) return null;
       if (d.id === 'bath' && partner(h).planName === 'shower') { sayCd(h, 'bathOther', 7); return null; }
       const o = partner(h); if (S.last === h && o.awake && !o.pinned && o.planName !== 'shower' && o.pri < 2) { if (sayCd(h, 'yourDoor', 7)) narr('MANUAL: Staff take turns at door duty. Keep complaining and the other one will come.', 'turns'); return null; }
-      return { id: 'door', will: (h.id ? 78 : 60) * Math.pow(0.85, S.reps[h.id]), comply: hh => this.planDoor(hh, d, false) };
+      return { id: 'door:' + d.id, train: 'door', will: (h.id ? 78 : 60) * Math.pow(0.85, S.reps[h.id]), comply: hh => this.planDoor(hh, d, false) };
     },
     planDoor(h, d, bath) {
       const S = this.S, [x, z] = d.id === 'front' ? [d.inX, d.inZ] : doorSide(h, d);

@@ -1,5 +1,5 @@
 """Headless checks for Staff Training (Python Playwright + SwiftShader).
-usage: python test/shot.py js "<expr>" "shot:name" ...   |  python test/shot.py menu | mobile [sandbox] | next | lessons [n..] | fuzz [n..] | card
+usage: python test/shot.py js "<expr>" "shot:name" ...   |  python test/shot.py menu | mobile [sandbox] | next | lessons [n..] | fuzz [n..] | card | walls
 Serves the game folder itself; screenshots go to test/out/.
 """
 import sys, os, json, threading, http.server, socketserver, functools
@@ -202,5 +202,30 @@ with sync_playwright() as p:
         from PIL import Image
         im = Image.open(png).convert('RGB').resize((800, 560), Image.LANCZOS); dst = os.path.join(OUT, 'stafftraining.webp'); im.save(dst, 'WEBP', quality=90, method=6)
         print('card', dst, os.path.getsize(dst), 'bytes; copy it to assets/arcade/stafftraining.webp'); errs(logs)
+
+    elif scen == 'walls':
+        # nothing the cat does may cross a wall or a closed door; and a door request must open the door that was asked for
+        pg, logs = page_for(b, 640, 360); ev = pg.evaluate; ev('ST.setQuality(0)'); ok = True
+        def check(name, cond):
+            global_ok = bool(cond); print(('PASS ' if global_ok else 'FAIL ') + name); return global_ok
+        ev('ST.start(0)')
+        r = ev("(() => { ST.tp(4.05, -1.35, Math.PI); for (let i = 0; i < 4; i++) { ST.press('jump'); ST.step(0.8); } return [ST.CAT.x, ST.CAT.z]; })()"); ok &= check(f'jump at closed bathroom door stays outside {r}', r[1] > -1.8)
+        r = ev("(() => { ST.tp(-1.2, -2.6, -Math.PI / 2); for (let i = 0; i < 4; i++) { ST.press('jump'); ST.step(0.8); } return [ST.CAT.x, ST.CAT.z, ST.CAT.y]; })()"); ok &= check(f'jump at bedroom wall (dresser behind it) stays in kitchen {r}', r[0] > -1.54)
+        r = ev("(() => { ST.tp(2.9, 4.0, 0); for (let i = 0; i < 4; i++) { ST.press('jump'); ST.step(0.8); } return [ST.CAT.x, ST.CAT.z]; })()"); ok &= check(f'jump at front door stays inside {r}', r[1] < 4.5)
+        r = ev("(() => { ST.tp(-1.95, -2.5, Math.PI / 2, 0.95); ST.input({ thr: 1, steer: 0 }); ST.step(2.5); ST.input(null); return [ST.CAT.x, ST.CAT.z, ST.CAT.y]; })()"); ok &= check(f'walking off the dresser toward the wall stays in the bedroom {r}', r[0] < -1.66)
+        r = ev("(() => { ST.tp(-0.2, -1.3, -Math.PI / 2); ST.input({ thr: 1, steer: 0 }); ST.press('zoom'); for (let i = 0; i < 50; i++) stepSim(0.05); ST.input(null); return [ST.CAT.x, ST.CAT.z]; })()"); ok &= check(f'zoomies at 20 fps into a wall do not tunnel {r}', r[0] > -1.54)
+        r = ev("(() => { ST.tp(-4.0, 0.3, Math.PI); ST.input({ thr: 1, steer: 0 }); ST.press('zoom'); for (let i = 0; i < 50; i++) stepSim(0.05); ST.input(null); return [ST.CAT.x, ST.CAT.z]; })()"); ok &= check(f'zoomies into the bedroom wall from the living room {r}', r[1] > -0.54)
+        r = ev("(() => { ST.tp(-4.0, 0.6, Math.PI); for (let i = 0; i < 3; i++) { ST.press('jump'); ST.step(0.9); } return [ST.CAT.x, ST.CAT.z, ST.CAT.y]; })()"); ok &= check(f'jumping from the living room does not reach the bedroom {r}', r[1] > -0.54)
+        r = ev("(() => { ST.tp(0.3, -1.4, Math.PI); ST.press('jump'); ST.step(1.2); return ST.CAT.y; })()"); ok &= check(f'normal jump onto the island still works y={r}', abs(r - 0.92) < 0.01)
+        r = ev("(() => { ST.tp(-0.6, -3.3, Math.PI); ST.press('jump'); ST.step(1.2); return ST.CAT.y; })()"); ok &= check(f'normal jump onto the counter (against a wall) still works y={r}', abs(r - 0.92) < 0.01)
+        ev('ST.start(3)')
+        r = ev("""(() => { ST.tp(-2.5, -0.15, Math.PI); ST.step(0.3); ST.press('mis'); ST.step(0.9); ST.press('mis'); ST.step(0.9);
+          const before = ST.HUM.map(h => h.demand && h.demand.id);
+          ST.tp(2.9, 4.0, 0); ST.step(0.3); const ctx = ST.state().mis;
+          for (let i = 0; i < 60 && !ST.HUM.some(h => h.planName === 'door'); i++) { ST.press('mis'); ST.step(0.8); }
+          for (let i = 0; i < 40 && ST.DOORS.front.tgt !== 1 && ST.DOORS.bed.tgt !== 1; i++) ST.step(0.5);
+          return { before, ctx, front: ST.DOORS.front.tgt, bed: ST.DOORS.bed.tgt, who: ST.HUM.filter(h => h.planName === 'door').map(h => h.name) }; })()""")
+        ok &= check(f'pawing the front door after the bedroom door opens the FRONT door {r}', r['front'] == 1 and r['bed'] == 0)
+        errs(logs); print('ALL PASS' if ok else 'SOME FAILED')
     b.close()
 srv.shutdown()
