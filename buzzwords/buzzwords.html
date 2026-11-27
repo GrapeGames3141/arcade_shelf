@@ -414,13 +414,36 @@ const clipKey = t => { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { 
 let VOICE_DATA = null;
 function voiceData() { if (!VOICE_DATA) { try { VOICE_DATA = JSON.parse(document.getElementById('voice-clips').textContent); } catch (e) { VOICE_DATA = {}; } } return VOICE_DATA; }
 const CLIP_CACHE = new Map();
-let VG = null, VSRCS = [], voiceToken = 0;
+let VG = null, VSRCS = [], VELS = [], voiceToken = 0;
 window.VOICE_LOG = [];
+// Safari (iPhone and iPad) refuses bare MP3 frames, and the recordings are stored
+// without a header, so put an empty ID3 tag in front of each one before playing it.
+function clipBytes(key) {
+  const b64 = voiceData()[key]; if (!b64) return null;
+  const bin = atob(b64), id3 = bin.charCodeAt(0) === 0x49 && bin.charCodeAt(1) === 0x44 && bin.charCodeAt(2) === 0x33, pre = id3 ? 0 : 10;
+  const bytes = new Uint8Array(bin.length + pre);
+  if (pre) bytes.set([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0]);
+  for (let i = 0; i < bin.length; i++) bytes[pre + i] = bin.charCodeAt(i);
+  return bytes;
+}
+// Second way to play a recording, for a phone whose Web Audio will not decode or start it.
+const CLIP_URLS = new Map();
+function playClipElement(key, onend, onfail) {
+  let done = false; const fin = ok => { if (done) return; done = true; clearTimeout(timer); ok ? onend() : onfail(); };
+  let timer = setTimeout(() => fin(false), 8000);
+  try {
+    if (!CLIP_URLS.has(key)) CLIP_URLS.set(key, URL.createObjectURL(new Blob([clipBytes(key)], { type: 'audio/mpeg' })));
+    const a = new Audio(CLIP_URLS.get(key)); VELS.push(a);
+    a.onended = () => { VELS = VELS.filter(x => x !== a); fin(true); };
+    a.onerror = () => fin(false);
+    a.onplaying = () => { clearTimeout(timer); timer = setTimeout(() => fin(true), Math.max(4000, (a.duration || 3) * 1000 + 3000)); $('say').classList.add('talk'); $('voiceHelp').hidden = true; speechHeard = true; };
+    const pr = a.play(); if (pr && pr.catch) pr.catch(() => fin(false));
+  } catch (e) { fin(false); }
+}
 function clipBuffer(key) {
   if (CLIP_CACHE.has(key)) return CLIP_CACHE.get(key);
-  const b64 = voiceData()[key]; if (!b64) return Promise.reject(new Error('missing'));
-  const bin = atob(b64), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  const pr = new Promise((res, rej) => AC.decodeAudioData(bytes.buffer, res, rej));
+  const bytes = clipBytes(key); if (!bytes) return Promise.reject(new Error('missing'));
+  const pr = new Promise((res, rej) => { try { const r = AC.decodeAudioData(bytes.buffer.slice(0), res, rej); if (r && r.catch) r.catch(rej); } catch (e) { rej(e); } });
   CLIP_CACHE.set(key, pr); pr.catch(() => CLIP_CACHE.delete(key));
   return pr;
 }
@@ -434,6 +457,7 @@ function preload(lines) { if (!AC || TEST) return; for (const l of lines) for (c
 function stopVoice() {
   voiceToken++;
   for (const s of VSRCS) { s.onended = null; try { s.stop(); } catch (e) {} } VSRCS = [];
+  for (const a of VELS) { a.onended = a.onerror = a.onplaying = null; try { a.pause(); } catch (e) {} } VELS = [];
   if (SPEECH) try { SPEECH.cancel(); } catch (e) {}
   $('say').classList.remove('talk');
 }
@@ -459,13 +483,15 @@ function speak(line, { onend } = {}) {
     // Device mode still uses recorded phonemes and letter names; device speech
     // is only used for ordinary words and sentences.
     const isWord = /^[a-z]+$/.test(t) && (WORDS.some(level => level.some(entry => entry[0] === t)) || ALPHABET.some(entry => entry[2] === t));
-    const recorded = AC && !TEST && voiceData()[key] && (S.set.engine !== 'browser' || !SPEECH || token || isWord);
+    const recorded = !TEST && voiceData()[key] && (S.set.engine !== 'browser' || !SPEECH || token || isWord);
     const advance = () => { if (tok === voiceToken) setTimeout(() => next(i + 1), token ? (S.set.rate ? 150 : 300) : 100); };
     const playRecording = (fallback) => {
-      if (!AC || TEST || !voiceData()[key]) { fallback(); return; }
+      if (TEST || !voiceData()[key]) { fallback(); return; }
+      const viaElement = () => { if (tok === voiceToken) playClipElement(key, advance, () => { if (tok === voiceToken) fallback(); }); };
+      if (!AC) { viaElement(); return; }
       let settled = false;
-      const fail = () => { if (settled) return; settled = true; clearTimeout(timer); if (tok === voiceToken) fallback(); };
-      let timer = setTimeout(fail, 10000);
+      const fail = () => { if (settled) return; settled = true; clearTimeout(timer); viaElement(); };
+      let timer = setTimeout(fail, 4000);
       Promise.resolve(AC.state === 'running' ? null : AC.resume()).then(() => clipBuffer(key)).then(buf => {
         if (settled || tok !== voiceToken) { clearTimeout(timer); return; }
         clearTimeout(timer); timer = setTimeout(fail, Math.max(10000, buf.duration * 1000 + 5000));
