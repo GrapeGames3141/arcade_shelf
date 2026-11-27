@@ -39,7 +39,7 @@ Test API: `window.ST`. Headless harness: `python test/shot.py menu | js ... | le
 | # | id | core | resolve values |
 |---|---|---|---|
 | 1 | `breakfast` | wake a sleeper (taps, stare, meow), then pressure until they feed you; eat | feed: Marcus 75, Dana 100, already fed 170 |
-| 2 | `second` | get fed by both before they compare notes; a full bowl is evidence | feed: 95 / 125, knows you ate 210 |
+| 2 | `second` | get fed by both before they compare notes (within 2 m); a full bowl seen within 2.2 m is evidence | feed: 82 / 98, knows you ate 150 (eased 2026-11-26 after the user found it a tad hard; the lesson also runs 214 s, was 180) |
 | 3 | `laptop` | sit on the laptop, get removed, repeat until Marcus gives up; claim a lap for 8 s | laptop 230, lap 85 |
 | 4 | `doors` | paw or meow at a closed door, then do not go through: one rep; staff take turns; 3 reps props a door | 60 / 78 x 0.85^reps, occupied bathroom 50 |
 | 5 | `fetch` | knock sturdy things down, staff put them back; an item is put away after its 2nd fetch | none (fetch is a reaction) |

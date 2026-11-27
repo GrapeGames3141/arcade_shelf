@@ -75,7 +75,7 @@ const LESSONS = [
   }),
   // ===== 2 =====
   baseLesson({
-    id: 'second', title: 'SECOND BREAKFAST', start: 420, end: 510, rate: 0.5, train: 'feed',
+    id: 'second', title: 'SECOND BREAKFAST', start: 420, end: 510, rate: 0.42, train: 'feed',
     rule: 'Each staff member can be led to believe you have never eaten in your life. The one rule: they must not compare notes.',
     tips: ['Beg from one while the other is in another room. Meow at them. Stare. Be thin.', 'Empty the bowl before the next one sees it. A full bowl is evidence.', 'When they stand close together they talk, and what one knows the other learns.', 'A staff member who knows you have eaten can still be worked on. Charm first. Guilt is a lever.'],
     failText: 'One breakfast. ONE. Like a dog.', winText: 'Two breakfasts, two staff, zero suspicion until it was far too late.',
@@ -88,14 +88,14 @@ const LESSONS = [
       this.extra = [{ id: 'm3', text: 'A third breakfast' }, { id: 'quiet', text: 'They never compare notes in time' }, { id: 'calm', text: 'Nobody loses their patience' }];
       this.R = [[
         h => ['routine', [stepSpot('coffee'), stepPose('cook', 9)]],
-        h => ['routine', [stepDo(() => { h.carry = 'mug'; }), stepSeat('chair', 'type'), stepDo(() => { h.carry = null; }), stepWait(42, 'type')]],
+        h => ['routine', [stepDo(() => { h.carry = 'mug'; }), stepSeat('chair', 'type'), stepDo(() => { h.carry = null; }), stepWait(52, 'type')]],
         h => ['routine', [stepSpot('sink'), stepPose('reach', 7)]],
         h => ['routine', [stepSeat('sofaM', 'phone'), stepDo(() => { h.carry = 'phone'; }), stepWait(38, 'phone'), stepDo(() => { h.carry = null; })]]
       ], [
         h => ['shower', [stepSeat('shower', 'shower'), stepWait(22, 'shower')]],
         h => ['routine', [stepSpot('vanity'), stepPose('reach', 5)]],
         h => ['routine', [stepGo(-2.65, -2.3, { face: Math.PI / 2 }), stepPose('reachHi', 6), stepDo(() => { h.outfit = 'day'; }), stepPose('reach', 2)]],
-        h => ['routine', [stepSpot('coffee'), stepPose('cook', 11)]],
+        h => ['routine', [stepSpot('coffee'), stepDo(() => { if (!h.knowsFed) narr('MANUAL: The other one is in the kitchen now, and has no idea you have eaten. Go.', 'danaKitchen', 5); }), stepPose('cook', 18)]],
         h => ['routine', [stepSeat('sofaD', 'phone'), stepDo(() => { h.carry = 'phone'; }), stepWait(36, 'phone'), stepDo(() => { h.carry = null; })]],
         h => ['routine', [stepSpot('sink'), stepPose('reach', 7)]]
       ]];
@@ -107,15 +107,15 @@ const LESSONS = [
       const dg = genericDoorDemand(h, type, m); if (dg) return dg;
       if (!h.awake || ['feed', 'talk', 'shower', 'carry', 'spray', 'door', 'fetch'].includes(h.planName)) return null;
       if (BOWL.food > 0) { sayCd(h, 'bowlFull', 6); return null; }
-      if (h.knowsFed) { sayCd(h, 'refuseFed', 7); narr('MANUAL: This one knows. Charm them until the guilt sets in, then ask again.', 'knows'); return { id: 'feed2', will: 210, comply: hh => planFeed(hh, 'caveFed') }; }
-      return { id: 'feed', will: h.id ? 125 : 95, comply: hh => planFeed(hh, 'caveFeedDay') };
+      if (h.knowsFed) { sayCd(h, 'refuseFed', 7); narr('MANUAL: This one knows. Charm them until the guilt sets in, then ask again.', 'knows'); return { id: 'feed2', will: 150, comply: hh => planFeed(hh, 'caveFed') }; }
+      return { id: 'feed', will: h.id ? 98 : 82, comply: hh => planFeed(hh, 'caveFeedDay') };
     },
     update(dt) {
       const S = this.S, a = HUM[0], b = HUM[1];
-      for (const h of HUM) if (BOWL.food > 0 && !h.knowsFed && h.awake && h.planName !== 'feed' && d2(h.x, h.z, BOWL.x, BOWL.z) < 3.0 && losClear(h.x, h.z, BOWL.x, BOWL.z)) { h.knowsFed = true; humanSay(h, 'Oh. Somebody already fed you.'); narr('MANUAL: They saw the full bowl. Evidence. Eat faster next time.', 'evidence'); }
+      for (const h of HUM) if (BOWL.food > 0 && !h.knowsFed && h.awake && h.planName !== 'feed' && d2(h.x, h.z, BOWL.x, BOWL.z) < 2.2 && losClear(h.x, h.z, BOWL.x, BOWL.z)) { h.knowsFed = true; humanSay(h, 'Oh. Somebody already fed you.'); narr('MANUAL: They saw the full bowl. Evidence. Eat faster next time.', 'evidence'); }
       S.talkCd -= dt;
       const free = h => h.awake && !h.hidden && h.pri < 2 && !['talk', 'shower', 'feed'].includes(h.planName);
-      if (S.talkCd <= 0 && free(a) && free(b) && d2(a.x, a.z, b.x, b.z) < 2.3 && losClear(a.x, a.z, b.x, b.z)) {
+      if (S.talkCd <= 0 && free(a) && free(b) && d2(a.x, a.z, b.x, b.z) < 2.0 && losClear(a.x, a.z, b.x, b.z)) {
         if (a.knowsFed !== b.knowsFed) { const ask = a.knowsFed ? b : a, kn = partner(ask); planTalk(ask, kn, 'notes1', 'notes2', 'notes3', () => { ask.knowsFed = true; }); S.compared = true; S.talkCd = 14; narr('MANUAL: They compared notes. Now they both know.', 'notes'); }
         else if (a.fedCount > 0 && b.fedCount > 0 && !S.played) { S.played = true; S.talkCd = 14; planTalk(a, b, 'played', 'played', null, () => { a.patience -= 12; b.patience -= 12; }); }
       }
