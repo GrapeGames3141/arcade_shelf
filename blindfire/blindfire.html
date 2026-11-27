@@ -979,7 +979,8 @@ function glRender(dt) {
   const W = Math.floor(V.w * V.dpr), H = Math.floor(V.h * V.dpr); if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   const me = ME(), th = MAP.th, view = RADAR.view[me.lv.radar];
   // chase camera: behind and above, looking down the road
-  GL.hd += (((me.hd - GL.hd + Math.PI) % TAU + TAU) % TAU - Math.PI) * Math.min(1, dt * 3.5);
+  // stays squarely behind the launcher: a slow follow used to trail ~25° while turning, so you saw it from the back corner
+  GL.hd += (((me.hd - GL.hd + Math.PI) % TAU + TAU) % TAU - Math.PI) * Math.min(1, dt * 16);
   const cs = Math.cos(GL.hd), sn = Math.sin(GL.hd), my = heightAt(me.x, me.y);
   const sh = G.shake > 0 ? G.shake * 0.6 : 0;
   const ex = me.x - cs * 30, ez = me.y - sn * 30; let ey = my + 15;
