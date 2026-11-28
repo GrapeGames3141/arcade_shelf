@@ -586,13 +586,21 @@ function drawPuzzle(ctx, idx, W, H) {
 let AC = null;
 function audio() { if (AC) { if (AC.state !== 'running') AC.resume(); return; } if (TEST) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
 function tone(f, d, type = 'sine', v = .18, delay = 0, f2 = f) { if (!AC || !S.sound) return; const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f2, t + d); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .01); g.gain.exponentialRampToValueAtTime(.0005, t + d); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + d + .02); }
+// Cute noises only, no voice: squeaks, boops, pops and a little chirpy tune.
+function squeak(f, d, delay = 0, v = .14) { tone(f, d * .5, 'sine', v, delay, f * 1.5); tone(f * 1.5, d * .5, 'sine', v * .8, delay + d * .45, f * 1.15); }
 const sfx = {
-  pick: () => tone(520, .08, 'triangle', .12, 0, 700),
-  drop: () => tone(300, .08, 'triangle', .08, 0, 240),
-  snap: () => { tone(660, .09, 'sine', .2); tone(990, .14, 'sine', .14, .06); },
-  win: () => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, .22, 'triangle', .16, i * .12)),
+  tap: () => tone(880, .06, 'sine', .1, 0, 1320),
+  pick: () => squeak(700 + Math.random() * 160, .12, 0, .11),
+  drop: () => tone(420, .12, 'sine', .12, 0, 260),
+  // each piece pops a little higher than the last, ending with a sparkle
+  snap: n => { const f = 520 * Math.pow(2, Math.min(n, 24) / 24); tone(f * 1.6, .07, 'sine', .2, 0, f * .5); tone(f, .1, 'triangle', .16, .05, f * 1.02); tone(f * 2, .16, 'sine', .07, .11, f * 2.02); },
+  win: () => {
+    [1, 1.25, 1.5].forEach((m, i) => squeak(900 * m, .14, i * .13, .12));
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, .26, 'triangle', .15, .5 + i * .11));
+    tone(1047, .5, 'triangle', .12, .96); tone(1319, .5, 'sine', .09, .96); tone(1568, .6, 'sine', .07, .96);
+    for (let i = 0; i < 6; i++) tone(2093 + i * 260, .12, 'sine', .05, 1.15 + i * .07);
+  },
 };
-function say(text) { if (!S.sound || TEST || !window.speechSynthesis) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = .95; u.pitch = 1.15; speechSynthesis.speak(u); } catch (e) {} }
 
 // ---------------------------------------------------------------------------
 // Screens
@@ -611,7 +619,7 @@ function buildGallery() {
   PUZ.forEach((p, i) => {
     const b = document.createElement('button'); b.className = 'card'; b.dataset.i = i;
     b.innerHTML = `<canvas width="240" height="180"></canvas><span class="num">${i + 1}</span>${S.done[i] !== undefined ? `<span class="stars">${stars(i)}</span>` : ''}<span class="nm">${p.title}</span>`;
-    b.onclick = () => { audio(); startPuzzle(i); };
+    b.onclick = () => { audio(); sfx.tap(); startPuzzle(i); };
     g.appendChild(b);
     const cv = b.querySelector('canvas'); cv.dataset.i = i;
     if (thumbObs) thumbObs.observe(cv); else paintThumb(cv);
@@ -753,7 +761,7 @@ cv.addEventListener('pointerup', release); cv.addEventListener('pointercancel', 
 
 function placePiece(p) {
   p.placed = true; const hx = G.board.x + p.cx * G.cw, hy = G.board.y + p.cy * G.ch;
-  p.anim = { x0: p.x, y0: p.y, t: 0 }; sfx.snap();
+  p.anim = { x0: p.x, y0: p.y, t: 0 }; sfx.snap(G.pieces.filter(q => q.placed).length);
   // placed pieces sit under the loose ones
   G.order.splice(G.order.indexOf(p), 1); G.order.unshift(p);
   sparkle(hx + G.cw / 2, hy + G.ch / 2, 10);
@@ -765,7 +773,7 @@ function updateCount() { if (!G) return; const n = G.pieces.filter(p => p.placed
 function win() {
   if (!G || G.done) return; G.done = true;
   const prev = S.done[G.i]; S.done[G.i] = Math.max(prev === undefined ? -1 : prev, S.diff); save();
-  sfx.win(); say(`You did it! ${PUZ[G.i].title}!`);
+  sfx.win();
   for (let k = 0; k < 140; k++) G.confetti.push({ x: VW / 2 + (Math.random() - .5) * VW * .6, y: -20 - Math.random() * VH * .5, vx: (Math.random() - .5) * 120, vy: 80 + Math.random() * 160, r: Math.random() * TAU, vr: (Math.random() - .5) * 8, c: ['#ff6fa5', '#ffd84a', '#6cc4ff', '#4fd1a5', '#9a7bff'][k % 5], s: 5 + Math.random() * 5 });
   G.winT = 0;
   setTimeout(() => { if (G && G.done) { $('winName').textContent = PUZ[G.i].title + ' ' + '⭐'.repeat(S.diff + 1); $('win').hidden = false; } }, 700);
@@ -811,17 +819,16 @@ function draw() {
 // ---------------------------------------------------------------------------
 // Buttons
 // ---------------------------------------------------------------------------
-$('bPlay').onclick = () => { audio(); buildGallery(); show('sGal'); };
+$('bPlay').onclick = () => { audio(); sfx.tap(); buildGallery(); show('sGal'); };
 $('bGalBack').onclick = () => { show('sTitle'); heroDraw(); };
-$('bBack').onclick = () => { G = null; speechCancel(); buildGallery(); show('sGal'); };
+$('bBack').onclick = () => { sfx.tap(); G = null; buildGallery(); show('sGal'); };
 $('bPick').onclick = () => { G = null; buildGallery(); show('sGal'); };
 $('bNextPz').onclick = () => { const i = G ? G.i : 0; let n = (i + 1) % 100; for (let k = 0; k < 100; k++) { const j = (i + 1 + k) % 100; if (S.done[j] === undefined) { n = j; break; } } startPuzzle(n); };
 $('bSurprise').onclick = () => { audio(); const left = PUZ.map((_, i) => i).filter(i => S.done[i] === undefined); const pool = left.length ? left : PUZ.map((_, i) => i); startPuzzle(pool[(Math.random() * pool.length) | 0]); };
-$('bPeek').onclick = () => { if (G) { G.peek = 1.6; dirty = true; } };
+$('bPeek').onclick = () => { audio(); if (G) { sfx.pick(); G.peek = 1.6; dirty = true; } };
 function syncToggles() { $('bHint').classList.toggle('on', S.hint); $('bSound').textContent = S.sound ? '🔊' : '🔇'; }
 $('bHint').onclick = () => { S.hint = !S.hint; save(); syncToggles(); dirty = true; };
-$('bSound').onclick = () => { S.sound = !S.sound; save(); syncToggles(); if (!S.sound) speechCancel(); };
-function speechCancel() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} }
+$('bSound').onclick = () => { audio(); S.sound = !S.sound; save(); syncToggles(); sfx.tap(); };
 addEventListener('resize', () => { if (G && !$('sPlay').hidden) layout(false); if (!$('sTitle').hidden) heroDraw(); });
 syncToggles();
 heroDraw();
