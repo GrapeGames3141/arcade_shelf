@@ -57,6 +57,7 @@ Each game’s editable entry point is named after its folder: `<game>/<game>.htm
 | Deep Rail | `deeprail/deeprail.html` | `http://127.0.0.1:8000/deeprail/deeprail.html` |
 | Tranq Safari | `tranqsafari/tranqsafari.html` | `http://127.0.0.1:8000/tranqsafari/tranqsafari.html` |
 | Salvage Run | `salvagerun/salvagerun.html` | `http://127.0.0.1:8000/salvagerun/salvagerun.html` |
+| Critter Puzzles | `critterpuzzles/critterpuzzles.html` | `http://127.0.0.1:8000/critterpuzzles/critterpuzzles.html` |
 
 `splatcraft/snapshots/splatcraft-early.html` is a historical snapshot, not a playable entry point.
 
